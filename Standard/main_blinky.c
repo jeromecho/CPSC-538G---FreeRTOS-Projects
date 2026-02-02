@@ -192,3 +192,7 @@ const unsigned long ulExpectedValue = 100UL;
 }
 /*-----------------------------------------------------------*/
 
+void vApplicationTickHook(void) {
+  setSchedulable();
+  updatePriorities();
+}
