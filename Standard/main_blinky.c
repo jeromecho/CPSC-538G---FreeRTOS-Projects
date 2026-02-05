@@ -70,21 +70,27 @@
 #include <stdio.h>
 #include "hardware/gpio.h"
 
+// EDF Scheduler includes
+#include "edf_scheduler.h"
+
+// Other includes
+#include "main_blinky.h"
+
 /* Priorities at which the tasks are created. */
-#define mainQUEUE_RECEIVE_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define	mainQUEUE_SEND_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#define mainQUEUE_RECEIVE_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
+#define mainQUEUE_SEND_TASK_PRIORITY    (tskIDLE_PRIORITY + 1)
 
 /* The rate at which data is sent to the queue.  The 200ms value is converted
 to ticks using the portTICK_PERIOD_MS constant. */
-#define mainQUEUE_SEND_FREQUENCY_MS			( 200 / portTICK_PERIOD_MS )
+#define mainQUEUE_SEND_FREQUENCY_MS (200 / portTICK_PERIOD_MS)
 
 /* The number of items the queue can hold.  This is 1 as the receive task
 will remove items as they are added, meaning the send task should always find
 the queue empty. */
-#define mainQUEUE_LENGTH					( 1 )
+#define mainQUEUE_LENGTH (1)
 
 /* The LED toggled by the Rx task. */
-#define mainTASK_LED						( PICO_DEFAULT_LED_PIN )
+#define mainTASK_LED (PICO_DEFAULT_LED_PIN)
 
 /*-----------------------------------------------------------*/
 
@@ -92,13 +98,13 @@ the queue empty. */
  * Called by main when mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is set to 1 in
  * main.c.
  */
-void main_blinky( void );
+void main_blinky(void);
 
 /*
  * The tasks as described in the comments at the top of this file.
  */
-static void prvQueueReceiveTask( void *pvParameters );
-static void prvQueueSendTask( void *pvParameters );
+static void prvQueueReceiveTask(void *pvParameters);
+static void prvQueueSendTask(void *pvParameters);
 
 /*-----------------------------------------------------------*/
 
@@ -107,90 +113,103 @@ static QueueHandle_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
 
-void main_blinky( void )
-{
-    printf(" Starting main_blinky.\n");
+void main_blinky(void) {
+  printf(" Starting main_blinky.\n");
 
-    /* Create the queue. */
-	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
+  // Periodic Task 1: Period = 6 ticks, Completion Time = 2 ticks
+  xTaskCreatePeriodic(
+    vPeriodicTask,            // Task function
+    "Periodic Task 1",        // Task name
+    configMINIMAL_STACK_SIZE, // Stack depth
+    (void *)2,                // Completion time
+    6,                        // Period
+    NULL                      // Task handle
+  );
 
-	if( xQueue != NULL )
-	{
-		/* Start the two tasks as described in the comments at the top of this
-		file. */
-		xTaskCreate( prvQueueReceiveTask,				/* The function that implements the task. */
-					"Rx", 								/* The text name assigned to the task - for debug only as it is not used by the kernel. */
-					configMINIMAL_STACK_SIZE, 			/* The size of the stack to allocate to the task. */
-					NULL, 								/* The parameter passed to the task - not used in this case. */
-					mainQUEUE_RECEIVE_TASK_PRIORITY, 	/* The priority assigned to the task. */
-					NULL );								/* The task handle is not required, so NULL is passed. */
+  // Periodic Task 2: Period = 8 ticks, Completion Time = 2 ticks
+  xTaskCreatePeriodic(
+    vPeriodicTask,            // Task function
+    "Periodic Task 2",        // Task name
+    configMINIMAL_STACK_SIZE, // Stack depth
+    (void *)2,                // Completion time
+    8,                        // Period
+    NULL                      // Task handle
+  );
 
-		xTaskCreate( prvQueueSendTask, "TX", configMINIMAL_STACK_SIZE, NULL, mainQUEUE_SEND_TASK_PRIORITY, NULL );
+  // // Periodic Task 3: Period = 9 ticks, Completion Time = 3 ticks
+  // xTaskCreatePeriodic(
+  //   vPeriodicTask,            // Task function
+  //   "Periodic Task 3",        // Task name
+  //   configMINIMAL_STACK_SIZE, // Stack depth
+  //   (void *)3,                // Completion time
+  //   9,                        // Period
+  //   NULL                      // Task handle
+  // );
 
-		/* Start the tasks and timer running. */
-		vTaskStartScheduler();
-	}
+  /* Start the tasks and timer running. */
+  vTaskStartScheduler();
 
-	/* If all is well, the scheduler will now be running, and the following
-	line will never be reached.  If the following line does execute, then
-	there was insufficient FreeRTOS heap memory available for the Idle and/or
-	timer tasks to be created.  See the memory management section on the
-	FreeRTOS web site for more details on the FreeRTOS heap
-	http://www.freertos.org/a00111.html. */
-	for( ;; );
+  /* If all is well, the scheduler will now be running, and the following
+  line will never be reached.  If the following line does execute, then
+  there was insufficient FreeRTOS heap memory available for the Idle and/or
+  timer tasks to be created.  See the memory management section on the
+  FreeRTOS web site for more details on the FreeRTOS heap
+  http://www.freertos.org/a00111.html. */
+  for (;;)
+    ;
+}
+/*-----------------------------------------------------------*/
+static void vPeriodicTask(void *pvParameters) {
+  // TODO: Replace with macro, so that the scheduler can be responsible for marking tasks as done
+  // and suspending them, instead of the tasks themselves.
+  // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
+  // once they are finished executing.
+  const xCompletionTime   = (BaseType_t)pvParameters;
+  TickType_t previousTick = xTaskGetTickCount();
+
+  BaseType_t xTimeSlicesExecutedThusFar = 0;
+
+  for (;;) {
+    TickType_t currentTick = xTaskGetTickCount();
+    if currentTick
+      != previousTick {
+        previousTick = currentTick;
+        xTimeSlicesExecutedThusFar++;
+      }
+    if (xTimeSlicesExecutedThusFar == xCompletionTime) {
+      xTimeSlicesExecutedThusFar = 0;
+      taskDone(xTaskGetCurrentTaskHandle());
+      vTaskSuspend(NULL);
+    }
+  }
 }
 /*-----------------------------------------------------------*/
 
-static void prvQueueSendTask( void *pvParameters )
-{
-TickType_t xNextWakeTime;
-const unsigned long ulValueToSend = 100UL;
+// void traceENTER_vTaskSuspend(void) {
+void traceTASK_SWITCHED_OUT(void) {
+  // A task's GPIO pin needs to be set low when it is suspended
+  // Should we use pxCurrentTCB here instead?
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
 
-	/* Remove compiler warning about unused parameter. */
-	( void ) pvParameters;
-
-	/* Initialise xNextWakeTime - this only needs to be done once. */
-	xNextWakeTime = xTaskGetTickCount();
-
-	for( ;; )
-	{
-		/* Place this task in the blocked state until it is time to run again. */
-		vTaskDelayUntil( &xNextWakeTime, mainQUEUE_SEND_FREQUENCY_MS );
-
-		/* Send to the queue - causing the queue receive task to unblock and
-		toggle the LED.  0 is used as the block time so the sending operation
-		will not block - it shouldn't need to block as the queue should always
-		be empty at this point in the code. */
-		xQueueSend( xQueue, &ulValueToSend, 0U );
-	}
+  // TODO: This is a bit hacky, but it works for demonstration purposes.  A more robust solution
+  // would be to have the scheduler set the GPIO pin for a task when it changes the task's state.
+  if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_1, 0);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_2, 0);
+  }
 }
-/*-----------------------------------------------------------*/
 
-static void prvQueueReceiveTask( void *pvParameters )
-{
-unsigned long ulReceivedValue;
-const unsigned long ulExpectedValue = 100UL;
-
-	/* Remove compiler warning about unused parameter. */
-	( void ) pvParameters;
-
-	for( ;; )
-	{
-		/* Wait until something arrives in the queue - this task will block
-		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
-		FreeRTOSConfig.h. */
-		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-
-		/*  To get here something must have been received from the queue, but
-		is it the expected value?  If it is, toggle the LED. */
-		if( ulReceivedValue == ulExpectedValue )
-		{
-			gpio_xor_mask( 1u << mainTASK_LED );
-			ulReceivedValue = 0U;
-		}
-	}
+// void traceENTER_vTaskResume(void) {
+void traceTASK_SWITCHED_IN(void) {
+  // A task's GPIO pin needs to be set high when it is resumed
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_1, 1);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_2, 1);
+  }
 }
-/*-----------------------------------------------------------*/
 
 void vApplicationTickHook(void) {
   setSchedulable();
