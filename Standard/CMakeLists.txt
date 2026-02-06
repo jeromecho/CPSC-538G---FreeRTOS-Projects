@@ -74,6 +74,7 @@ pico_add_extra_outputs(main_full)
 add_executable(main_blinky
         main.c
         main_blinky.c
+        edf_scheduler.c
         )
 
 target_compile_definitions(main_blinky PRIVATE
