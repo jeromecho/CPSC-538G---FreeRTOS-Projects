@@ -2,22 +2,23 @@
  * FreeRTOS V202212.00
  * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  *
  * https://www.FreeRTOS.org
  * https://github.com/FreeRTOS
@@ -63,18 +64,30 @@
 
 /* Kernel includes. */
 #include "FreeRTOS.h"
-#include "task.h"
 #include "semphr.h"
+#include "task.h"
 
 /* Library includes. */
-#include <stdio.h>
 #include "hardware/gpio.h"
+#include <stdio.h>
 
 // EDF Scheduler includes
 #include "edf_scheduler.h"
 
+// Test runner includes
+#include "testing/test_runner.h"
+#include "testing/tests.h"
+
 // Other includes
 #include "main_blinky.h"
+
+// MAKE supplied macro for selecting test to run
+#ifndef SELECTED_TEST
+#error "SELECTED_TEST not defined"
+#endif
+
+_Static_assert(SELECTED_TEST >= 0, "Invalid EDF test index");
+_Static_assert(SELECTED_TEST < test_count, "Invalid EDF test index");
 
 /* Priorities at which the tasks are created. */
 #define mainQUEUE_RECEIVE_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
@@ -113,39 +126,17 @@ static QueueHandle_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
 
+/*
+TESTING STRATEGY:
+1. Define generic test specification that lets you create tests
+2. Use this generic test specification to run simple tests (verify that
+your specification works)
+3. Automate testing using
+
+*/
+
 void main_blinky(void) {
-  printf(" Starting main_blinky.\n");
-
-  // Periodic Task 1: Period = 6 ticks, Completion Time = 2 ticks
-  xTaskCreatePeriodic(
-    vPeriodicTask,            // Task function
-    "Periodic Task 1",        // Task name
-    configMINIMAL_STACK_SIZE, // Stack depth
-    (void *)2,                // Completion time
-    6,                        // Period
-    NULL                      // Task handle
-  );
-
-  // Periodic Task 2: Period = 8 ticks, Completion Time = 2 ticks
-  xTaskCreatePeriodic(
-    vPeriodicTask,            // Task function
-    "Periodic Task 2",        // Task name
-    configMINIMAL_STACK_SIZE, // Stack depth
-    (void *)2,                // Completion time
-    8,                        // Period
-    NULL                      // Task handle
-  );
-
-  // // Periodic Task 3: Period = 9 ticks, Completion Time = 3 ticks
-  // xTaskCreatePeriodic(
-  //   vPeriodicTask,            // Task function
-  //   "Periodic Task 3",        // Task name
-  //   configMINIMAL_STACK_SIZE, // Stack depth
-  //   (void *)3,                // Completion time
-  //   9,                        // Period
-  //   NULL                      // Task handle
-  // );
-
+  createTasksFromTestSpec(&tests[SELECTED_TEST]);
   /* Start the tasks and timer running. */
   vTaskStartScheduler();
 
@@ -158,32 +149,6 @@ void main_blinky(void) {
   for (;;)
     ;
 }
-/*-----------------------------------------------------------*/
-static void vPeriodicTask(void *pvParameters) {
-  // TODO: Replace with macro, so that the scheduler can be responsible for marking tasks as done
-  // and suspending them, instead of the tasks themselves.
-  // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
-  // once they are finished executing.
-  const xCompletionTime   = (BaseType_t)pvParameters;
-  TickType_t previousTick = xTaskGetTickCount();
-
-  BaseType_t xTimeSlicesExecutedThusFar = 0;
-
-  for (;;) {
-    TickType_t currentTick = xTaskGetTickCount();
-    if currentTick
-      != previousTick {
-        previousTick = currentTick;
-        xTimeSlicesExecutedThusFar++;
-      }
-    if (xTimeSlicesExecutedThusFar == xCompletionTime) {
-      xTimeSlicesExecutedThusFar = 0;
-      taskDone(xTaskGetCurrentTaskHandle());
-      vTaskSuspend(NULL);
-    }
-  }
-}
-/*-----------------------------------------------------------*/
 
 // void traceENTER_vTaskSuspend(void) {
 void traceTASK_SWITCHED_OUT(void) {
@@ -191,8 +156,11 @@ void traceTASK_SWITCHED_OUT(void) {
   // Should we use pxCurrentTCB here instead?
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
 
-  // TODO: This is a bit hacky, but it works for demonstration purposes.  A more robust solution
-  // would be to have the scheduler set the GPIO pin for a task when it changes the task's state.
+  // TODO: This is a bit hacky, but it works for demonstration purposes.  A more
+  // robust solution would be to have the scheduler set the GPIO pin for a task
+  // when it changes the task's state.
+
+  // TODO: generalize the logic here so it works based off the test spec
   if (current_task == periodic_tasks[0].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_1, 0);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
@@ -203,6 +171,7 @@ void traceTASK_SWITCHED_OUT(void) {
 // void traceENTER_vTaskResume(void) {
 void traceTASK_SWITCHED_IN(void) {
   // A task's GPIO pin needs to be set high when it is resumed
+  // TODO: generalize the logic here so it works based off the test spec
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   if (current_task == periodic_tasks[0].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_1, 1);

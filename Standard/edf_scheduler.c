@@ -6,47 +6,55 @@ void setSchedulable() {
     TMB_Periodic_t *task = &periodic_tasks[i];
     if (task->is_done) {
       TickType_t current_tick = xTaskGetTickCount();
-      // TODO: This should be "if the last *period* has passed", not just the last deadline.
-      // If the last deadline has passed, set a new deadline
+      // TODO: This should be "if the last *period* has passed", not just the
+      // last deadline. If the last deadline has passed, set a new deadline
       if (current_tick >= task->last_deadline) {
         task->tmb.absolute_deadline = task->last_deadline + task->period;
-        task->last_deadline         = task->tmb.absolute_deadline;
-        task->is_done               = false;
-        vTaskResume(task->tmb.handle); // Shouldn't matter wether the task is already running
+        task->last_deadline = task->tmb.absolute_deadline;
+        task->is_done = false;
+        vTaskResume(
+            task->tmb
+                .handle); // Shouldn't matter wether the task is already running
       }
     }
   }
 }
 
-/// @brief Iterates through tasks and set the highest priority to the task with the nearest deadline
+/**
+ @brief Iterates through tasks and set the highest priority to the task with
+ the nearest deadline
+ */
 void setHighestPriority() {
-  // Iterate through all periodic tasks and find the one with the nearest deadline
+  // Iterate through all periodic tasks and find the one with the nearest
+  // deadline
   TaskHandle_t earliest_deadline_periodic_task = NULL;
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *periodic_task = &periodic_tasks[i];
     if (!periodic_task->is_done) {
       if (earliest_deadline_periodic_task == NULL ||
           periodic_task->tmb.absolute_deadline <
-            periodic_tasks[i].tmb.absolute_deadline) {
+              periodic_tasks[i].tmb.absolute_deadline) {
         earliest_deadline_periodic_task = periodic_task->tmb.handle;
       }
     }
   }
 
-  // Iterate through all aperiodic tasks and find the one with the nearest deadline
+  // Iterate through all aperiodic tasks and find the one with the nearest
+  // deadline
   TaskHandle_t earliest_deadline_aperiodic_task = NULL;
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
     TMB_Aperiodic_t *aperiodic_task = &aperiodic_tasks[i];
     if (earliest_deadline_aperiodic_task == NULL ||
         aperiodic_task->tmb.absolute_deadline <
-          aperiodic_tasks[i].tmb.absolute_deadline) {
+            aperiodic_tasks[i].tmb.absolute_deadline) {
       earliest_deadline_aperiodic_task = aperiodic_task->tmb.handle;
     }
   }
 
   // Determine which of the two tasks has the earliest deadline
   TaskHandle_t earliest_task = NULL;
-  if (earliest_deadline_periodic_task == NULL || earliest_deadline_aperiodic_task == NULL) {
+  if (earliest_deadline_periodic_task == NULL ||
+      earliest_deadline_aperiodic_task == NULL) {
     if (earliest_deadline_periodic_task != NULL) {
       earliest_task = earliest_deadline_periodic_task;
     } else if (earliest_deadline_aperiodic_task != NULL) {
@@ -56,15 +64,18 @@ void setHighestPriority() {
       earliest_task = NULL;
     }
   } else {
-    TickType_t periodic_deadline  = earliest_deadline_periodic_task->tmb.absolute_deadline;
-    TickType_t aperiodic_deadline = earliest_deadline_aperiodic_task->tmb.absolute_deadline;
-    earliest_task                 = (periodic_deadline < aperiodic_deadline)
-                                      ? earliest_deadline_periodic_task
-                                      : earliest_deadline_aperiodic_task;
+    TickType_t periodic_deadline =
+        earliest_deadline_periodic_task->tmb.absolute_deadline;
+    TickType_t aperiodic_deadline =
+        earliest_deadline_aperiodic_task->tmb.absolute_deadline;
+    earliest_task = (periodic_deadline < aperiodic_deadline)
+                        ? earliest_deadline_periodic_task
+                        : earliest_deadline_aperiodic_task;
   }
 
   if (earliest_task != NULL) {
-    // Set the priority of the task with the nearest deadline to the highest priority
+    // Set the priority of the task with the nearest deadline to the highest
+    // priority
     vTaskPrioritySet(earliest_task, PRIORITY_NOT_DONE_RUNNING);
   }
 }
@@ -123,62 +134,46 @@ void taskDone(TaskHandle_t task_handle) {
   // }
 }
 
-BaseType_t xTaskCreatePeriodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TickType_t                   xPeriod,
-  TaskHandle_t *const          pxCreatedTask
-) {
+BaseType_t xTaskCreatePeriodic(TaskFunction_t pxTaskCode,
+                               const char *const pcName,
+                               const configSTACK_DEPTH_TYPE uxStackDepth,
+                               void *const pvParameters, TickType_t xPeriod,
+                               TaskHandle_t *const pxCreatedTask) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
-  BaseType_t result = xTaskCreate(
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    pvParameters,
-    2,
-    pxCreatedTask
-  );
+  BaseType_t result = xTaskCreate(pxTaskCode, pcName, uxStackDepth,
+                                  pvParameters, 2, pxCreatedTask);
 
   if (result == pdPASS) {
-    TMB_Periodic_t *new_task        = &periodic_tasks[periodic_task_count++];
-    new_task->tmb.handle            = *pxCreatedTask;
-    new_task->period                = xPeriod;
-    new_task->last_deadline         = xTaskGetTickCount() + xPeriod;
+    TMB_Periodic_t *new_task = &periodic_tasks[periodic_task_count++];
+    new_task->tmb.handle = *pxCreatedTask;
+    new_task->period = xPeriod;
+    new_task->last_deadline = xTaskGetTickCount() + xPeriod;
     new_task->tmb.absolute_deadline = new_task->last_deadline;
-    new_task->is_done               = false;
+    new_task->is_done = false;
   }
 
   return result;
 }
 
-BaseType_t xTaskCreateAperiodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TaskHandle_t *const          pxCreatedTask
-) {
+BaseType_t xTaskCreateAperiodic(TaskFunction_t pxTaskCode,
+                                const char *const pcName,
+                                const configSTACK_DEPTH_TYPE uxStackDepth,
+                                void *const pvParameters,
+                                TaskHandle_t *const pxCreatedTask) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
-  BaseType_t result = xTaskCreate(
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    pvParameters,
-    PRIORITY_NOT_DONE_NOT_RUNNING,
-    pxCreatedTask
-  );
+  BaseType_t result =
+      xTaskCreate(pxTaskCode, pcName, uxStackDepth, pvParameters,
+                  PRIORITY_NOT_DONE_NOT_RUNNING, pxCreatedTask);
 
   if (result == pdPASS) {
     TMB_Aperiodic_t *new_task = &aperiodic_tasks[aperiodic_task_count++];
-    new_task->tmb.handle      = *pxCreatedTask;
+    new_task->tmb.handle = *pxCreatedTask;
   }
 
   return result;

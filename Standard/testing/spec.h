@@ -1,4 +1,6 @@
 
+#include "<stdint.h>"
+
 enum Task_Type { PERIODIC, APERIODIC, N_TYPES };
 
 typedef struct TaskSpec {
@@ -9,7 +11,7 @@ typedef struct TaskSpec {
   TickType_t release_time; // TODO - perhaps our model should support release times at variable time
                            // Logic of "releasing" a task only at or after its release time
                            // is likely going to be offloaded to the `tick interrupt hook` functions
-  uint       gpio_pin;
+  uint       gpio_pin; // TODO - nice to have: map tasks to GPIO pins as defined by specification
   enum Task_Type task_type;
 } TaskSpec_t;
 
