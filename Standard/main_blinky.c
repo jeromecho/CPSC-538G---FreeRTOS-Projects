@@ -103,8 +103,8 @@ void main_blinky(void);
 /*
  * The tasks as described in the comments at the top of this file.
  */
-static void prvQueueReceiveTask(void *pvParameters);
-static void prvQueueSendTask(void *pvParameters);
+static void vPeriodicTask(void *pvParameters);
+static void vMainLEDBlinkTask(void *pvParameters);
 
 /*-----------------------------------------------------------*/
 
@@ -116,35 +116,38 @@ static QueueHandle_t xQueue = NULL;
 void main_blinky(void) {
   printf(" Starting main_blinky.\n");
 
+  gpio_put(mainTASK_LED, 1);
+  gpio_put(mainGPIO_LED_TASK_1, 0);
+  gpio_put(mainGPIO_LED_TASK_2, 0);
+
   // Periodic Task 1: Period = 6 ticks, Completion Time = 2 ticks
   xTaskCreatePeriodic(
-    vPeriodicTask,            // Task function
-    "Periodic Task 1",        // Task name
-    configMINIMAL_STACK_SIZE, // Stack depth
-    (void *)2,                // Completion time
-    6,                        // Period
-    NULL                      // Task handle
+    vPeriodicTask,              // Task function
+    "Periodic Task 1",          // Task name
+    configMINIMAL_STACK_SIZE,   // Stack depth
+    (void *)pdMS_TO_TICKS(200), // Completion time
+    pdMS_TO_TICKS(600),         // Period
+    NULL                        // Task handle
   );
 
   // Periodic Task 2: Period = 8 ticks, Completion Time = 2 ticks
   xTaskCreatePeriodic(
-    vPeriodicTask,            // Task function
-    "Periodic Task 2",        // Task name
-    configMINIMAL_STACK_SIZE, // Stack depth
-    (void *)2,                // Completion time
-    8,                        // Period
-    NULL                      // Task handle
+    vPeriodicTask,              // Task function
+    "Periodic Task 2",          // Task name
+    configMINIMAL_STACK_SIZE,   // Stack depth
+    (void *)pdMS_TO_TICKS(100), // Completion time
+    pdMS_TO_TICKS(200),         // Period
+    NULL                        // Task handle
   );
 
-  // // Periodic Task 3: Period = 9 ticks, Completion Time = 3 ticks
-  // xTaskCreatePeriodic(
-  //   vPeriodicTask,            // Task function
-  //   "Periodic Task 3",        // Task name
-  //   configMINIMAL_STACK_SIZE, // Stack depth
-  //   (void *)3,                // Completion time
-  //   9,                        // Period
-  //   NULL                      // Task handle
-  // );
+  // xTaskCreate(
+  //   vMainLEDBlinkTask, /* The function that implements the task. */
+  //   "MainBlink", /* The text name assigned to the task - for debug only as it is not used by the
+  //                   kernel. */
+  //   configMINIMAL_STACK_SIZE,        /* The size of the stack to allocate to the task. */
+  //   NULL,                            /* The parameter passed to the task - not used in this case.
+  //   */ mainQUEUE_RECEIVE_TASK_PRIORITY, /* The priority assigned to the task. */ NULL
+  // );                                 /* The task handle is not required, so NULL is passed. */
 
   /* Start the tasks and timer running. */
   vTaskStartScheduler();
@@ -164,50 +167,79 @@ static void vPeriodicTask(void *pvParameters) {
   // and suspending them, instead of the tasks themselves.
   // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
   // once they are finished executing.
-  const xCompletionTime   = (BaseType_t)pvParameters;
+  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
   TickType_t previousTick = xTaskGetTickCount();
 
   BaseType_t xTimeSlicesExecutedThusFar = 0;
 
   for (;;) {
     TickType_t currentTick = xTaskGetTickCount();
-    if currentTick
-      != previousTick {
-        previousTick = currentTick;
-        xTimeSlicesExecutedThusFar++;
-      }
+    if (currentTick != previousTick) {
+      previousTick = currentTick;
+      xTimeSlicesExecutedThusFar++;
+    }
     if (xTimeSlicesExecutedThusFar == xCompletionTime) {
       xTimeSlicesExecutedThusFar = 0;
       taskDone(xTaskGetCurrentTaskHandle());
       vTaskSuspend(NULL);
     }
+    // vTaskDelay(pdMS_TO_TICKS(200));
+  }
+}
+
+static void vMainLEDBlinkTask(void *pvParameters) {
+  const TickType_t xDelay250ms = pdMS_TO_TICKS(250UL);
+
+  /* Remove compiler warning about unused parameter. */
+  (void)pvParameters;
+
+  for (;;) {
+    /* Toggle the LED each time data is received. */
+    gpio_xor_mask(1 << mainTASK_LED);
+
+    /* Wait for the next cycle. */
+    vTaskDelay(xDelay250ms);
   }
 }
 /*-----------------------------------------------------------*/
 
 // void traceENTER_vTaskSuspend(void) {
-void traceTASK_SWITCHED_OUT(void) {
+void task_switched_out(void) {
   // A task's GPIO pin needs to be set low when it is suspended
   // Should we use pxCurrentTCB here instead?
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  if (current_task == idle_task) {
+    gpio_put(mainGPIO_LED_TASK_3, 1);
+    return;
+  }
 
   // TODO: This is a bit hacky, but it works for demonstration purposes.  A more robust solution
   // would be to have the scheduler set the GPIO pin for a task when it changes the task's state.
   if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 0);
+    gpio_put(mainGPIO_LED_TASK_1, 1);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 0);
+    gpio_put(mainGPIO_LED_TASK_2, 1);
   }
 }
 
 // void traceENTER_vTaskResume(void) {
-void traceTASK_SWITCHED_IN(void) {
-  // A task's GPIO pin needs to be set high when it is resumed
+void task_switched_in(void) {
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  if (current_task == idle_task) {
+    gpio_put(mainGPIO_LED_TASK_3, 0);
+    return;
+  }
+
+  // A task's GPIO pin needs to be set high when it is resumed
+  // TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 1);
+    gpio_put(mainGPIO_LED_TASK_1, 0);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 1);
+    gpio_put(mainGPIO_LED_TASK_2, 0);
   }
 }
 

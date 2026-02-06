@@ -4,10 +4,9 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#define PRIORITY_NOT_DONE_RUNNING     3
-#define PRIORITY_NOT_DONE_NOT_RUNNING 2
-#define PRIORITY_IDLE                 1
-#define PRIORITY_DONE                 0
+#define PRIORITY_NOT_DONE_RUNNING     (tskIDLE_PRIORITY + 2)
+#define PRIORITY_NOT_DONE_NOT_RUNNING (tskIDLE_PRIORITY + 1)
+#define PRIORITY_IDLE                 (tskIDLE_PRIORITY)
 
 typedef struct TMB_t {
   TickType_t   absolute_deadline;
@@ -48,13 +47,13 @@ BaseType_t xTaskCreateAperiodic(
   TaskHandle_t *const          pxCreatedTask
 );
 
-const size_t MAXIMUM_PERIODIC_TASKS  = 5;
-const size_t MAXIMUM_APERIODIC_TASKS = 5;
+#define MAXIMUM_PERIODIC_TASKS  5
+#define MAXIMUM_APERIODIC_TASKS 5
 
-static TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
-static size_t         periodic_task_count = 0;
+extern TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
+extern size_t         periodic_task_count;
 
-static TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
-static size_t          aperiodic_task_count = 0;
+extern TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
+extern size_t          aperiodic_task_count;
 
 #endif // EDF_SCHEDULER_H
