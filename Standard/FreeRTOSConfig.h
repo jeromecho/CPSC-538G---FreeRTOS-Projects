@@ -74,8 +74,8 @@
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          2
-#define configUSE_MALLOC_FAILED_HOOK            1
+#define configCHECK_FOR_STACK_OVERFLOW          0
+#define configUSE_MALLOC_FAILED_HOOK            0
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
@@ -133,6 +133,13 @@ to exclude the API function. */
 #define INCLUDE_xQueueGetMutexHolder            1
 
 /* A header file that defines trace macro can be included here. */
+
+
+// CUSTOM PART
+extern void task_switched_in();
+extern void task_switched_out();
+#define traceTASK_SWITCHED_IN()  task_switched_in()
+#define traceTASK_SWITCHED_OUT() task_switched_out()
 
 #endif /* FREERTOS_CONFIG_H */
 

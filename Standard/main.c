@@ -85,10 +85,6 @@ extern void main_full( void );
 
 /* Prototypes for the standard FreeRTOS callback/hook functions implemented
 within this file. */
-// void vApplicationMallocFailedHook( void );
-// void vApplicationIdleHook( void );
-// void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName );
-// void vApplicationTickHook( void );
 
 /*-----------------------------------------------------------*/
 
@@ -152,9 +148,9 @@ static void prvSetupHardware( void )
     gpio_set_dir(mainGPIO_LED_TASK_2, GPIO_OUT);
     gpio_put(mainGPIO_LED_TASK_2, 0);
 
-    // gpio_init(mainGPIO_LED_TASK_3);
-    // gpio_set_dir(mainGPIO_LED_TASK_3, GPIO_OUT);
-    // gpio_put(mainGPIO_LED_TASK_3, 0);
+    gpio_init(mainGPIO_LED_TASK_3);
+    gpio_set_dir(mainGPIO_LED_TASK_3, GPIO_OUT);
+    gpio_put(mainGPIO_LED_TASK_3, 0);
 }
 /*-----------------------------------------------------------*/
 
@@ -171,17 +167,16 @@ static void prvSetupHardware( void )
 // }
 // /*-----------------------------------------------------------*/
 
-// void vApplicationStackOverflowHook( TaskHandle_t pxTask, char *pcTaskName )
-// {
-//     ( void ) pcTaskName;
-//     ( void ) pxTask;
+// void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) {
+//   (void)pcTaskName;
+//   (void)pxTask;
 
-//     /* Run time stack overflow checking is performed if
-//     configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
-//     function is called if a stack overflow is detected. */
+//   /* Run time stack overflow checking is performed if
+//   configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.  This hook
+//   function is called if a stack overflow is detected. */
 
-//     /* Force an assert. */
-//     configASSERT( ( volatile void * ) NULL );
+//   /* Force an assert. */
+//   configASSERT((volatile void *)NULL);
 // }
 // /*-----------------------------------------------------------*/
 
