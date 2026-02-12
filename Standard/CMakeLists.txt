@@ -76,6 +76,9 @@ add_executable(main_blinky
         main_blinky.c
         edf_scheduler.c
         )
+    
+pico_enable_stdio_uart(main_blinky 1)
+pico_enable_stdio_usb(main_blinky 0)
 
 target_compile_definitions(main_blinky PRIVATE
         mainCREATE_SIMPLE_BLINKY_DEMO_ONLY=1

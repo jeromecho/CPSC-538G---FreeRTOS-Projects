@@ -151,6 +151,10 @@ static void prvSetupHardware( void )
     gpio_init(mainGPIO_LED_TASK_3);
     gpio_set_dir(mainGPIO_LED_TASK_3, GPIO_OUT);
     gpio_put(mainGPIO_LED_TASK_3, 0);
+
+    gpio_init(mainGPIO_LED_TASK_4);
+    gpio_set_dir(mainGPIO_LED_TASK_4, GPIO_OUT);
+    gpio_put(mainGPIO_LED_TASK_4, 0);
 }
 /*-----------------------------------------------------------*/
 
