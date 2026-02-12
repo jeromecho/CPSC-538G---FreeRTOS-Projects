@@ -29,24 +29,24 @@ void setSchedulable() {
 /// @brief Iterates through tasks and set the highest priority to the task with the nearest deadline
 void setHighestPriority() {
   // Iterate through all periodic tasks and find the one with the nearest deadline
-  TMB_Periodic_t *edf_periodic_task = NULL;
+  TaskHandle_t earliest_deadline_periodic_task = NULL;
   for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_Periodic_t *periodic_task = &periodic_tasks[i];
     if (!periodic_task->is_done) {
-      if (edf_periodic_task == NULL ||
-          periodic_task->tmb.absolute_deadline < periodic_tasks[i].tmb.absolute_deadline) {
-        edf_periodic_task = periodic_task;
+      if (earliest_deadline_periodic_task == NULL ||
+          earliest_deadline_periodic_Task.tmb.absolute_deadline <
+              periodic_tasks[i].tmb.absolute_deadline) {
+        earliest_deadline_periodic_task = periodic_tasks[i].tmb.handle;
       }
     }
   }
 
-  // Iterate through all aperiodic tasks and find the one with the nearest deadline
-  TMB_Aperiodic_t *edf_aperiodic_task = NULL;
+  // Iterate through all aperiodic tasks and find the one with the nearest
+  // deadline
+  TaskHandle_t earliest_deadline_aperiodic_task = NULL;
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    TMB_Aperiodic_t *aperiodic_task = &aperiodic_tasks[i];
-    if (edf_aperiodic_task == NULL ||
-        aperiodic_task->tmb.absolute_deadline < aperiodic_tasks[i].tmb.absolute_deadline) {
-      edf_aperiodic_task = aperiodic_task;
+    if (earliest_deadline_aperiodic_task == NULL ||
+            aperiodic_tasks[i].tmb.absolute_deadline < earliest_deadline_aperiodic_task.absolute_deadline) {
+      earliest_deadline_aperiodic_task = aperiodic_tasks[i].tmb.handle;
     }
   }
 
