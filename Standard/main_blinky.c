@@ -292,23 +292,9 @@ void task_switched_in(void) {
   // }
 }
 
-// void dumpTMBPeriodic() {
-//   if (xTaskGetTickCount() % 25 == 0) {
-//     printf("Dumping TMB:\n");
-//     for (size_t i = 0; i < periodic_task_count; ++i) {
-//       TMB_Periodic_t *task = &periodic_tasks[i];
-//       printf(
-//         "Periodic Task %zu: Deadline = %lu, Last Deadline = %lu, Period = %lu, Is Done = %d\n",
-//         i + 1, task->tmb.absolute_deadline, task->last_deadline, task->period, task->is_done
-//       );
-//     }
-//   }
-// }
-
 void vApplicationTickHook(void) {
   // gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
-  printf("%d\n", xTaskGetTickCount());
-  // dumpTMBPeriodic();
+
   setSchedulable();
   updatePriorities();
 }
