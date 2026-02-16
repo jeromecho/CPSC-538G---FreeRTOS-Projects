@@ -8,7 +8,13 @@ size_t         periodic_task_count = 0;
 TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t          aperiodic_task_count = 0;
 
+bool recalculate_priorities = false;
+
 void setSchedulable() {
+  if (!recalculate_priorities) {
+    return;
+  }
+
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
@@ -111,6 +117,8 @@ void taskDone(TaskHandle_t task_handle) {
     TMB_Periodic_t *task = &periodic_tasks[i];
     if (task->tmb.handle == task_handle) {
       task->is_done = true;
+
+      recalculate_priorities = true;
       // gpio_put(mainGPIO_LED_TASK_1, 1);
       return;
     }
@@ -150,6 +158,8 @@ BaseType_t xTaskCreatePeriodic(
     new_task->tmb.absolute_deadline = new_task->last_deadline;
     new_task->is_done               = false;
 
+    recalculate_priorities = true;
+
     if (pxCreatedTask != NULL) {
       *pxCreatedTask = task_handle;
     }
@@ -188,13 +198,20 @@ BaseType_t xTaskCreateAperiodic(
   if (result == pdPASS) {
     TMB_Aperiodic_t *new_task = &aperiodic_tasks[aperiodic_task_count++];
     new_task->tmb.handle      = *pxCreatedTask;
+
+    recalculate_priorities = true;
   }
 
   return result;
 }
 
 void updatePriorities() {
+  if (!recalculate_priorities) {
+    return;
+  }
+
   deprioritizeAllTasks();
   resumeAllTasks();
   setHighestPriority();
+  recalculate_priorities = false;
 }
