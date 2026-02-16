@@ -104,6 +104,8 @@ void resumeAllTasks() {
 }
 
 void taskDone(TaskHandle_t task_handle) {
+  taskENTER_CRITICAL();
+
   // Mark the task as done
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
@@ -113,6 +115,8 @@ void taskDone(TaskHandle_t task_handle) {
       return;
     }
   }
+
+  taskEXIT_CRITICAL();
 
   // for (size_t i = 0; i < aperiodic_task_count; ++i) {
   //   TMB_Aperiodic_t *task = &aperiodic_tasks[i];
