@@ -120,7 +120,7 @@ void taskDone(TaskHandle_t task_handle) {
 
       recalculate_priorities = true;
       // gpio_put(mainGPIO_LED_TASK_1, 1);
-      return;
+      break;
     }
   }
 
