@@ -207,22 +207,22 @@ static void vMainLEDBlinkTask(void *pvParameters) {
 
 // void traceENTER_vTaskSuspend(void) {
 void task_switched_out(void) {
-  // A task's GPIO pin needs to be set low when it is suspended
-  // Should we use pxCurrentTCB here instead?
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
 
+  // Can this ever happen?
+  if (current_task == NULL) {
+    return;
+  }
+
   // if (current_task == idle_task) {
   //   gpio_put(mainGPIO_LED_TASK_3, 1);
-  //   return;
-  // }
-
-  // // TODO: This is a bit hacky, but it works for demonstration purposes.  A more robust solution
-  // // would be to have the scheduler set the GPIO pin for a task when it changes the task's state.
-  // if (current_task == periodic_tasks[0].tmb.handle) {
+  // } else if (current_task == periodic_tasks[0].tmb.handle) {
   //   gpio_put(mainGPIO_LED_TASK_1, 1);
   // } else if (current_task == periodic_tasks[1].tmb.handle) {
   //   gpio_put(mainGPIO_LED_TASK_2, 1);
+  // } else {
+  //   gpio_put(mainGPIO_LED_TASK_4, 1);
   // }
 }
 
@@ -230,85 +230,30 @@ void task_switched_out(void) {
 void task_switched_in(void) {
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
-  int          number_of_tasks = uxTaskGetNumberOfTasks();
 
-  // TaskStatus_t xTaskDetails;
-  // vTaskGetInfo( /* The handle of the task being queried. */
-  //                 current_task,
-  //                 /* The TaskStatus_t structure to complete with information
-  //                 on xTask. */
-  //                 &xTaskDetails,
-  //                 /* Include the stack high water mark value in the
-  //                 TaskStatus_t structure. */
-  //                 pdTRUE,
-  //                 /* Include the task state in the TaskStatus_t structure. */
-  //                 eInvalid );
-  // printf("Current task name: %s\n", xTaskDetails.pcTaskName);
-
-  if (current_task == idle_task) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_3);
-  } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_1);
-  } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_2);
-  } else {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
-  }
-
-
+  // Can this ever happen?
   if (current_task == NULL) {
-    // printf("Current task is NULL");
     return;
   }
 
-  // if (current_task == idle_task) {
-  //   gpio_put(mainGPIO_LED_TASK_3, 0);
-  //   return;
-  // }
-
-  // Get the TMB associated with the current task
-  // printf("Num Periodic Tasks: %d, Num FreeRTOS Tasks: %d\n",
-  // periodic_task_count,number_of_tasks);
-  // TMB_Periodic_t *current_tmb = NULL;
-  // int             tmb_index   = -1;
-  // for (int i = 0; i < periodic_task_count; i++) {
-  //   if (current_task == periodic_tasks[i].tmb.handle) {
-  //     current_tmb = &periodic_tasks[i];
-  //     tmb_index   = i;
-  //     break;
-  //   }
-  // }
-  // if (current_tmb == NULL) {
-  //   printf("No periodic tasks are associated with the current task being switched in\n");
-  // }
-  // printf("Task %d is done: %d\n", tmb_index, current_tmb->is_done);
-
-  // A task's GPIO pin needs to be set high when it is resumed
-  // TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  // if (current_task == periodic_tasks[0].tmb.handle) {
-  //   gpio_put(mainGPIO_LED_TASK_1, 0);
-  // } else if (current_task == periodic_tasks[1].tmb.handle) {
-  //   gpio_put(mainGPIO_LED_TASK_2, 0);
-  // }
+  if (current_task == idle_task) {
+    gpio_xor_mask(1 << mainGPIO_LED_TASK_3);
+    // gpio_put(mainGPIO_LED_TASK_3, 0);
+  } else if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_xor_mask(1 << mainGPIO_LED_TASK_1);
+    // gpio_put(mainGPIO_LED_TASK_1, 0);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_xor_mask(1 << mainGPIO_LED_TASK_2);
+    // gpio_put(mainGPIO_LED_TASK_2, 0);
+  } else {
+    gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
+    // gpio_put(mainGPIO_LED_TASK_4, 0);
+  }
 }
-
-// void dumpTMBPeriodic() {
-//   if (xTaskGetTickCount() % 25 == 0) {
-//     printf("Dumping TMB:\n");
-//     for (size_t i = 0; i < periodic_task_count; ++i) {
-//       TMB_Periodic_t *task = &periodic_tasks[i];
-//       printf(
-//         "Periodic Task %zu: Deadline = %lu, Last Deadline = %lu, Period = %lu, Is Done = %d\n",
-//         i + 1, task->tmb.absolute_deadline, task->last_deadline, task->period, task->is_done
-//       );
-//     }
-//   }
-// }
 
 void vApplicationTickHook(void) {
   // gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
-  printf("%d\n", xTaskGetTickCount());
-  // dumpTMBPeriodic();
+
   setSchedulable();
   updatePriorities();
 }
