@@ -8,7 +8,7 @@ size_t         periodic_task_count = 0;
 TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t          aperiodic_task_count = 0;
 
-bool recalculate_priorities = false;
+volatile bool recalculate_priorities = false;
 
 void setSchedulable() {
   if (!recalculate_priorities) {
