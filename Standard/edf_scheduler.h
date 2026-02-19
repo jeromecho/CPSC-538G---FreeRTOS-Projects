@@ -16,7 +16,8 @@ typedef struct TMB_t {
 typedef struct TMB_Periodic_t {
   TMB_t      tmb;
   TickType_t period;
-  TickType_t last_deadline;
+  TickType_t next_period;
+  TickType_t relative_deadline;
   bool       is_done;
 } TMB_Periodic_t;
 
@@ -31,20 +32,14 @@ void deprioritizeAllTasks();
 void taskDone(TaskHandle_t task_handle);
 
 BaseType_t xTaskCreatePeriodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TickType_t                   xPeriod,
-  TaskHandle_t *const          pxCreatedTask
+  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
+  void *const pvParameters, TickType_t xPeriod, TickType_t xDeadlineRelative,
+  TaskHandle_t *const pxCreatedTask
 );
 
 BaseType_t xTaskCreateAperiodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TaskHandle_t *const          pxCreatedTask
+  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
+  void *const pvParameters, TaskHandle_t *const pxCreatedTask
 );
 
 #define MAXIMUM_PERIODIC_TASKS  5

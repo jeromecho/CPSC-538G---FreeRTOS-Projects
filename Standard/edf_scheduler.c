@@ -16,15 +16,20 @@ void setSchedulable() {
       TickType_t current_tick = xTaskGetTickCount();
       // TODO: This should be "if the last *period* has passed", not just the last deadline.
       // If the last deadline has passed, set a new deadline
-      if (current_tick >= task->last_deadline) {
-        task->tmb.absolute_deadline = task->last_deadline + task->period;
-        task->last_deadline         = task->tmb.absolute_deadline;
+      if (current_tick >= task->next_period) {
+        task->tmb.absolute_deadline = task->next_period + task->relative_deadline;
+        task->next_period           = task->next_period + task->period;
         task->is_done               = false;
         // vTaskResume(task->tmb.handle); // Shouldn't matter wether the task is already running
       }
     }
   }
 }
+/*
+TESTING PROCEDURE:
+2. Hijack Mark's test case - examine the output
+*/
+
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TaskHandle_t produce_highest_priority_task() {
@@ -133,13 +138,16 @@ void taskDone(TaskHandle_t task_handle) {
   // }
 }
 
+// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t xTaskCreatePeriodic(
   TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const pvParameters, TickType_t xPeriod, TaskHandle_t *const pxCreatedTask
+  void *const pvParameters, TickType_t xPeriod, TickType_t xDeadlineRelative,
+  TaskHandle_t *const pxCreatedTask
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
+  configASSERT(xDeadlineRelative <= xPeriod);
 
   TaskHandle_t task_handle;
   BaseType_t result = xTaskCreate(pxTaskCode, pcName, uxStackDepth, pvParameters, 2, &task_handle);
@@ -148,8 +156,9 @@ BaseType_t xTaskCreatePeriodic(
     TMB_Periodic_t *new_task        = &periodic_tasks[periodic_task_count++];
     new_task->tmb.handle            = task_handle;
     new_task->period                = xPeriod;
-    new_task->last_deadline         = xTaskGetTickCount() + xPeriod;
-    new_task->tmb.absolute_deadline = new_task->last_deadline;
+    new_task->next_period           = xTaskGetTickCount() + xPeriod;
+    new_task->relative_deadline     = xDeadlineRelative;
+    new_task->tmb.absolute_deadline = xTaskGetTickCount() + new_task->relative_deadline;
     new_task->is_done               = false;
 
     if (pxCreatedTask != NULL) {
@@ -195,7 +204,6 @@ bool should_update_priorities() {
 }
 
 void updatePriorities() {
-
   if (!should_update_priorities()) {
     return;
   }

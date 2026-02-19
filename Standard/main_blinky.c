@@ -130,6 +130,7 @@ void main_blinky(void) {
     configMINIMAL_STACK_SIZE,   // Stack depth
     (void *)pdMS_TO_TICKS(200), // Completion time
     pdMS_TO_TICKS(600),         // Period
+    pdMS_TO_TICKS(600),         // Relative Deadline
     NULL                        // Task handle
   );
 
@@ -140,6 +141,7 @@ void main_blinky(void) {
     configMINIMAL_STACK_SIZE,   // Stack depth
     (void *)pdMS_TO_TICKS(100), // Completion time
     pdMS_TO_TICKS(200),         // Period
+    pdMS_TO_TICKS(200),         // Relative Deadline
     NULL                        // Task handle
   );
 
