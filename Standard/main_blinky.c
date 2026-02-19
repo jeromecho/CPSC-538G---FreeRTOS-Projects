@@ -106,6 +106,11 @@ void main_blinky(void);
 static void vPeriodicTask(void *pvParameters);
 static void vMainLEDBlinkTask(void *pvParameters);
 
+/*
+ * Helpers
+ */
+void initialize_gpio_pins(void);
+
 /*-----------------------------------------------------------*/
 
 /* The queue used by both tasks. */
@@ -116,11 +121,7 @@ static QueueHandle_t xQueue = NULL;
 void main_blinky(void) {
   printf(" Starting main_blinky.\n");
 
-  gpio_put(mainTASK_LED, 1);
-  gpio_put(mainGPIO_LED_TASK_1, 1);
-  gpio_put(mainGPIO_LED_TASK_2, 1);
-  gpio_put(mainGPIO_LED_TASK_3, 1);
-  gpio_put(mainGPIO_LED_TASK_4, 1);
+  initialize_gpio_pins();
 
   // Periodic Task 1
   xTaskCreatePeriodic(
@@ -170,7 +171,7 @@ static void vPeriodicTask(void *pvParameters) {
   // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
   // once they are finished executing.
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
-  TickType_t previousTick = xTaskGetTickCount();
+  TickType_t       previousTick    = xTaskGetTickCount();
 
   BaseType_t xTimeSlicesExecutedThusFar = 0;
 
@@ -215,15 +216,15 @@ void task_switched_out(void) {
     return;
   }
 
-  // if (current_task == idle_task) {
-  //   gpio_put(mainGPIO_LED_TASK_3, 1);
-  // } else if (current_task == periodic_tasks[0].tmb.handle) {
-  //   gpio_put(mainGPIO_LED_TASK_1, 1);
-  // } else if (current_task == periodic_tasks[1].tmb.handle) {
-  //   gpio_put(mainGPIO_LED_TASK_2, 1);
-  // } else {
-  //   gpio_put(mainGPIO_LED_TASK_4, 1);
-  // }
+  if (current_task == idle_task) {
+    gpio_put(mainGPIO_LED_TASK_3, 0);
+  } else if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_1, 0);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_2, 0);
+  } else {
+    gpio_put(mainGPIO_LED_TASK_4, 0);
+  }
 }
 
 // void traceENTER_vTaskResume(void) {
@@ -237,18 +238,22 @@ void task_switched_in(void) {
   }
 
   if (current_task == idle_task) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_3);
-    // gpio_put(mainGPIO_LED_TASK_3, 0);
+    gpio_put(mainGPIO_LED_TASK_3, 1);
   } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_1);
-    // gpio_put(mainGPIO_LED_TASK_1, 0);
+    gpio_put(mainGPIO_LED_TASK_1, 1);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_2);
-    // gpio_put(mainGPIO_LED_TASK_2, 0);
+    gpio_put(mainGPIO_LED_TASK_2, 1);
   } else {
-    gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
-    // gpio_put(mainGPIO_LED_TASK_4, 0);
+    gpio_put(mainGPIO_LED_TASK_4, 1);
   }
+}
+
+void initialize_gpio_pins(void) {
+  gpio_put(mainTASK_LED, 0);
+  gpio_put(mainGPIO_LED_TASK_1, 0);
+  gpio_put(mainGPIO_LED_TASK_2, 0);
+  gpio_put(mainGPIO_LED_TASK_3, 0);
+  gpio_put(mainGPIO_LED_TASK_4, 0);
 }
 
 void vApplicationTickHook(void) {

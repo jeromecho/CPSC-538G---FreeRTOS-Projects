@@ -8,15 +8,7 @@ size_t         periodic_task_count = 0;
 TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t          aperiodic_task_count = 0;
 
-volatile bool recalculate_priorities = false;
-
 void setSchedulable() {
-  /*
-  if (!recalculate_priorities) {
-    return;
-  }
-   */
-
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
@@ -125,8 +117,6 @@ void taskDone(TaskHandle_t task_handle) {
     TMB_Periodic_t *task = &periodic_tasks[i];
     if (task->tmb.handle == task_handle) {
       task->is_done = true;
-
-      recalculate_priorities = true;
       // gpio_put(mainGPIO_LED_TASK_1, 1);
       break;
     }
@@ -162,8 +152,6 @@ BaseType_t xTaskCreatePeriodic(
     new_task->tmb.absolute_deadline = new_task->last_deadline;
     new_task->is_done               = false;
 
-    recalculate_priorities = true;
-
     if (pxCreatedTask != NULL) {
       *pxCreatedTask = task_handle;
     }
@@ -194,28 +182,24 @@ BaseType_t xTaskCreateAperiodic(
   if (result == pdPASS) {
     TMB_Aperiodic_t *new_task = &aperiodic_tasks[aperiodic_task_count++];
     new_task->tmb.handle      = *pxCreatedTask;
-
-    recalculate_priorities = true;
   }
 
   return result;
 }
 
+/// @brief produce true if currently running task is different from the highest priority task
+bool should_update_priorities() {
+  TaskHandle_t task_highest_priority = produce_highest_priority_task();
+  TaskHandle_t task_current          = xTaskGetCurrentTaskHandle();
+  return task_highest_priority != task_current;
+}
+
 void updatePriorities() {
-  /*
-  if (!recalculate_priorities) {
+
+  if (!should_update_priorities()) {
     return;
   }
-  */
-
   deprioritizeAllTasks();
   resumeAllTasks();
   setHighestPriority();
-  recalculate_priorities = false;
 }
-
-/*
-CHANGES NEEDED:
-// 1. Add a `determineHighestPriority` function and only execute flow above
-if the task we identified is different from the task of interest
-*/
