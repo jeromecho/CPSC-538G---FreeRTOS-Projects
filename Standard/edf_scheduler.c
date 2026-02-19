@@ -1,6 +1,8 @@
 #include "edf_scheduler.h"
 #include "hardware/gpio.h"
 #include "main_blinky.h"
+#include "admission_control.h"
+#include <stdio.h>
 
 TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t         periodic_task_count = 0;
@@ -25,11 +27,6 @@ void setSchedulable() {
     }
   }
 }
-/*
-TESTING PROCEDURE:
-2. Hijack Mark's test case - examine the output
-*/
-
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TaskHandle_t produce_highest_priority_task() {
@@ -147,11 +144,22 @@ BaseType_t xTaskCreatePeriodic(
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
+
+  if (!can_admit_periodic_task((TickType_t)pvParameters, xPeriod, xDeadlineRelative)) {
+    // TODO: comment out the bottom as necessary
+    printf("xTaskCreatePeriodic - admission failed\n");
+    return errADMISSION_FAILED;
+  }
+  // TODO: comment out the bottom as necessary
+  printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
+
   configASSERT(xDeadlineRelative <= xPeriod);
 
   TaskHandle_t task_handle;
   BaseType_t result = xTaskCreate(pxTaskCode, pcName, uxStackDepth, pvParameters, 2, &task_handle);
 
+  // TODO: it might be a bit redundant to pass completion time as a reference and also
+  // pass it as a parameter to created task (a single handle to TMB might be sufficient)
   if (result == pdPASS) {
     TMB_Periodic_t *new_task        = &periodic_tasks[periodic_task_count++];
     new_task->tmb.handle            = task_handle;
@@ -159,6 +167,7 @@ BaseType_t xTaskCreatePeriodic(
     new_task->next_period           = xTaskGetTickCount() + xPeriod;
     new_task->relative_deadline     = xDeadlineRelative;
     new_task->tmb.absolute_deadline = xTaskGetTickCount() + new_task->relative_deadline;
+    new_task->tmb.completion_time   = (TickType_t)pvParameters;
     new_task->is_done               = false;
 
     if (pxCreatedTask != NULL) {
@@ -189,8 +198,9 @@ BaseType_t xTaskCreateAperiodic(
   );
 
   if (result == pdPASS) {
-    TMB_Aperiodic_t *new_task = &aperiodic_tasks[aperiodic_task_count++];
-    new_task->tmb.handle      = *pxCreatedTask;
+    TMB_Aperiodic_t *new_task     = &aperiodic_tasks[aperiodic_task_count++];
+    new_task->tmb.handle          = *pxCreatedTask;
+    new_task->tmb.completion_time = (TickType_t)pvParameters;
   }
 
   return result;

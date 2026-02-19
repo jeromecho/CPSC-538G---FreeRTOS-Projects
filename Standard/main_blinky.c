@@ -122,7 +122,97 @@ void main_blinky(void) {
   printf(" Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  // Mark's Deadline DNE Period Smoke Test
+  /**
+   * Admission Control Tests
+   */
+  /*
+   */
+
+  /*
+  // TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50)
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Fail_A", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(11), pdMS_TO_TICKS(50),
+    pdMS_TO_TICKS(50), NULL
+  );
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Fail_B", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(40),
+    pdMS_TO_TICKS(200), pdMS_TO_TICKS(50), NULL
+  );
+
+  // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Adm_A", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(10), pdMS_TO_TICKS(50),
+    pdMS_TO_TICKS(50), NULL
+  );
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Adm_B", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(40), pdMS_TO_TICKS(200),
+    pdMS_TO_TICKS(50), NULL
+  );
+
+  // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
+  // Total Utilization = 1.1 (110%)
+  for (int i = 0; i < 10; i++) {
+    char taskName[16];
+    sprintf(taskName, "Fail_%d", i);
+    xTaskCreatePeriodic(
+      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
+      (void *)pdMS_TO_TICKS(11), // C: 11ms
+      pdMS_TO_TICKS(100),        // T: 100ms
+      pdMS_TO_TICKS(100),        // D: 100ms
+      NULL
+    );
+  }
+
+  // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
+  // Total Utilization = 1.0 (100%)
+  for (int i = 0; i < 10; i++) {
+    char taskName[16];
+    sprintf(taskName, "Adm_%d", i);
+    xTaskCreatePeriodic(
+      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
+      (void *)pdMS_TO_TICKS(10), // C: 10ms
+      pdMS_TO_TICKS(100),        // T: 100ms
+      pdMS_TO_TICKS(100),        // D: 100ms
+      NULL
+    );
+  }
+
+  // TEST4: 100 Tasks ADMISSIBLE
+  for (int i = 0; i < 100; i++) {
+    // NB: This breaks without downstream copying of task
+    char taskName[16];
+    sprintf(taskName, "test %d", i);
+    xTaskCreatePeriodic(
+      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
+      (void *)pdMS_TO_TICKS(8), // C: 8ms
+      pdMS_TO_TICKS(1000),      // T: 1000ms
+      pdMS_TO_TICKS(1000),      // D: 1000ms
+      NULL
+    );
+  }
+   */
+
+  // TEST3: 100 Tasks NON-ADMISSIBLE
+  /*
+  for (int i = 0; i < 100; i++) {
+    char taskName[16];
+    sprintf(taskName, "test %d", i);
+    xTaskCreatePeriodic(
+      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
+      (void *)pdMS_TO_TICKS(15), // C: 15ms
+      pdMS_TO_TICKS(1000),       // T: 1000ms
+      pdMS_TO_TICKS(500),        // D: 500ms (Tight!)
+      NULL
+    );
+  }
+  */
+
+  /**
+   * Tests for Base Functionality
+   */
+
+  /*
+  // Test 2: Mark's Deadline DNE Period Smoke Test
   xTaskCreatePeriodic(
     vPeriodicTask,              // Task function
     "Periodic Task 1",          // Task name
@@ -150,11 +240,12 @@ void main_blinky(void) {
     pdMS_TO_TICKS(700),         // Relative Deadline
     NULL                        // Task handle
   );
+  */
 
   /*
   // Smoke Test for Periodic Tasks (relative deadline == period)
 
-  // Periodic Task 1
+  // Test 1: Periodic Task 1
   xTaskCreatePeriodic(
     vPeriodicTask,              // Task function
     "Periodic Task 1",          // Task name
@@ -176,15 +267,6 @@ void main_blinky(void) {
     NULL                        // Task handle
   );
   */
-
-  // xTaskCreate(
-  //   vMainLEDBlinkTask, /* The function that implements the task. */
-  //   "MainBlink", /* The text name assigned to the task - for debug only as it is not used by the
-  //                   kernel. */
-  //   configMINIMAL_STACK_SIZE,        /* The size of the stack to allocate to the task. */
-  //   NULL,                            /* The parameter passed to the task - not used in this case.
-  //   */ mainQUEUE_RECEIVE_TASK_PRIORITY, /* The priority assigned to the task. */ NULL
-  // );                                 /* The task handle is not required, so NULL is passed. */
 
   /* Start the tasks and timer running. */
   vTaskStartScheduler();

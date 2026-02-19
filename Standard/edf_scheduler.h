@@ -10,6 +10,7 @@
 
 typedef struct TMB_t {
   TickType_t   absolute_deadline;
+  TickType_t   completion_time;
   TaskHandle_t handle;
 } TMB_t;
 
@@ -42,8 +43,8 @@ BaseType_t xTaskCreateAperiodic(
   void *const pvParameters, TaskHandle_t *const pxCreatedTask
 );
 
-#define MAXIMUM_PERIODIC_TASKS  5
-#define MAXIMUM_APERIODIC_TASKS 5
+#define MAXIMUM_PERIODIC_TASKS  100
+#define MAXIMUM_APERIODIC_TASKS 100
 
 extern TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t         periodic_task_count;
