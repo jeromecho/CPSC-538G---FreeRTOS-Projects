@@ -11,9 +11,11 @@ size_t          aperiodic_task_count = 0;
 volatile bool recalculate_priorities = false;
 
 void setSchedulable() {
+  /*
   if (!recalculate_priorities) {
     return;
   }
+   */
 
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
@@ -32,8 +34,8 @@ void setSchedulable() {
   }
 }
 
-/// @brief Iterates through tasks and set the highest priority to the task with the nearest deadline
-void setHighestPriority() {
+/// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
+TaskHandle_t produce_highest_priority_task() {
   // Iterate through all periodic tasks and find the one with the nearest deadline
   TMB_Periodic_t *edf_periodic_task = NULL;
   for (size_t i = 0; i < periodic_task_count; ++i) {
@@ -72,6 +74,12 @@ void setHighestPriority() {
     earliest_task = (periodic_deadline < aperiodic_deadline) ? edf_periodic_task->tmb.handle
                                                              : edf_aperiodic_task->tmb.handle;
   }
+  return earliest_task;
+}
+
+/// @brief Iterates through tasks and set the highest priority to the task with the nearest deadline
+void setHighestPriority() {
+  TaskHandle_t earliest_task = produce_highest_priority_task();
 
   if (earliest_task != NULL) {
     // Set the priority of the task with the nearest deadline to the highest priority
@@ -136,12 +144,8 @@ void taskDone(TaskHandle_t task_handle) {
 }
 
 BaseType_t xTaskCreatePeriodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TickType_t                   xPeriod,
-  TaskHandle_t *const          pxCreatedTask
+  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
+  void *const pvParameters, TickType_t xPeriod, TaskHandle_t *const pxCreatedTask
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -176,23 +180,15 @@ BaseType_t xTaskCreatePeriodic(
 // aperiodic tasks once they are done executing.  This is necessary to prevent memory leaks, since
 // aperiodic tasks are not reused like periodic tasks.
 BaseType_t xTaskCreateAperiodic(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const                  pvParameters,
-  TaskHandle_t *const          pxCreatedTask
+  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
+  void *const pvParameters, TaskHandle_t *const pxCreatedTask
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
   BaseType_t result = xTaskCreate(
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    pvParameters,
-    PRIORITY_NOT_DONE_NOT_RUNNING,
-    pxCreatedTask
+    pxTaskCode, pcName, uxStackDepth, pvParameters, PRIORITY_NOT_DONE_NOT_RUNNING, pxCreatedTask
   );
 
   if (result == pdPASS) {
@@ -206,12 +202,20 @@ BaseType_t xTaskCreateAperiodic(
 }
 
 void updatePriorities() {
+  /*
   if (!recalculate_priorities) {
     return;
   }
+  */
 
   deprioritizeAllTasks();
   resumeAllTasks();
   setHighestPriority();
   recalculate_priorities = false;
 }
+
+/*
+CHANGES NEEDED:
+// 1. Add a `determineHighestPriority` function and only execute flow above
+if the task we identified is different from the task of interest
+*/
