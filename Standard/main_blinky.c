@@ -120,8 +120,39 @@ static QueueHandle_t xQueue = NULL;
 
 void main_blinky(void) {
   printf(" Starting main_blinky.\n");
-
   initialize_gpio_pins();
+
+  // Mark's Deadline DNE Period Smoke Test
+  xTaskCreatePeriodic(
+    vPeriodicTask,              // Task function
+    "Periodic Task 1",          // Task name
+    configMINIMAL_STACK_SIZE,   // Stack depth
+    (void *)pdMS_TO_TICKS(200), // Completion time
+    pdMS_TO_TICKS(600),         // Period
+    pdMS_TO_TICKS(400),         // Relative Deadline
+    NULL                        // Task handle
+  );
+  xTaskCreatePeriodic(
+    vPeriodicTask,              // Task function
+    "Periodic Task 2",          // Task name
+    configMINIMAL_STACK_SIZE,   // Stack depth
+    (void *)pdMS_TO_TICKS(200), // Completion time
+    pdMS_TO_TICKS(800),         // Period
+    pdMS_TO_TICKS(500),         // Relative Deadline
+    NULL                        // Task handle
+  );
+  xTaskCreatePeriodic(
+    vPeriodicTask,              // Task function
+    "Periodic Task 3",          // Task name
+    configMINIMAL_STACK_SIZE,   // Stack depth
+    (void *)pdMS_TO_TICKS(300), // Completion time
+    pdMS_TO_TICKS(900),         // Period
+    pdMS_TO_TICKS(700),         // Relative Deadline
+    NULL                        // Task handle
+  );
+
+  /*
+  // Smoke Test for Periodic Tasks (relative deadline == period)
 
   // Periodic Task 1
   xTaskCreatePeriodic(
@@ -144,6 +175,7 @@ void main_blinky(void) {
     pdMS_TO_TICKS(200),         // Relative Deadline
     NULL                        // Task handle
   );
+  */
 
   // xTaskCreate(
   //   vMainLEDBlinkTask, /* The function that implements the task. */
@@ -219,13 +251,15 @@ void task_switched_out(void) {
   }
 
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_3, 0);
+    gpio_put(mainGPIO_LED_TASK_4, 0);
   } else if (current_task == periodic_tasks[0].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_1, 0);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_2, 0);
+  } else if (current_task == periodic_tasks[2].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_3, 0);
   } else {
-    gpio_put(mainGPIO_LED_TASK_4, 0);
+    gpio_put(mainGPIO_LED_TASK_5, 0);
   }
 }
 
@@ -240,13 +274,15 @@ void task_switched_in(void) {
   }
 
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_3, 1);
+    gpio_put(mainGPIO_LED_TASK_4, 1);
   } else if (current_task == periodic_tasks[0].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_1, 1);
   } else if (current_task == periodic_tasks[1].tmb.handle) {
     gpio_put(mainGPIO_LED_TASK_2, 1);
+  } else if (current_task == periodic_tasks[2].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_3, 1);
   } else {
-    gpio_put(mainGPIO_LED_TASK_4, 1);
+    gpio_put(mainGPIO_LED_TASK_5, 1);
   }
 }
 
@@ -256,11 +292,12 @@ void initialize_gpio_pins(void) {
   gpio_put(mainGPIO_LED_TASK_2, 0);
   gpio_put(mainGPIO_LED_TASK_3, 0);
   gpio_put(mainGPIO_LED_TASK_4, 0);
+  gpio_put(mainGPIO_LED_TASK_5, 0);
+  gpio_put(mainGPIO_LED_TASK_6, 0);
 }
 
 void vApplicationTickHook(void) {
   // gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
-
   setSchedulable();
   updatePriorities();
 }
