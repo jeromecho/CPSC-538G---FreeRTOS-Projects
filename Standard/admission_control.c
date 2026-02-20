@@ -1,6 +1,7 @@
 
 #include "edf_scheduler.h"
 #include "admission_control.h"
+#include "helpers.h"
 // TODO: is there potential overheaded introduced by import of math.h?
 #include "math.h"
 
@@ -15,17 +16,6 @@ static TickType_t gcd(TickType_t a, TickType_t b) {
 }
 
 static TickType_t lcm(TickType_t a, TickType_t b) { return (a / gcd(a, b)) * b; }
-
-/// @brief computes hyperperiod between existing periods and period of newly added task
-static TickType_t compute_hyperperiod(TickType_t new_period) {
-  TickType_t H = new_period;
-
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    H = lcm(H, periodic_tasks[i].period);
-  }
-
-  return H;
-}
 
 /// @brief demand bound function - assumes task set is synchronnized
 static double dbf(TickType_t L, TickType_t C_new, TickType_t T_new, TickType_t D_new) {
@@ -136,8 +126,6 @@ bool can_admit_periodic_task(TickType_t C_new, TickType_t T_new, TickType_t D_ne
 /*
 
 Phase 2:
-5. Add test that drops in a synchronous task while the system is running (admissible) and that
-   drops in synchronous task while system is running (inadmissible)
 6. Extend `xTaskCreatePeriodic` function to support delaying of added task so that
    it is synchronized with existing task set (if task is admissible)
 7. Verify admissibility checking via printfs
