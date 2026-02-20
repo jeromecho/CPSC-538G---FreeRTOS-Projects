@@ -2,6 +2,7 @@
 #include "hardware/gpio.h"
 #include "main_blinky.h"
 #include "admission_control.h"
+#include "helpers.h"
 #include <stdio.h>
 
 TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
@@ -100,7 +101,8 @@ void deprioritizeAllTasks() {
 void resumeAllTasks() {
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
-    if (!task->is_done) {
+
+    if (!task->is_done && task->release_time <= xTaskGetTickCount()) {
       vTaskResume(task->tmb.handle);
     }
   }
@@ -135,6 +137,23 @@ void taskDone(TaskHandle_t task_handle) {
   // }
 }
 
+/// @brief calculates release time for dropped task
+TickType_t calculate_release_time_for_dropped_task(TickType_t new_period) {
+  TickType_t H = compute_hyperperiod(new_period);
+  // Hypothesis: value of xNow doesn't change during duration of function body's
+  // execution if function is only called in context of tick hook
+  TickType_t xNow = xTaskGetTickCount();
+  // NB: Theoretically, we shouldn't hit this code block
+  if (xNow == 0)
+    return 0;
+  TickType_t remainder = xNow % H;
+  if (remainder == 0) {
+    return xNow;
+  } else {
+    return xNow + (H - remainder);
+  }
+}
+
 // REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t xTaskCreatePeriodic(
   TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
@@ -147,28 +166,41 @@ BaseType_t xTaskCreatePeriodic(
 
   if (!can_admit_periodic_task((TickType_t)pvParameters, xPeriod, xDeadlineRelative)) {
     // TODO: comment out the bottom as necessary
-    printf("xTaskCreatePeriodic - admission failed\n");
+    // printf("xTaskCreatePeriodic - admission failed\n");
     return errADMISSION_FAILED;
+  } else {
+    // TODO: comment out the bottom as necessary
+    // printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
   }
-  // TODO: comment out the bottom as necessary
-  printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
-
   configASSERT(xDeadlineRelative <= xPeriod);
 
   TaskHandle_t task_handle;
-  BaseType_t result = xTaskCreate(pxTaskCode, pcName, uxStackDepth, pvParameters, 2, &task_handle);
+  // TODO: priority of task below is a magic number
+  // Q: Should the priority below really be "1" (not done - not running?)
 
+  bool       isSchedulerStarted = xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED;
+  BaseType_t result = xTaskCreate(pxTaskCode, pcName, uxStackDepth, pvParameters, 2, &task_handle);
   // TODO: it might be a bit redundant to pass completion time as a reference and also
   // pass it as a parameter to created task (a single handle to TMB might be sufficient)
   if (result == pdPASS) {
-    TMB_Periodic_t *new_task        = &periodic_tasks[periodic_task_count++];
-    new_task->tmb.handle            = task_handle;
-    new_task->period                = xPeriod;
-    new_task->next_period           = xTaskGetTickCount() + xPeriod;
-    new_task->relative_deadline     = xDeadlineRelative;
-    new_task->tmb.absolute_deadline = xTaskGetTickCount() + new_task->relative_deadline;
-    new_task->tmb.completion_time   = (TickType_t)pvParameters;
-    new_task->is_done               = false;
+    TMB_Periodic_t *new_task      = &periodic_tasks[periodic_task_count++];
+    new_task->tmb.handle          = task_handle;
+    new_task->period              = xPeriod;
+    new_task->relative_deadline   = xDeadlineRelative;
+    new_task->is_done             = false;
+    new_task->tmb.completion_time = (TickType_t)pvParameters;
+
+    if (isSchedulerStarted) {
+      new_task->release_time          = xTaskGetTickCount();
+      new_task->next_period           = xTaskGetTickCount() + xPeriod;
+      new_task->tmb.absolute_deadline = xTaskGetTickCount() + new_task->relative_deadline;
+    } else {
+      TickType_t release_time         = calculate_release_time_for_dropped_task(new_task->period);
+      new_task->release_time          = release_time;
+      new_task->next_period           = release_time + xPeriod;
+      new_task->tmb.absolute_deadline = release_time + new_task->relative_deadline;
+      vTaskSuspend(task_handle);
+    }
 
     if (pxCreatedTask != NULL) {
       *pxCreatedTask = task_handle;
@@ -178,7 +210,6 @@ BaseType_t xTaskCreatePeriodic(
       *pxCreatedTask = NULL;
     }
   }
-
   return result;
 }
 

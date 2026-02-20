@@ -117,17 +117,75 @@ void initialize_gpio_pins(void);
 static QueueHandle_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
+// TODO: Refactor testing logic to a separate file
+void vTestRunner9(void *pvParameters) {
+  // --- TEST A: Admissible Drop-in ---
+  // Base Task: 160ms work, 800ms period
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Base_A", configMINIMAL_STACK_SIZE, (void *)(8 * 20), pdMS_TO_TICKS(8 * 100),
+    pdMS_TO_TICKS(8 * 100), NULL
+  );
+
+  // Wait 5 cycles (500ms) to show stable execution
+  vTaskDelay(pdMS_TO_TICKS(500));
+
+  // Drop-in Task: 400ms work, 800ms period.
+  // Total Demand: 560ms < 800ms. Should pass PDC.
+  // TODO: show why total demand is not exceeded
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Drop_A", configMINIMAL_STACK_SIZE, (void *)(8 * 50), pdMS_TO_TICKS(8 * 100),
+    pdMS_TO_TICKS(8 * 100), NULL
+  );
+  vTaskDelete(NULL);
+}
+
+void vTestRunner10(void *pvParameters) {
+  // --- TEST B: Inadmissible Drop-in ---
+  // Base Task: 20ms work, 100ms period (U=0.2)
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Base_B", configMINIMAL_STACK_SIZE, (void *)20, pdMS_TO_TICKS(100),
+    pdMS_TO_TICKS(100), NULL
+  );
+
+  vTaskDelay(pdMS_TO_TICKS(500));
+
+  // Drop-in Task: 90ms work, 200ms period (U=0.45)
+  // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
+  BaseType_t result = xTaskCreatePeriodic(
+    vPeriodicTask, "Drop_B", configMINIMAL_STACK_SIZE, (void *)90, pdMS_TO_TICKS(200),
+    pdMS_TO_TICKS(100), NULL
+  );
+  vTaskDelete(NULL);
+}
+
+/*-----------------------------------------------------------*/
 
 void main_blinky(void) {
   printf(" Starting main_blinky.\n");
   initialize_gpio_pins();
 
   /**
+   * Tests for Drop-in of Tasks while System is Running
+   */
+  // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
+  //       good design
+  // TODO: magic numbers for priority of below function calls
+
+  // TEST 10: Inadmissible Drop-in
+  /*
+   */
+  /*
+  xTaskCreate(vTestRunner10, "test runner 10", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+  */
+
+  // TEST 9: Admissible Drop-in
+  xTaskCreate(vTestRunner9, "test runner 9", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+
+  /**
    * Admission Control Tests
    */
   /*
    */
-
   /*
   // TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50)
   xTaskCreatePeriodic(

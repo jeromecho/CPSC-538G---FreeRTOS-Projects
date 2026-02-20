@@ -19,6 +19,7 @@ typedef struct TMB_Periodic_t {
   TickType_t period;
   TickType_t next_period;
   TickType_t relative_deadline;
+  TickType_t release_time;
   bool       is_done;
 } TMB_Periodic_t;
 
