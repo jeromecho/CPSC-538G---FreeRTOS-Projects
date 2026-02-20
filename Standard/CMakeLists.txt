@@ -90,5 +90,5 @@ target_include_directories(main_blinky PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${FREERTOS_DEMO_PATH}/Common/include)
 
-target_link_libraries(main_blinky pico_stdlib FreeRTOS-Kernel FreeRTOS-Kernel-Heap1)
+target_link_libraries(main_blinky pico_stdlib FreeRTOS-Kernel FreeRTOS-Kernel-Heap4)
 pico_add_extra_outputs(main_blinky)

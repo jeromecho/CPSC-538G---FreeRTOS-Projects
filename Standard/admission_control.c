@@ -5,18 +5,6 @@
 // TODO: is there potential overheaded introduced by import of math.h?
 #include "math.h"
 
-// TODO: consider extracting gcd and lcm to a more generic helpers file
-static TickType_t gcd(TickType_t a, TickType_t b) {
-  while (b != 0) {
-    TickType_t tmp = b;
-    b              = a % b;
-    a              = tmp;
-  }
-  return a;
-}
-
-static TickType_t lcm(TickType_t a, TickType_t b) { return (a / gcd(a, b)) * b; }
-
 /// @brief demand bound function - assumes task set is synchronnized
 static double dbf(TickType_t L, TickType_t C_new, TickType_t T_new, TickType_t D_new) {
   double demand = 0.0;
