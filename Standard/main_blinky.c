@@ -165,21 +165,32 @@ void main_blinky(void) {
   initialize_gpio_pins();
 
   /**
+   * Tests for Missed Deadline (Note: Turn off/Comment Out Admission Control to Allow Easy Deadline
+   * Miss)
+   */
+  // TEST 11: Missed Deadline (Total Utilization: 105%)
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Task_A", 512, (void *)40, pdMS_TO_TICKS(100), pdMS_TO_TICKS(100), NULL
+  );
+  xTaskCreatePeriodic(
+    vPeriodicTask, "Task_B", 512, (void *)130, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200), NULL
+  );
+
+  /**
    * Tests for Drop-in of Tasks while System is Running
    */
   // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
   //       good design
   // TODO: magic numbers for priority of below function calls
-
   // TEST 10: Inadmissible Drop-in
   /*
    */
   /*
   xTaskCreate(vTestRunner10, "test runner 10", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-  */
 
   // TEST 9: Admissible Drop-in
   xTaskCreate(vTestRunner9, "test runner 9", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+  */
 
   /**
    * Admission Control Tests

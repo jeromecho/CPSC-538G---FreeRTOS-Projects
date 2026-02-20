@@ -4,6 +4,8 @@
 #include "admission_control.h"
 #include "helpers.h"
 #include <stdio.h>
+#include "hardware/watchdog.h"
+#include "pico/time.h"
 
 TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t         periodic_task_count = 0;
@@ -121,20 +123,21 @@ void taskDone(TaskHandle_t task_handle) {
     TMB_Periodic_t *task = &periodic_tasks[i];
     if (task->tmb.handle == task_handle) {
       task->is_done = true;
+      if (xTaskGetTickCount() > task->tmb.absolute_deadline) {
+        printf("Resetting system...\n");
+        // Allow the UART to flush the message before resetting
+        busy_wait_us_32(5000);
+        // reboot - wait for reboot in low power mode
+        watchdog_reboot(0, 0, 0);
+        while (1) {
+          __wfi();
+        };
+      }
       // gpio_put(mainGPIO_LED_TASK_1, 1);
       break;
     }
   }
-
   taskEXIT_CRITICAL();
-
-  // for (size_t i = 0; i < aperiodic_task_count; ++i) {
-  //   TMB_Aperiodic_t *task = &aperiodic_tasks[i];
-  //   if (task->tmb.handle == task_handle) {
-  //     // Aperiodic tasks are considered done immediately
-  //     return;
-  //   }
-  // }
 }
 
 /// @brief calculates release time for dropped task
@@ -165,12 +168,10 @@ BaseType_t xTaskCreatePeriodic(
   }
 
   if (!can_admit_periodic_task((TickType_t)pvParameters, xPeriod, xDeadlineRelative)) {
-    // TODO: comment out the bottom as necessary
-    // printf("xTaskCreatePeriodic - admission failed\n");
+    // TODO: for testing: printf("xTaskCreatePeriodic - admission failed\n");
     return errADMISSION_FAILED;
   } else {
-    // TODO: comment out the bottom as necessary
-    // printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
+    // TODO: for testing: printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
   }
   configASSERT(xDeadlineRelative <= xPeriod);
 
