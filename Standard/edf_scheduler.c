@@ -13,6 +13,17 @@ size_t         periodic_task_count = 0;
 TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t          aperiodic_task_count = 0;
 
+void         setSchedulable();
+TaskHandle_t produce_highest_priority_task();
+
+void       setHighestPriority();
+void       deprioritizeAllTasks();
+void       resumeAllTasks();
+TickType_t calculate_release_time_for_dropped_task(TickType_t new_period);
+
+bool should_update_priorities();
+void updatePriorities();
+
 void setSchedulable() {
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
@@ -252,4 +263,54 @@ void updatePriorities() {
   deprioritizeAllTasks();
   resumeAllTasks();
   setHighestPriority();
+}
+
+void vApplicationTickHook(void) {
+  // gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
+  setSchedulable();
+  updatePriorities();
+}
+
+void task_switched_out(void) {
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  // Can this ever happen?
+  if (current_task == NULL) {
+    return;
+  }
+
+  if (current_task == idle_task) {
+    gpio_put(mainGPIO_LED_TASK_4, 0);
+  } else if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_1, 0);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_2, 0);
+  } else if (current_task == periodic_tasks[2].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_3, 0);
+  } else {
+    gpio_put(mainGPIO_LED_TASK_5, 0);
+  }
+}
+
+void task_switched_in(void) {
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  // Can this ever happen?
+  if (current_task == NULL) {
+    return;
+  }
+
+  if (current_task == idle_task) {
+    gpio_put(mainGPIO_LED_TASK_4, 1);
+  } else if (current_task == periodic_tasks[0].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_1, 1);
+  } else if (current_task == periodic_tasks[1].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_2, 1);
+  } else if (current_task == periodic_tasks[2].tmb.handle) {
+    gpio_put(mainGPIO_LED_TASK_3, 1);
+  } else {
+    gpio_put(mainGPIO_LED_TASK_5, 1);
+  }
 }

@@ -27,10 +27,6 @@ typedef struct TMB_Aperiodic_t {
   TMB_t tmb;
 } TMB_Aperiodic_t;
 
-void setSchedulable();
-void updatePriorities();
-void deprioritizeAllTasks();
-
 void taskDone(TaskHandle_t task_handle);
 
 BaseType_t xTaskCreatePeriodic(
