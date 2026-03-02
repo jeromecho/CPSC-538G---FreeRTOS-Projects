@@ -91,9 +91,6 @@ will remove items as they are added, meaning the send task should always find
 the queue empty. */
 #define mainQUEUE_LENGTH (1)
 
-/* The LED toggled by the Rx task. */
-#define mainTASK_LED (PICO_DEFAULT_LED_PIN)
-
 /*-----------------------------------------------------------*/
 
 /*
@@ -163,7 +160,7 @@ static void vMainLEDBlinkTask(void *pvParameters) {
 
   for (;;) {
     /* Toggle the LED each time data is received. */
-    gpio_xor_mask(1 << mainTASK_LED);
+    gpio_xor_mask(1 << PICO_DEFAULT_LED_PIN);
 
     /* Wait for the next cycle. */
     vTaskDelay(xDelay250ms);
@@ -172,7 +169,7 @@ static void vMainLEDBlinkTask(void *pvParameters) {
 /*-----------------------------------------------------------*/
 
 void initialize_gpio_pins(void) {
-  gpio_put(mainTASK_LED, 0);
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
   gpio_put(mainGPIO_LED_TASK_1, 0);
   gpio_put(mainGPIO_LED_TASK_2, 0);
   gpio_put(mainGPIO_LED_TASK_3, 0);
