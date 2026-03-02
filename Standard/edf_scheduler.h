@@ -8,6 +8,8 @@
 #define PRIORITY_NOT_DONE_NOT_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE                 (tskIDLE_PRIORITY)
 
+#define errADMISSION_FAILED (-6)
+
 typedef struct TMB_t {
   TickType_t   absolute_deadline;
   TickType_t   completion_time;
