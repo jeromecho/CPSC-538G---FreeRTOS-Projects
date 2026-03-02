@@ -77,6 +77,7 @@ add_executable(main_blinky
         edf_scheduler.c
         admission_control.c
         helpers.c
+        testing/edf_tests.c
         )
     
 pico_enable_stdio_uart(main_blinky 0)

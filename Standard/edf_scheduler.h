@@ -40,6 +40,8 @@ BaseType_t xTaskCreateAperiodic(
   void *const pvParameters, TaskHandle_t *const pxCreatedTask
 );
 
+void vPeriodicTask(void *pvParameters);
+
 #define MAXIMUM_PERIODIC_TASKS  100
 #define MAXIMUM_APERIODIC_TASKS 100
 

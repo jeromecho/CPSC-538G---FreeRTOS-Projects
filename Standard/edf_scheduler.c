@@ -170,9 +170,13 @@ TickType_t calculate_release_time_for_dropped_task(TickType_t new_period) {
 
 // REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t xTaskCreatePeriodic(
-  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const pvParameters, TickType_t xPeriod, TickType_t xDeadlineRelative,
-  TaskHandle_t *const pxCreatedTask
+  TaskFunction_t               pxTaskCode,        // Task function
+  const char *const            pcName,            // Task name
+  const configSTACK_DEPTH_TYPE uxStackDepth,      // Stack depth
+  void *const                  pvParameters,      // Completion time
+  TickType_t                   xPeriod,           // Period
+  TickType_t                   xDeadlineRelative, // Relative Deadline
+  TaskHandle_t *const          pxCreatedTask      // Task handle
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -312,5 +316,35 @@ void task_switched_in(void) {
     gpio_put(mainGPIO_LED_TASK_3, 1);
   } else {
     gpio_put(mainGPIO_LED_TASK_5, 1);
+  }
+}
+
+/// @brief  Task function for periodic tasks. It will run until it has executed for a number of time
+/// slices equal to its completion time, at which point it will mark itself as done and suspend
+/// itself. Note that the task relies on the scheduler to mark it as not done and resume it when its
+/// next period starts.
+/// @param pvParameters
+void vPeriodicTask(void *pvParameters) {
+  // TODO: Replace with macro, so that the scheduler can be responsible for marking tasks as done
+  // and suspending them, instead of the tasks themselves.
+  // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
+  // once they are finished executing.
+  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
+  TickType_t       previousTick    = xTaskGetTickCount();
+
+  BaseType_t xTimeSlicesExecutedThusFar = 0;
+
+  for (;;) {
+    TickType_t currentTick = xTaskGetTickCount();
+    if (currentTick != previousTick) {
+      previousTick = currentTick;
+      xTimeSlicesExecutedThusFar++;
+    }
+    if (xTimeSlicesExecutedThusFar == xCompletionTime) {
+      xTimeSlicesExecutedThusFar = 0;
+      taskDone(xTaskGetCurrentTaskHandle());
+      vTaskSuspend(NULL);
+    }
+    // vTaskDelay(pdMS_TO_TICKS(200));
   }
 }

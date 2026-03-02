@@ -75,6 +75,7 @@
 
 // Other includes
 #include "main_blinky.h"
+#include "testing/edf_tests.h"
 #include "pico/stdlib.h"
 
 /* Priorities at which the tasks are created. */
@@ -104,7 +105,6 @@ void main_blinky(void);
 /*
  * The tasks as described in the comments at the top of this file.
  */
-static void vPeriodicTask(void *pvParameters);
 static void vMainLEDBlinkTask(void *pvParameters);
 
 /*
@@ -118,48 +118,6 @@ void initialize_gpio_pins(void);
 static QueueHandle_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
-// TODO: Refactor testing logic to a separate file
-void vTestRunner9(void *pvParameters) {
-  // --- TEST A: Admissible Drop-in ---
-  // Base Task: 160ms work, 800ms period
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Base_A", configMINIMAL_STACK_SIZE, (void *)(8 * 20), pdMS_TO_TICKS(8 * 100),
-    pdMS_TO_TICKS(8 * 100), NULL
-  );
-
-  // Wait 5 cycles (500ms) to show stable execution
-  vTaskDelay(pdMS_TO_TICKS(500));
-
-  // Drop-in Task: 400ms work, 800ms period.
-  // Total Demand: 560ms < 800ms. Should pass PDC.
-  // TODO: show why total demand is not exceeded
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Drop_A", configMINIMAL_STACK_SIZE, (void *)(8 * 50), pdMS_TO_TICKS(8 * 100),
-    pdMS_TO_TICKS(8 * 100), NULL
-  );
-  vTaskDelete(NULL);
-}
-
-void vTestRunner10(void *pvParameters) {
-  // --- TEST B: Inadmissible Drop-in ---
-  // Base Task: 20ms work, 100ms period (U=0.2)
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Base_B", configMINIMAL_STACK_SIZE, (void *)20, pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(100), NULL
-  );
-
-  vTaskDelay(pdMS_TO_TICKS(500));
-
-  // Drop-in Task: 90ms work, 200ms period (U=0.45)
-  // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
-  BaseType_t result = xTaskCreatePeriodic(
-    vPeriodicTask, "Drop_B", configMINIMAL_STACK_SIZE, (void *)90, pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(100), NULL
-  );
-  vTaskDelete(NULL);
-}
-
-/*-----------------------------------------------------------*/
 
 void main_blinky(void) {
   // Block execution until the host opens the USB serial port
@@ -170,178 +128,19 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  /**
-   * Tests for Missed Deadline (Note: Turn off/Comment Out Admission Control to Allow Easy Deadline
-   * Miss)
-   */
-  // TEST 11: Missed Deadline (Total Utilization: 105%)
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Task_A", 512, (void *)40, pdMS_TO_TICKS(100), pdMS_TO_TICKS(100), NULL
-  );
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Task_B", 512, (void *)130, pdMS_TO_TICKS(200), pdMS_TO_TICKS(200), NULL
-  );
-
-  /**
-   * Tests for Drop-in of Tasks while System is Running
-   */
-  // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
-  //       good design
-  // TODO: magic numbers for priority of below function calls
-  // TEST 10: Inadmissible Drop-in
-  /*
-   */
-  /*
-  xTaskCreate(vTestRunner10, "test runner 10", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-
-  // TEST 9: Admissible Drop-in
-  xTaskCreate(vTestRunner9, "test runner 9", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-  */
-
-  /**
-   * Admission Control Tests
-   */
-  /*
-   */
-  /*
-  // TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50)
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Fail_A", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(11), pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(50), NULL
-  );
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Fail_B", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(40),
-    pdMS_TO_TICKS(200), pdMS_TO_TICKS(50), NULL
-  );
-
-  // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Adm_A", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(10), pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(50), NULL
-  );
-  xTaskCreatePeriodic(
-    vPeriodicTask, "Adm_B", configMINIMAL_STACK_SIZE, (void *)pdMS_TO_TICKS(40), pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(50), NULL
-  );
-
-  // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
-  // Total Utilization = 1.1 (110%)
-  for (int i = 0; i < 10; i++) {
-    char taskName[16];
-    sprintf(taskName, "Fail_%d", i);
-    xTaskCreatePeriodic(
-      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
-      (void *)pdMS_TO_TICKS(11), // C: 11ms
-      pdMS_TO_TICKS(100),        // T: 100ms
-      pdMS_TO_TICKS(100),        // D: 100ms
-      NULL
-    );
-  }
-
-  // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
-  // Total Utilization = 1.0 (100%)
-  for (int i = 0; i < 10; i++) {
-    char taskName[16];
-    sprintf(taskName, "Adm_%d", i);
-    xTaskCreatePeriodic(
-      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
-      (void *)pdMS_TO_TICKS(10), // C: 10ms
-      pdMS_TO_TICKS(100),        // T: 100ms
-      pdMS_TO_TICKS(100),        // D: 100ms
-      NULL
-    );
-  }
-
-  // TEST4: 100 Tasks ADMISSIBLE
-  for (int i = 0; i < 100; i++) {
-    // NB: This breaks without downstream copying of task
-    char taskName[16];
-    sprintf(taskName, "test %d", i);
-    xTaskCreatePeriodic(
-      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
-      (void *)pdMS_TO_TICKS(8), // C: 8ms
-      pdMS_TO_TICKS(1000),      // T: 1000ms
-      pdMS_TO_TICKS(1000),      // D: 1000ms
-      NULL
-    );
-  }
-   */
-
-  // TEST3: 100 Tasks NON-ADMISSIBLE
-  /*
-  for (int i = 0; i < 100; i++) {
-    char taskName[16];
-    sprintf(taskName, "test %d", i);
-    xTaskCreatePeriodic(
-      vPeriodicTask, taskName, configMINIMAL_STACK_SIZE,
-      (void *)pdMS_TO_TICKS(15), // C: 15ms
-      pdMS_TO_TICKS(1000),       // T: 1000ms
-      pdMS_TO_TICKS(500),        // D: 500ms (Tight!)
-      NULL
-    );
-  }
-  */
-
-  /**
-   * Tests for Base Functionality
-   */
-
-  /*
-  // Test 2: Mark's Deadline DNE Period Smoke Test
-  xTaskCreatePeriodic(
-    vPeriodicTask,              // Task function
-    "Periodic Task 1",          // Task name
-    configMINIMAL_STACK_SIZE,   // Stack depth
-    (void *)pdMS_TO_TICKS(200), // Completion time
-    pdMS_TO_TICKS(600),         // Period
-    pdMS_TO_TICKS(400),         // Relative Deadline
-    NULL                        // Task handle
-  );
-  xTaskCreatePeriodic(
-    vPeriodicTask,              // Task function
-    "Periodic Task 2",          // Task name
-    configMINIMAL_STACK_SIZE,   // Stack depth
-    (void *)pdMS_TO_TICKS(200), // Completion time
-    pdMS_TO_TICKS(800),         // Period
-    pdMS_TO_TICKS(500),         // Relative Deadline
-    NULL                        // Task handle
-  );
-  xTaskCreatePeriodic(
-    vPeriodicTask,              // Task function
-    "Periodic Task 3",          // Task name
-    configMINIMAL_STACK_SIZE,   // Stack depth
-    (void *)pdMS_TO_TICKS(300), // Completion time
-    pdMS_TO_TICKS(900),         // Period
-    pdMS_TO_TICKS(700),         // Relative Deadline
-    NULL                        // Task handle
-  );
-  */
-
-  /*
-  // Smoke Test for Periodic Tasks (relative deadline == period)
-
-  // Test 1: Periodic Task 1
-  xTaskCreatePeriodic(
-    vPeriodicTask,              // Task function
-    "Periodic Task 1",          // Task name
-    configMINIMAL_STACK_SIZE,   // Stack depth
-    (void *)pdMS_TO_TICKS(200), // Completion time
-    pdMS_TO_TICKS(600),         // Period
-    pdMS_TO_TICKS(600),         // Relative Deadline
-    NULL                        // Task handle
-  );
-
-  // Periodic Task 2
-  xTaskCreatePeriodic(
-    vPeriodicTask,              // Task function
-    "Periodic Task 2",          // Task name
-    configMINIMAL_STACK_SIZE,   // Stack depth
-    (void *)pdMS_TO_TICKS(100), // Completion time
-    pdMS_TO_TICKS(200),         // Period
-    pdMS_TO_TICKS(200),         // Relative Deadline
-    NULL                        // Task handle
-  );
-  */
+  // Execute a test. Don't run multiple tests at once, as they will interfere with each other.
+  // Comment out the test you don't want to run.
+  edf_test_1();
+  // edf_test_2();
+  // edf_test_3();
+  // edf_test_4();
+  // edf_test_5();
+  // edf_test_6();
+  // edf_test_7();
+  // edf_test_8();
+  // edf_test_9();
+  // edf_test_10();
+  // edf_test_11();
 
   /* Start the tasks and timer running. */
   vTaskStartScheduler();
@@ -356,31 +155,6 @@ void main_blinky(void) {
     ;
 }
 /*-----------------------------------------------------------*/
-static void vPeriodicTask(void *pvParameters) {
-  // TODO: Replace with macro, so that the scheduler can be responsible for marking tasks as done
-  // and suspending them, instead of the tasks themselves.
-  // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
-  // once they are finished executing.
-  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
-  TickType_t       previousTick    = xTaskGetTickCount();
-
-  BaseType_t xTimeSlicesExecutedThusFar = 0;
-
-  for (;;) {
-    TickType_t currentTick = xTaskGetTickCount();
-    if (currentTick != previousTick) {
-      previousTick = currentTick;
-      xTimeSlicesExecutedThusFar++;
-    }
-    if (xTimeSlicesExecutedThusFar == xCompletionTime) {
-      xTimeSlicesExecutedThusFar = 0;
-      taskDone(xTaskGetCurrentTaskHandle());
-      vTaskSuspend(NULL);
-    }
-    // vTaskDelay(pdMS_TO_TICKS(200));
-  }
-}
-
 static void vMainLEDBlinkTask(void *pvParameters) {
   const TickType_t xDelay250ms = pdMS_TO_TICKS(250UL);
 
