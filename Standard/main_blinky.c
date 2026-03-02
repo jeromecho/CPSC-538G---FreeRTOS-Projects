@@ -75,6 +75,7 @@
 
 // Other includes
 #include "main_blinky.h"
+#include "pico/stdlib.h"
 
 /* Priorities at which the tasks are created. */
 #define mainQUEUE_RECEIVE_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
@@ -161,7 +162,12 @@ void vTestRunner10(void *pvParameters) {
 /*-----------------------------------------------------------*/
 
 void main_blinky(void) {
-  printf(" Starting main_blinky.\n");
+  // Block execution until the host opens the USB serial port
+  while (!stdio_usb_connected()) {
+    sleep_ms(100);
+  }
+
+  printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
   /**

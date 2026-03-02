@@ -79,8 +79,8 @@ add_executable(main_blinky
         helpers.c
         )
     
-pico_enable_stdio_uart(main_blinky 1)
-pico_enable_stdio_usb(main_blinky 0)
+pico_enable_stdio_uart(main_blinky 0)
+pico_enable_stdio_usb(main_blinky 1)
 
 target_compile_definitions(main_blinky PRIVATE
         mainCREATE_SIMPLE_BLINKY_DEMO_ONLY=1
