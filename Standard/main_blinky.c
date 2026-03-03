@@ -61,6 +61,8 @@
  * the LED every 200 milliseconds.
  */
 
+#include "main_blinky.h"
+
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -70,12 +72,13 @@
 #include <stdio.h>
 #include "hardware/gpio.h"
 
-// EDF Scheduler includes
+// Custom scheduler includes
 #include "edf_scheduler.h"
+#include "srp.h"
+#include "testing/edf_tests.h"
+#include "testing/srp_tests.h"
 
 // Other includes
-#include "main_blinky.h"
-#include "testing/edf_tests.h"
 #include "pico/stdlib.h"
 
 /* Priorities at which the tasks are created. */
@@ -116,6 +119,46 @@ static QueueHandle_t xQueue = NULL;
 
 /*-----------------------------------------------------------*/
 
+#define TEST_DURATION_MS 3000
+
+// void print_trace_buffer() {
+//   printf("TIMESTAMP,TASK_ID\n");
+//   for (size_t i = 0; i < trace_count; i++) {
+//     printf("%lu,%u\n", trace_buffer[i].timestamp, trace_buffer[i].task_id);
+//   }
+// }
+void print_trace_buffer() {
+  printf("TIMESTAMP,EVENT,TASK_TYPE,TASK_ID,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
+  for (size_t i = 0; i < trace_count; i++) {
+    TraceRecord_t *r = &trace_buffer[i];
+    printf(
+      "%lu,%d,%d,%u,%u,%u,%u,%lu\n", r->timestamp, r->event_type, r->task_type, r->task_id,
+      r->resource_id, r->system_ceiling, r->preempt_level, r->deadline
+    );
+  }
+}
+
+void vTraceMonitorTask(void *pvParameters) {
+  // Sleep for the exact duration of your test
+  vTaskDelay(pdMS_TO_TICKS(TEST_DURATION_MS));
+
+  // The test is over. Freeze the scheduler so no more task switches occur.
+  vTaskSuspendAll();
+  // Alternatively, taskENTER_CRITICAL(); if you also want to stop interrupts.
+
+  // Now we are safely in a task context, and the system is frozen.
+  printf("\n--- TEST COMPLETE ---\n");
+  printf("Traces captured: %u\n", trace_count);
+  print_trace_buffer();
+  printf("--- END OF TRACE ---\n");
+
+  // Spin forever. The test is done.
+  while (1) {
+    // Hardware specific wait-for-interrupt to save power, or just empty loop
+    __asm volatile("wfi");
+  }
+}
+
 void main_blinky(void) {
   // Block execution until the host opens the USB serial port
   while (!stdio_usb_connected()) {
@@ -125,9 +168,19 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
+  xTaskCreate(
+    vTraceMonitorTask, "Monitor",
+    configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
+    NULL,
+    configMAX_PRIORITIES - 1,       // Highest priority so it stops everything right at 500ms
+    NULL
+  );
+
   // Execute a test. Don't run multiple tests at once, as they will interfere with each other.
   // Comment out the test you don't want to run.
-  edf_test_1();
+  printf("Starting test.\n");
+  // EDF Tests
+  // edf_test_1();
   // edf_test_2();
   // edf_test_3();
   // edf_test_4();
@@ -139,7 +192,12 @@ void main_blinky(void) {
   // edf_test_10();
   // edf_test_11();
 
+  // SRP Tests
+  srp_test_1();
+  // srp_test_2();
+
   /* Start the tasks and timer running. */
+  printf("Starting scheduler.\n");
   vTaskStartScheduler();
 
   /* If all is well, the scheduler will now be running, and the following

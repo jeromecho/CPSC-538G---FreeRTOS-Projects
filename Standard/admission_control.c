@@ -122,7 +122,7 @@ Phase 2:
 Phase 3:
 9.  Turn off admission control briefly (perhaps via a globally defined flag?) and write
     test for overloading the scheduler
-10. Extend `taskDone` so that it registers deadline misses and restarts system if there is a
+10. Extend `taskPeriodicDone` so that it registers deadline misses and restarts system if there is a
    deadline miss
 
 

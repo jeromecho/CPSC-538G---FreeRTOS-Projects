@@ -74,10 +74,15 @@ pico_add_extra_outputs(main_full)
 add_executable(main_blinky
         main.c
         main_blinky.c
+        
         edf_scheduler.c
+        srp.c
         admission_control.c
+        
         helpers.c
+        
         testing/edf_tests.c
+        testing/srp_tests.c
         )
     
 pico_enable_stdio_uart(main_blinky 0)

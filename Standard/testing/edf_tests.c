@@ -1,6 +1,8 @@
+#include "edf_tests.h"
+
 #include "FreeRTOS.h"
 #include "edf_scheduler.h"
-#include "edf_tests.h"
+
 #include <stdio.h>
 
 /**

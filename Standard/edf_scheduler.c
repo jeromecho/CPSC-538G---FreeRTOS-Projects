@@ -1,11 +1,16 @@
 #include "edf_scheduler.h"
-#include "hardware/gpio.h"
-#include "main_blinky.h"
+
+#include "ProjectConfig.h"
 #include "admission_control.h"
-#include "helpers.h"
-#include <stdio.h>
+#include "hardware/gpio.h"
 #include "hardware/watchdog.h"
+#include "helpers.h"
+#include "main_blinky.h"
 #include "pico/time.h"
+#include "srp.h"
+
+#include <stdint.h>
+#include <stdio.h>
 
 TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t         periodic_task_count = 0;
@@ -13,8 +18,10 @@ size_t         periodic_task_count = 0;
 TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t          aperiodic_task_count = 0;
 
-void         setSchedulable();
-TaskHandle_t produce_highest_priority_task();
+TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
+size_t        trace_count = 0;
+
+void setSchedulable();
 
 void       setHighestPriority();
 void       deprioritizeAllTasks();
@@ -28,14 +35,17 @@ void setSchedulable() {
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
-    if (task->is_done) {
+    if (task->tmb.is_done) {
       TickType_t current_tick = xTaskGetTickCount();
       // TODO: This should be "if the last *period* has passed", not just the last deadline.
       // If the last deadline has passed, set a new deadline
       if (current_tick >= task->next_period) {
         task->tmb.absolute_deadline = task->next_period + task->relative_deadline;
         task->next_period           = task->next_period + task->period;
-        task->is_done               = false;
+        task->tmb.is_done           = false;
+        record_trace_event(
+          TRACE_EVENT_RELEASE, TRACE_TASK_PERIODIC, i + 1, 0, 0, task->tmb.absolute_deadline
+        );
         // vTaskResume(task->tmb.handle); // Shouldn't matter wether the task is already running
       }
     }
@@ -45,44 +55,60 @@ void setSchedulable() {
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TaskHandle_t produce_highest_priority_task() {
   // Iterate through all periodic tasks and find the one with the nearest deadline
-  TMB_Periodic_t *edf_periodic_task = NULL;
+  TMB_Periodic_t *candidate_periodic_task = NULL;
   for (size_t i = 0; i < periodic_task_count; ++i) {
-    if (!periodic_tasks[i].is_done) {
-      if (edf_periodic_task == NULL ||
-          periodic_tasks[i].tmb.absolute_deadline < edf_periodic_task->tmb.absolute_deadline) {
-        edf_periodic_task = &periodic_tasks[i];
+    if (!periodic_tasks[i].tmb.is_done) {
+      if (candidate_periodic_task == NULL || periodic_tasks[i].tmb.absolute_deadline <
+                                               candidate_periodic_task->tmb.absolute_deadline) {
+        candidate_periodic_task = &periodic_tasks[i];
       }
     }
   }
 
-  // Iterate through all aperiodic tasks and find the one with the nearest
-  // deadline
-  TMB_Aperiodic_t *edf_aperiodic_task = NULL;
+  // Iterate through all aperiodic tasks and find the one with the nearest deadline
+  TMB_Aperiodic_t *candidate_aperiodic_task = NULL;
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    if (edf_aperiodic_task == NULL ||
-        aperiodic_tasks[i].tmb.absolute_deadline < edf_aperiodic_task->tmb.absolute_deadline) {
-      edf_aperiodic_task = &aperiodic_tasks[i];
+    if (!aperiodic_tasks[i].tmb.is_done) {
+      if (candidate_aperiodic_task == NULL || aperiodic_tasks[i].tmb.absolute_deadline <
+                                                candidate_aperiodic_task->tmb.absolute_deadline) {
+        candidate_aperiodic_task = &aperiodic_tasks[i];
+      }
     }
   }
 
-  // Determine which of the two tasks has the earliest deadline
-  TaskHandle_t earliest_task = NULL;
-  if (edf_periodic_task == NULL || edf_aperiodic_task == NULL) {
-    if (edf_periodic_task != NULL) {
-      earliest_task = edf_periodic_task->tmb.handle;
-    } else if (edf_aperiodic_task != NULL) {
-      earliest_task = edf_aperiodic_task->tmb.handle;
-    } else {
-      // No tasks available
-      earliest_task = NULL;
-    }
-  } else {
-    TickType_t periodic_deadline  = edf_periodic_task->tmb.absolute_deadline;
-    TickType_t aperiodic_deadline = edf_aperiodic_task->tmb.absolute_deadline;
-    earliest_task = (periodic_deadline < aperiodic_deadline) ? edf_periodic_task->tmb.handle
-                                                             : edf_aperiodic_task->tmb.handle;
+  // // Early return if there are no tasks available
+  if (candidate_periodic_task == NULL && candidate_aperiodic_task == NULL) {
+    return NULL;
   }
-  return earliest_task;
+
+  TickType_t periodic_deadline  = (candidate_periodic_task != NULL)
+                                    ? candidate_periodic_task->tmb.absolute_deadline
+                                    : (TickType_t)(UINT32_MAX);
+  TickType_t aperiodic_deadline = (candidate_aperiodic_task != NULL)
+                                    ? candidate_aperiodic_task->tmb.absolute_deadline
+                                    : (TickType_t)(UINT32_MAX);
+
+  TaskHandle_t candidate_task             = NULL;
+  unsigned int candidate_preemption_level = 0;
+  if (periodic_deadline < aperiodic_deadline) {
+    candidate_task             = candidate_periodic_task->tmb.handle;
+    candidate_preemption_level = candidate_periodic_task->tmb.preemption_level;
+  } else {
+    candidate_task             = candidate_aperiodic_task->tmb.handle;
+    candidate_preemption_level = candidate_aperiodic_task->tmb.preemption_level;
+  }
+
+// --- SRP PREEMPTION CHECK ---
+#if USE_SRP
+  configASSERT(srp_is_initialized());
+  TaskHandle_t          currently_running_task = xTaskGetCurrentTaskHandle();
+  volatile unsigned int current_system_ceiling = get_srp_system_ceiling();
+  if (candidate_preemption_level <= current_system_ceiling) {
+    return currently_running_task;
+  }
+#endif
+
+  return candidate_task;
 }
 
 /// @brief Iterates through tasks and set the highest priority to the task with the nearest deadline
@@ -98,16 +124,16 @@ void setHighestPriority() {
 void deprioritizeAllTasks() {
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
-    if (!task->is_done) {
+    if (!task->tmb.is_done) {
       vTaskPrioritySet(task->tmb.handle, PRIORITY_NOT_DONE_NOT_RUNNING);
-    } else {
-      // vTaskSuspend(task->tmb.handle);
     }
   }
 
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
     TMB_Aperiodic_t *task = &aperiodic_tasks[i];
-    vTaskPrioritySet(task->tmb.handle, PRIORITY_NOT_DONE_NOT_RUNNING);
+    if (!task->tmb.is_done) {
+      vTaskPrioritySet(task->tmb.handle, PRIORITY_NOT_DONE_NOT_RUNNING);
+    }
   }
 }
 
@@ -115,25 +141,27 @@ void resumeAllTasks() {
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
 
-    if (!task->is_done && task->release_time <= xTaskGetTickCount()) {
+    if (!task->tmb.is_done && task->tmb.release_time <= xTaskGetTickCount()) {
       vTaskResume(task->tmb.handle);
     }
   }
 
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
     TMB_Aperiodic_t *task = &aperiodic_tasks[i];
-    vTaskResume(task->tmb.handle);
+    if (!task->tmb.is_done && task->tmb.release_time <= xTaskGetTickCount()) {
+      vTaskResume(task->tmb.handle);
+    }
   }
 }
 
-void taskDone(TaskHandle_t task_handle) {
+void taskPeriodicDone(TaskHandle_t task_handle) {
   taskENTER_CRITICAL();
 
   // Mark the task as done
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_Periodic_t *task = &periodic_tasks[i];
     if (task->tmb.handle == task_handle) {
-      task->is_done = true;
+      task->tmb.is_done = true;
       if (xTaskGetTickCount() > task->tmb.absolute_deadline) {
         printf("Resetting system...\n");
         // Allow the UART to flush the message before resetting
@@ -203,16 +231,16 @@ BaseType_t xTaskCreatePeriodic(
     new_task->tmb.handle          = task_handle;
     new_task->period              = xPeriod;
     new_task->relative_deadline   = xDeadlineRelative;
-    new_task->is_done             = false;
+    new_task->tmb.is_done         = false;
     new_task->tmb.completion_time = (TickType_t)pvParameters;
 
     if (isSchedulerStarted) {
-      new_task->release_time          = xTaskGetTickCount();
+      new_task->tmb.release_time      = xTaskGetTickCount();
       new_task->next_period           = xTaskGetTickCount() + xPeriod;
       new_task->tmb.absolute_deadline = xTaskGetTickCount() + new_task->relative_deadline;
     } else {
       TickType_t release_time         = calculate_release_time_for_dropped_task(new_task->period);
-      new_task->release_time          = release_time;
+      new_task->tmb.release_time      = release_time;
       new_task->next_period           = release_time + xPeriod;
       new_task->tmb.absolute_deadline = release_time + new_task->relative_deadline;
       vTaskSuspend(task_handle);
@@ -232,22 +260,67 @@ BaseType_t xTaskCreatePeriodic(
 // TODO: Implement the xTaskDeleteAperiodic function, which will be responsible for deleting
 // aperiodic tasks once they are done executing.  This is necessary to prevent memory leaks, since
 // aperiodic tasks are not reused like periodic tasks.
+// BaseType_t xTaskCreateAperiodic(
+//   TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
+//   void *const pvParameters, TaskHandle_t *const pxCreatedTask
+// ) {
+//   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
+//     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
+//   }
+
+//   BaseType_t result = xTaskCreate(
+//     pxTaskCode, pcName, uxStackDepth, pvParameters, PRIORITY_NOT_DONE_NOT_RUNNING, pxCreatedTask
+//   );
+
+//   if (result == pdPASS) {
+//     TMB_Aperiodic_t *new_task     = &aperiodic_tasks[aperiodic_task_count++];
+//     new_task->tmb.handle          = *pxCreatedTask;
+//     new_task->tmb.completion_time = (TickType_t)pvParameters;
+//   }
+
+//   return result;
+// }
 BaseType_t xTaskCreateAperiodic(
-  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const pvParameters, TaskHandle_t *const pxCreatedTask
+  TaskFunction_t               pxTaskCode,        // Task function
+  const char *const            pcName,            // Task name
+  const configSTACK_DEPTH_TYPE uxStackDepth,      // Stack depth
+  void *const                  pvParameters,      // Completion time
+  TickType_t                   xReleaseTime,      // Release time
+  TickType_t                   xDeadlineRelative, // Relative Deadline
+  TaskHandle_t *const          pxCreatedTask      // Task handle
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
-  BaseType_t result = xTaskCreate(
-    pxTaskCode, pcName, uxStackDepth, pvParameters, PRIORITY_NOT_DONE_NOT_RUNNING, pxCreatedTask
+  TaskHandle_t task_handle;
+  bool         isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
+  BaseType_t   result             = xTaskCreate(
+    pxTaskCode, pcName, uxStackDepth, pvParameters, PRIORITY_NOT_DONE_NOT_RUNNING, &task_handle
   );
 
   if (result == pdPASS) {
     TMB_Aperiodic_t *new_task     = &aperiodic_tasks[aperiodic_task_count++];
-    new_task->tmb.handle          = *pxCreatedTask;
+    new_task->tmb.handle          = task_handle;
     new_task->tmb.completion_time = (TickType_t)pvParameters;
+    new_task->tmb.is_done         = false;
+
+    // 1. Initialize EDF scheduling fields
+    new_task->tmb.release_time      = xReleaseTime;
+    new_task->tmb.absolute_deadline = xReleaseTime + xDeadlineRelative;
+
+    if (!isSchedulerStarted) {
+      // Suspend the task so FreeRTOS doesn't instantly run it before its release time
+      vTaskSuspend(task_handle);
+    }
+
+    if (pxCreatedTask != NULL) {
+      *pxCreatedTask = task_handle;
+    }
+  } else {
+    if (pxCreatedTask != NULL) {
+      *pxCreatedTask = NULL;
+    }
   }
 
   return result;
@@ -270,19 +343,44 @@ void updatePriorities() {
 }
 
 void vApplicationTickHook(void) {
-  // gpio_xor_mask(1 << mainGPIO_LED_TASK_4);
   setSchedulable();
   updatePriorities();
 }
 
+// clang-format off
+void record_trace_event(
+  TraceEventType_t event,
+  TraceTaskType_t task_type,
+  uint8_t task_id,
+  uint8_t resource_id,
+  unsigned int preemption_level,
+  TickType_t deadline
+)
+// clang-format on
+{
+  if (trace_count < MAX_TRACE_RECORDS) {
+    trace_buffer[trace_count].timestamp   = xTaskGetTickCount();
+    trace_buffer[trace_count].event_type  = event;
+    trace_buffer[trace_count].task_type   = task_type;
+    trace_buffer[trace_count].task_id     = task_id;
+    trace_buffer[trace_count].resource_id = resource_id;
+
+    trace_buffer[trace_count].system_ceiling =
+      get_srp_system_ceiling(); // Grab current ceiling dynamically
+    trace_buffer[trace_count].preempt_level = preemption_level;
+    trace_buffer[trace_count].deadline      = deadline;
+
+    trace_count++;
+  }
+}
+
 void task_switched_out(void) {
+#if TRACE_WITH_LOGIC_ANALYZER
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
 
-  // Can this ever happen?
-  if (current_task == NULL) {
+  if (current_task == NULL)
     return;
-  }
 
   if (current_task == idle_task) {
     gpio_put(mainGPIO_LED_TASK_4, 0);
@@ -295,6 +393,7 @@ void task_switched_out(void) {
   } else {
     gpio_put(mainGPIO_LED_TASK_5, 0);
   }
+#endif
 }
 
 void task_switched_in(void) {
@@ -302,10 +401,10 @@ void task_switched_in(void) {
   TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
 
   // Can this ever happen?
-  if (current_task == NULL) {
+  if (current_task == NULL)
     return;
-  }
 
+#if TRACE_WITH_LOGIC_ANALYZER
   if (current_task == idle_task) {
     gpio_put(mainGPIO_LED_TASK_4, 1);
   } else if (current_task == periodic_tasks[0].tmb.handle) {
@@ -317,6 +416,37 @@ void task_switched_in(void) {
   } else {
     gpio_put(mainGPIO_LED_TASK_5, 1);
   }
+#else
+  if (current_task == idle_task) {
+    record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_IDLE, 0, 0, 0, 0);
+    return;
+  }
+
+  // Check periodic tasks
+  for (size_t i = 0; i < periodic_task_count; ++i) {
+    if (current_task == periodic_tasks[i].tmb.handle) {
+      record_trace_event(
+        TRACE_EVENT_SWITCH_IN, TRACE_TASK_PERIODIC, i + 1, 0,
+        periodic_tasks[i].tmb.preemption_level, periodic_tasks[i].tmb.absolute_deadline
+      );
+      return;
+    }
+  }
+
+  // Check aperiodic tasks
+  for (size_t i = 0; i < aperiodic_task_count; ++i) {
+    if (current_task == aperiodic_tasks[i].tmb.handle) {
+      record_trace_event(
+        TRACE_EVENT_SWITCH_IN, TRACE_TASK_APERIODIC, i + 1, 0,
+        aperiodic_tasks[i].tmb.preemption_level, aperiodic_tasks[i].tmb.absolute_deadline
+      );
+      return;
+    }
+  }
+
+  // Catch-all for monitor/system tasks
+  record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_SYSTEM, 0, 0, 0, 0);
+#endif
 }
 
 /// @brief  Task function for periodic tasks. It will run until it has executed for a number of time
@@ -342,7 +472,7 @@ void vPeriodicTask(void *pvParameters) {
     }
     if (xTimeSlicesExecutedThusFar == xCompletionTime) {
       xTimeSlicesExecutedThusFar = 0;
-      taskDone(xTaskGetCurrentTaskHandle());
+      taskPeriodicDone(xTaskGetCurrentTaskHandle());
       vTaskSuspend(NULL);
     }
     // vTaskDelay(pdMS_TO_TICKS(200));
