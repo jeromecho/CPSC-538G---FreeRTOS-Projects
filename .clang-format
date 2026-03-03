@@ -34,7 +34,7 @@ AlignArrayOfStructures: Left
 ContinuationIndentWidth: 2
 
 # Includes
-SortIncludes: false
+SortIncludes: true
 
 # [cpp]
 PackConstructorInitializers: Never
