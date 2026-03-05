@@ -4,7 +4,7 @@ Language: Cpp # Also covers at least C, ObjC, ObjC++
 # Default style
 # BasedOnStyle: LLVM
 IndentWidth: 2
-ColumnLimit: 100
+ColumnLimit: 120
 
 # Keep (virtually) all empty lines
 MaxEmptyLinesToKeep: 9999
