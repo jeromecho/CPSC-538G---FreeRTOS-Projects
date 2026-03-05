@@ -1,4 +1,5 @@
 import serial
+import serial.tools.list_ports
 import pandas as pd
 import io
 import sys
@@ -7,8 +8,51 @@ import time
 import plotly.graph_objects as go
 
 # --- CONFIGURATION ---
-SERIAL_PORT = "/dev/cu.usbmodem1301"
 BAUD_RATE = 115200  # Standard Pico SDK baud rate
+
+
+def select_serial_port():
+    """Scans for USB devices and prompts the user to select one."""
+    ports = serial.tools.list_ports.comports()
+
+    if not ports:
+        print("\n[Error] No serial ports found! Please plug in your device and try again.")
+        sys.exit(1)
+
+    # 1. Look for a default "usbmodem" device
+    default_port = None
+    for port in ports:
+        # Check both the device path (macOS/Linux) and description (Windows)
+        if "usbmodem" in port.device.lower() or "usbmodem" in port.description.lower():
+            default_port = port.device
+            break
+
+    # 2. If a default is found, offer a quick Y/n confirmation
+    if default_port:
+        while True:
+            choice = input(f"\nFound likely USB device: {default_port}\nUse this device? [Y/n]: ").strip().lower()
+            if choice in ["", "y", "yes"]:
+                return default_port
+            elif choice in ["n", "no"]:
+                break  # Break out to show the full list
+            else:
+                print("Please enter 'y' or 'n'.")
+
+    # 3. Present a list of all available devices if no default was used
+    print("\nAvailable serial ports:")
+    for i, port in enumerate(ports):
+        print(f"[{i}] {port.device} - {port.description}")
+
+    while True:
+        try:
+            selection = input(f"\nEnter the number of the port to use (0-{len(ports) - 1}): ").strip()
+            index = int(selection)
+            if 0 <= index < len(ports):
+                return ports[index].device
+            else:
+                print("Invalid selection. Please choose a number from the list.")
+        except ValueError:
+            print("Please enter a valid number.")
 
 
 def plot_rtos_trace(csv_data):
@@ -137,15 +181,17 @@ def plot_rtos_trace(csv_data):
 
 
 def main():
+    selected_port = select_serial_port()
+
     capturing = False
     trace_buffer = []
 
-    print(f"Looking for {SERIAL_PORT} at {BAUD_RATE} baud... (Press Ctrl+C to exit)")
+    print(f"\nLooking for {selected_port} at {BAUD_RATE} baud... (Press Ctrl+C to exit)")
 
     while True:
         try:
             # Attempt to open the serial port
-            with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+            with serial.Serial(selected_port, BAUD_RATE, timeout=1) as ser:
                 print("\n[Monitor] Connected to Pico!")
 
                 while True:

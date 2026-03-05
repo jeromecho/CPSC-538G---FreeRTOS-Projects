@@ -2,34 +2,47 @@
 #define EDF_SCHEDULER_H
 
 #include "FreeRTOS.h"
+#include "ProjectConfig.h"
 #include "task.h"
 
-#define PRIORITY_NOT_DONE_RUNNING     (tskIDLE_PRIORITY + 2)
-#define PRIORITY_NOT_DONE_NOT_RUNNING (tskIDLE_PRIORITY + 1)
-#define PRIORITY_IDLE                 (tskIDLE_PRIORITY)
+#define PRIORITY_RUNNING     (tskIDLE_PRIORITY + 2)
+#define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
+#define PRIORITY_IDLE        (tskIDLE_PRIORITY)
 
 #define errADMISSION_FAILED (-6)
 
+typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
+
 typedef struct TMB_t {
+  // --- Common Metadata ---
+  TaskType_t   type;
+  size_t       id; // Index in the corresponding TMB array, starting from 0
+  TaskHandle_t handle;
+  bool         is_done;
+
+  // --- Common Scheduling Data ---
+  TickType_t   release_time;
   TickType_t   absolute_deadline;
   TickType_t   completion_time;
+
+  // --- SRP-specific Data ---
+#if USE_SRP
   unsigned int preemption_level; // Only used for SRP, but it is more convenient to just store it in
                                  // the TMB than to have a separate data structure for SRP tasks
-  TickType_t   release_time;
-  bool         is_done;
-  TaskHandle_t handle;
+#endif
+
+  // --- Type-Specific Data ---
+  union {
+    struct {
+      TickType_t period;
+      TickType_t relative_deadline;
+      TickType_t next_period;
+    } periodic;
+
+    struct {
+    } aperiodic;
+  };
 } TMB_t;
-
-typedef struct TMB_Periodic_t {
-  TMB_t      tmb;
-  TickType_t period;
-  TickType_t next_period;
-  TickType_t relative_deadline;
-} TMB_Periodic_t;
-
-typedef struct TMB_Aperiodic_t {
-  TMB_t tmb;
-} TMB_Aperiodic_t;
 
 void taskPeriodicDone(TaskHandle_t task_handle);
 
@@ -47,24 +60,20 @@ BaseType_t xTaskCreateAperiodic(
 
 void vPeriodicTask(void *pvParameters);
 
-TaskHandle_t produce_highest_priority_task();
+TMB_t *produce_highest_priority_task();
+TMB_t *get_task_by_handle(TaskHandle_t handle);
 
 #define MAXIMUM_PERIODIC_TASKS  100
 #define MAXIMUM_APERIODIC_TASKS 100
 
-extern TMB_Periodic_t periodic_tasks[MAXIMUM_PERIODIC_TASKS];
-extern size_t         periodic_task_count;
+extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
+extern size_t periodic_task_count;
 
-extern TMB_Aperiodic_t aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
-extern size_t          aperiodic_task_count;
+extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
+extern size_t aperiodic_task_count;
 
 #define MAX_TRACE_RECORDS         250
 #define TRACE_WITH_LOGIC_ANALYZER false
-
-// typedef struct {
-//   TickType_t timestamp;
-//   uint8_t    task_id; // 0 = Idle, 1 = Task 1, etc.
-// } TraceRecord_t;
 
 typedef enum {
   TRACE_EVENT_SWITCH_IN = 0,

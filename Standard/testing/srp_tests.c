@@ -59,13 +59,13 @@ void srp_test_1() {
 
   // Task 1: Level 3 (Highest). Deadline = 100.
   xTaskCreateAperiodic(vTestTask1, "Task1", configMINIMAL_STACK_SIZE, (void *)100, 40, 100, &t1);
-  aperiodic_tasks[0].tmb.preemption_level = 3;
+  aperiodic_tasks[0].preemption_level = 3;
 
   // Task 2: Level 2 (Medium). Deadline = 200.
   xTaskCreateAperiodic(vTestTask2, "Task2", configMINIMAL_STACK_SIZE, (void *)200, 20, 200, &t2);
-  aperiodic_tasks[1].tmb.preemption_level = 2;
+  aperiodic_tasks[1].preemption_level = 2;
 
   // // Task 3: Level 1 (Lowest). Deadline = 300.
   xTaskCreateAperiodic(vTestTask3, "Task3", configMINIMAL_STACK_SIZE, (void *)300, 0, 300, &t3);
-  aperiodic_tasks[2].tmb.preemption_level = 1;
+  aperiodic_tasks[2].preemption_level = 1;
 }

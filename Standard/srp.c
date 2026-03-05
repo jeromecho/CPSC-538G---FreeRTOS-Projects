@@ -51,7 +51,7 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
     // time. It is not needed for the actual SRP logic.
     TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
     for (size_t i = 0; i < periodic_task_count; ++i) {
-      TMB_t task = periodic_tasks[i].tmb;
+      TMB_t task = periodic_tasks[i];
       if (current_task == task.handle) {
         record_trace_event(
           TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_PERIODIC, i + 1, semaphoreIdx,
@@ -61,7 +61,7 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
       }
     }
     for (size_t i = 0; i < aperiodic_task_count; ++i) {
-      TMB_t task = aperiodic_tasks[i].tmb;
+      TMB_t task = aperiodic_tasks[i];
       if (current_task == task.handle) {
         record_trace_event(
           TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_APERIODIC, i + 1, semaphoreIdx,
@@ -116,7 +116,7 @@ void vBinSemaphoreGiveSRP(unsigned int semaphoreIdx) {
   // time. It is not needed for the actual SRP logic.
   TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t task = periodic_tasks[i].tmb;
+    TMB_t task = periodic_tasks[i];
     if (current_task == task.handle) {
       record_trace_event(
         TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_PERIODIC, i + 1, semaphoreIdx, task.preemption_level,
@@ -126,7 +126,7 @@ void vBinSemaphoreGiveSRP(unsigned int semaphoreIdx) {
     }
   }
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    TMB_t task = aperiodic_tasks[i].tmb;
+    TMB_t task = aperiodic_tasks[i];
     if (current_task == task.handle) {
       record_trace_event(
         TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_APERIODIC, i + 1, semaphoreIdx,

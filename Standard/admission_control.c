@@ -10,9 +10,9 @@ static double dbf(TickType_t L, TickType_t C_new, TickType_t T_new, TickType_t D
   double demand = 0.0;
   /* Existing tasks */
   for (size_t i = 0; i < periodic_task_count; i++) {
-    TickType_t Ci = periodic_tasks[i].tmb.completion_time;
-    TickType_t Ti = periodic_tasks[i].period;
-    TickType_t Di = periodic_tasks[i].relative_deadline;
+    TickType_t Ci = periodic_tasks[i].completion_time;
+    TickType_t Ti = periodic_tasks[i].periodic.period;
+    TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
 
     demand += (floor((double)(L + Ti - Di) / Ti)) * Ci;
   }
@@ -25,9 +25,9 @@ double calculate_l_star(TickType_t C_new, TickType_t T_new, TickType_t D_new, do
   double numerator = 0.0;
   /* existing tasks */
   for (size_t i = 0; i < periodic_task_count; i++) {
-    double Ci = (double)periodic_tasks[i].tmb.completion_time;
-    double Ti = (double)periodic_tasks[i].period;
-    double Di = (double)periodic_tasks[i].relative_deadline;
+    double Ci = (double)periodic_tasks[i].completion_time;
+    double Ti = (double)periodic_tasks[i].periodic.period;
+    double Di = (double)periodic_tasks[i].periodic.relative_deadline;
     double Ui = Ci / Ti;
 
     numerator += (Ti - Di) * Ui;
@@ -44,8 +44,8 @@ double calculate_l_star(TickType_t C_new, TickType_t T_new, TickType_t D_new, do
 TickType_t calculate_d_max(TickType_t D_new) {
   TickType_t D_max = D_new;
   for (size_t i = 0; i < periodic_task_count; i++) {
-    if (periodic_tasks[i].relative_deadline > D_max) {
-      D_max = periodic_tasks[i].relative_deadline;
+    if (periodic_tasks[i].periodic.relative_deadline > D_max) {
+      D_max = periodic_tasks[i].periodic.relative_deadline;
     }
   }
   return D_max;
@@ -56,8 +56,8 @@ bool check_deadlines(TickType_t C_new, TickType_t T_new, TickType_t D_new, TickT
   bool is_schedulable = true;
   /* Check deadlines of existing tasks */
   for (size_t i = 0; i < periodic_task_count; i++) {
-    TickType_t Ti = periodic_tasks[i].period;
-    TickType_t Di = periodic_tasks[i].relative_deadline;
+    TickType_t Ti = periodic_tasks[i].periodic.period;
+    TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
 
     for (TickType_t k = 0;; k++) {
 
@@ -92,8 +92,8 @@ bool can_admit_periodic_task(TickType_t C_new, TickType_t T_new, TickType_t D_ne
   // 1. Check Utilization Condition
   double U = (double)C_new / T_new;
   for (size_t i = 0; i < periodic_task_count; i++) {
-    double Ci = (double)periodic_tasks[i].tmb.completion_time;
-    double Ti = (double)periodic_tasks[i].period;
+    double Ci = (double)periodic_tasks[i].completion_time;
+    double Ti = (double)periodic_tasks[i].periodic.period;
     U += Ci / Ti;
   }
 
