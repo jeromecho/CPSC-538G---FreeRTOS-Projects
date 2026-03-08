@@ -1,7 +1,6 @@
 #include "srp.h"
 
 #include "edf_scheduler.h" // Needed to find the highest priority task on give
-#include "pico/time.h"
 
 #include <stdio.h>
 
@@ -49,27 +48,12 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
 
     // This is only for tracing/debugging purposes to show which task took which resource at what
     // time. It is not needed for the actual SRP logic.
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-    for (size_t i = 0; i < periodic_task_count; ++i) {
-      TMB_t task = periodic_tasks[i];
-      if (current_task == task.handle) {
-        record_trace_event(
-          TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_PERIODIC, i + 1, semaphoreIdx,
-          task.preemption_level, task.absolute_deadline
-        );
-        break;
-      }
-    }
-    for (size_t i = 0; i < aperiodic_task_count; ++i) {
-      TMB_t task = aperiodic_tasks[i];
-      if (current_task == task.handle) {
-        record_trace_event(
-          TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_APERIODIC, i + 1, semaphoreIdx,
-          task.preemption_level, task.absolute_deadline
-        );
-        break;
-      }
-    }
+    TaskHandle_t    current_task     = xTaskGetCurrentTaskHandle();
+    TMB_t          *current_task_tmb = get_task_by_handle(current_task);
+    TraceTaskType_t trace_task_type =
+      (current_task_tmb != NULL)
+        ? ((current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC)
+        : TRACE_TASK_SYSTEM;
 
     // Push current ceiling and semaphoreIdx onto the stack
     srp_stack_pointer++;
@@ -81,19 +65,24 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
     if (resource_ceiling > srp_state.global_priority_ceiling) {
       srp_state.global_priority_ceiling = resource_ceiling;
     }
+    record_trace_event(TRACE_EVENT_SEMAPHORE_TAKE, trace_task_type, current_task_tmb, semaphoreIdx);
 
     taskEXIT_CRITICAL();
     return pdTRUE;
   } else {
-    // Resource is taken. Suspend the task per the design document.
     // Note: In pure SRP, this task wouldn't have been allowed to preempt in the first place.
-    printf(
-      "FATAL: SRP Scheduler failed to prevent preemption. Resource %u is locked!\n", semaphoreIdx
-    );
-    busy_wait_us_32(2000);
-    configASSERT(0); // Halt the system immediately
-
     taskEXIT_CRITICAL();
+    printf(
+      "Tick: %u FATAL: SRP Scheduler failed to prevent preemption. Resource %u is locked!\n",
+      xTaskGetTickCount(),
+      semaphoreIdx
+    );
+
+    vTaskSuspendAll(); // Freeze the scheduler to prevent being preempted in the middle of printing the error message
+                       // and dumping the trace logs
+    print_trace_buffer();
+    configASSERT(0);
+
     return pdFALSE;
   }
 }
@@ -109,32 +98,18 @@ void vBinSemaphoreGiveSRP(unsigned int semaphoreIdx) {
   srp_stack_pointer--;
 
   // Restore the old global ceiling and set resource to available
-  srp_state.global_priority_ceiling = popped_state.previous_global_ceiling;
+  srp_state.global_priority_ceiling                           = popped_state.previous_global_ceiling;
   srp_state.resource_availability[popped_state.semaphore_idx] = 1;
 
   // This is only for tracing/debugging purposes to show which task took which resource at what
   // time. It is not needed for the actual SRP logic.
-  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t task = periodic_tasks[i];
-    if (current_task == task.handle) {
-      record_trace_event(
-        TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_PERIODIC, i + 1, semaphoreIdx, task.preemption_level,
-        task.absolute_deadline
-      );
-      break;
-    }
-  }
-  for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    TMB_t task = aperiodic_tasks[i];
-    if (current_task == task.handle) {
-      record_trace_event(
-        TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_APERIODIC, i + 1, semaphoreIdx,
-        task.preemption_level, task.absolute_deadline
-      );
-      break;
-    }
-  }
+  TaskHandle_t    current_task     = xTaskGetCurrentTaskHandle();
+  TMB_t          *current_task_tmb = get_task_by_handle(current_task);
+  TraceTaskType_t trace_task_type =
+    (current_task_tmb != NULL)
+      ? ((current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC)
+      : TRACE_TASK_SYSTEM;
+  record_trace_event(TRACE_EVENT_SEMAPHORE_GIVE, trace_task_type, current_task_tmb, semaphoreIdx);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();

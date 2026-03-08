@@ -23,27 +23,16 @@ TickType_t compute_hyperperiod(TickType_t new_period) {
   return H;
 }
 
-/// @brief Simulate CPU work without yielding.
-void busy_wait_ticks(TickType_t ticks_to_wait) {
-  TickType_t start_time = xTaskGetTickCount();
-  while ((xTaskGetTickCount() - start_time) < ticks_to_wait) {
-    // Just spin to consume CPU time
-    __asm volatile("nop");
+/// @brief Simulate work for a number of ticks by busy-waiting
+void execute_for_ticks(TickType_t ticks_to_wait) {
+  // TickType_t start_time    = xTaskGetTickCount();
+  TickType_t previous_tick = xTaskGetTickCount();
+  TickType_t waited_time   = 0;
+  while (waited_time < ticks_to_wait) {
+    TickType_t current_tick = xTaskGetTickCount();
+    if (current_tick != previous_tick) {
+      waited_time += 1;
+      previous_tick = current_tick;
+    }
   }
 }
-
-// /// @brief Simulate CPU work without yielding.
-// void busy_wait_ticks(TickType_t ticks_to_wait) {
-//   // TickType_t start_time    = xTaskGetTickCount();
-//   TickType_t previous_tick = xTaskGetTickCount();
-//   TickType_t waited_time   = 0;
-//   while (waited_time < ticks_to_wait) {
-//     TickType_t current_tick = xTaskGetTickCount();
-//     if (current_tick != previous_tick) {
-//       waited_time += 1;
-//       previous_tick = current_tick;
-//     }
-//     // Just spin to consume CPU time
-//     __asm volatile("nop");
-//   }
-// }

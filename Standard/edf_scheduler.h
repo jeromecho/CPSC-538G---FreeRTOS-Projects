@@ -1,7 +1,7 @@
 #ifndef EDF_SCHEDULER_H
 #define EDF_SCHEDULER_H
 
-#include "FreeRTOS.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "ProjectConfig.h"
 #include "task.h"
 
@@ -21,9 +21,9 @@ typedef struct TMB_t {
   bool         is_done;
 
   // --- Common Scheduling Data ---
-  TickType_t   release_time;
-  TickType_t   absolute_deadline;
-  TickType_t   completion_time;
+  TickType_t release_time;
+  TickType_t absolute_deadline;
+  TickType_t completion_time;
 
   // --- SRP-specific Data ---
 #if USE_SRP
@@ -47,15 +47,23 @@ typedef struct TMB_t {
 void taskPeriodicDone(TaskHandle_t task_handle);
 
 BaseType_t xTaskCreatePeriodic(
-  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const pvParameters, TickType_t xPeriod, TickType_t xDeadlineRelative,
-  TaskHandle_t *const pxCreatedTask
+  TaskFunction_t               pxTaskCode,
+  const char *const            pcName,
+  const configSTACK_DEPTH_TYPE uxStackDepth,
+  TickType_t                   completionTime,
+  TickType_t                   xPeriod,
+  TickType_t                   xDeadlineRelative,
+  TaskHandle_t *const          pxCreatedTask
 );
 
 BaseType_t xTaskCreateAperiodic(
-  TaskFunction_t pxTaskCode, const char *const pcName, const configSTACK_DEPTH_TYPE uxStackDepth,
-  void *const pvParameters, TickType_t xReleaseTime, TickType_t xDeadlineRelative,
-  TaskHandle_t *const pxCreatedTask
+  TaskFunction_t               pxTaskCode,
+  const char *const            pcName,
+  const configSTACK_DEPTH_TYPE uxStackDepth,
+  TickType_t                   completionTime,
+  TickType_t                   xReleaseTime,
+  TickType_t                   xDeadlineRelative,
+  TaskHandle_t *const          pxCreatedTask
 );
 
 void vPeriodicTask(void *pvParameters);
@@ -72,7 +80,7 @@ extern size_t periodic_task_count;
 extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 extern size_t aperiodic_task_count;
 
-#define MAX_TRACE_RECORDS         250
+#define MAX_TRACE_RECORDS         300
 #define TRACE_WITH_LOGIC_ANALYZER false
 
 typedef enum {
@@ -81,7 +89,12 @@ typedef enum {
   TRACE_EVENT_SEMAPHORE_TAKE,
   TRACE_EVENT_SEMAPHORE_GIVE,
   TRACE_EVENT_SRP_BLOCK, // When a task is ready but denied CPU due to ceiling
-  TRACE_EVENT_DEADLINE_MISS
+  TRACE_EVENT_DEADLINE_MISS,
+  TRACE_EVENT_SWITCH_OUT,
+  TRACE_EVENT_UPDATING_PRIORITIES,
+  TRACE_EVENT_DEPRIORITIZED,
+  TRACE_EVENT_PRIORITY_SET,
+  TRACE_EVENT_DONE, // When a task finishes execution
 } TraceEventType_t;
 
 typedef enum {
@@ -91,13 +104,15 @@ typedef enum {
   TRACE_TASK_SYSTEM // For any other task that doesn't fit the above categories
 } TraceTaskType_t;
 
-// The expanded record struct
 typedef struct {
-  TickType_t       timestamp;
+  TickType_t       FreeRTOS_tick;
   TraceEventType_t event_type;
+  absolute_time_t  time; // Absolute time for better resolution in visualization
 
   TraceTaskType_t task_type;
-  uint8_t         task_id; // e.g., 0, 1, 2 for the specific task array index
+  uint8_t         task_id;  // e.g., 0, 1, 2 for the specific task array index
+  UBaseType_t     priority; // Captured priority at the time of the event
+
 
   // --- Contextual Data ---
   uint8_t      resource_id;    // Which semaphore was taken/given (if applicable)
@@ -106,12 +121,15 @@ typedef struct {
   TickType_t   deadline;       // Absolute deadline of the acting task (for EDF checks)
 } TraceRecord_t;
 
-void record_trace_event(
-  TraceEventType_t event, TraceTaskType_t task_type, uint8_t task_id, uint8_t resource_id,
-  unsigned int preemption_level, TickType_t deadline
-);
+void record_trace_event(TraceEventType_t event, TraceTaskType_t task_type, TMB_t *task, uint8_t resource_id);
 
 extern TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
 extern size_t        trace_count;
 
 #endif // EDF_SCHEDULER_H
+
+void print_trace_buffer();
+
+void deadline_miss(TMB_t *task);
+
+void EDF_scheduler_start();

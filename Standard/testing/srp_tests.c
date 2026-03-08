@@ -1,36 +1,40 @@
 #include "srp_tests.h"
 
-#include "FreeRTOS.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 #include "helpers.h"
 #include "srp.h"
 
-#include <stdio.h>
+#if USE_SRP
 
-// Task 3: Lowest Priority (Level 1)
-void vTestTask3(void *pvParameters) {
-  vBinSempahoreTakeSRP(0); // Take R1 (System ceiling becomes 3)
-  busy_wait_ticks(100);
+// === Test 1: Basic SRP Functionality Test ===
+void vSRPTest1Task3(void *pvParameters) {
+  vBinSempahoreTakeSRP(0); // Take R1 (System ceiling should become 3)
+  execute_for_ticks(100);
   vBinSemaphoreGiveSRP(0); // Give R1
-  busy_wait_ticks(20);     // Finish remaining work
-  vTaskDelete(NULL);
-}
+  execute_for_ticks(20);   // Finish remaining work
 
-// Task 2: Medium Priority (Level 2)
-void vTestTask2(void *pvParameters) {
-  busy_wait_ticks(50);
-  vTaskDelete(NULL);
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
 }
+void vSRPTest1Task2(void *pvParameters) {
+  // printf("System ceiling: %u\n", get_srp_system_ceiling());
+  execute_for_ticks(50);
 
-// Task 1: Highest Priority (Level 3)
-void vTestTask1(void *pvParameters) {
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+void vSRPTest1Task1(void *pvParameters) {
+  // printf("System ceiling: %u\n", get_srp_system_ceiling());
   vBinSempahoreTakeSRP(0); // Take R1
-  busy_wait_ticks(30);
+  execute_for_ticks(30);
+  // printf("System ceiling: %u\n", get_srp_system_ceiling());
   vBinSemaphoreGiveSRP(0); // Give R1
-  vTaskDelete(NULL);
-}
 
-void srp_test_1() {
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+TickType_t srp_test_1() {
   // 1 Resource (R1), 3 Tasks
   const int    num_test_tasks = 3;
   unsigned int user_ceilings_memory[1]; // For static allocation
@@ -58,14 +62,181 @@ void srp_test_1() {
   // For now, we rely on the EDF scheduler prioritizing the shortest absolute deadline.
 
   // Task 1: Level 3 (Highest). Deadline = 100.
-  xTaskCreateAperiodic(vTestTask1, "Task1", configMINIMAL_STACK_SIZE, (void *)100, 40, 100, &t1);
+  xTaskCreateAperiodic( //
+    vSRPTest1Task1,
+    "Task1",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(100),
+    pdMS_TO_TICKS(40),
+    pdMS_TO_TICKS(100),
+    &t1
+  );
   aperiodic_tasks[0].preemption_level = 3;
 
   // Task 2: Level 2 (Medium). Deadline = 200.
-  xTaskCreateAperiodic(vTestTask2, "Task2", configMINIMAL_STACK_SIZE, (void *)200, 20, 200, &t2);
+  xTaskCreateAperiodic( //
+    vSRPTest1Task2,
+    "Task2",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(200),
+    pdMS_TO_TICKS(20),
+    pdMS_TO_TICKS(200),
+    &t2
+  );
   aperiodic_tasks[1].preemption_level = 2;
 
   // // Task 3: Level 1 (Lowest). Deadline = 300.
-  xTaskCreateAperiodic(vTestTask3, "Task3", configMINIMAL_STACK_SIZE, (void *)300, 0, 300, &t3);
+  xTaskCreateAperiodic( //
+    vSRPTest1Task3,
+    "Task3",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(300),
+    pdMS_TO_TICKS(0),
+    pdMS_TO_TICKS(300),
+    &t3
+  );
   aperiodic_tasks[2].preemption_level = 1;
+
+  TickType_t test_duration = 3000; // Run the test long enough for all tasks to complete
+  return test_duration;
 }
+
+// === Test 2: Basic SRP Functionality Test with Multiple Resources ===
+void vSRPTest2Task4(void *pvParameters) {
+  execute_for_ticks(93);   // Initial execution
+  vBinSempahoreTakeSRP(0); // Take Red (R0) - ceiling becomes 4
+  execute_for_ticks(157);  // Critical section
+  vBinSemaphoreGiveSRP(0); // Give Red (R0)
+  execute_for_ticks(93);   // Finish remaining work
+
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+void vSRPTest2Task3(void *pvParameters) {
+  execute_for_ticks(90);   // 29 ticks before T2 arrives + 61 ticks after T2 finishes
+  vBinSempahoreTakeSRP(2); // Take Yellow (R2)
+  execute_for_ticks(109);  // Critical section
+  vBinSemaphoreGiveSRP(2); // Give Yellow (R2)
+  execute_for_ticks(93);   // Finish remaining work
+
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+void vSRPTest2Task2(void *pvParameters) {
+  execute_for_ticks(93);   // Initial execution
+  vBinSempahoreTakeSRP(1); // Take Blue (R1)
+  execute_for_ticks(109);  // Critical section
+  vBinSemaphoreGiveSRP(1); // Give Blue (R1)
+  execute_for_ticks(93);   // Finish remaining work
+
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+void vSRPTest2Task1(void *pvParameters) {
+  execute_for_ticks(93);   // Initial execution
+
+  vBinSempahoreTakeSRP(0); // Take Red (R0)
+  execute_for_ticks(45);
+  vBinSemaphoreGiveSRP(0); // Give Red (R0)
+
+  execute_for_ticks(45);   // Execution between resources
+
+  vBinSempahoreTakeSRP(1); // Take Blue (R1)
+  execute_for_ticks(45);
+  vBinSemaphoreGiveSRP(1); // Give Blue (R1)
+
+  execute_for_ticks(45);   // Execution between resources
+
+  vBinSempahoreTakeSRP(2); // Take Yellow (R2)
+  execute_for_ticks(45);
+  vBinSemaphoreGiveSRP(2); // Give Yellow (R2)
+
+  execute_for_ticks(45);   // Finish remaining work
+
+  taskPeriodicDone(xTaskGetCurrentTaskHandle());
+  vTaskSuspend(NULL);
+}
+
+// This test is taken from https://cpen432.github.io/resources/bader-slides/8-ResourceSharing.pdf
+// Page 49
+TickType_t srp_test_2() {
+  const int    num_test_tasks = 4;
+  unsigned int user_ceilings_memory[3];
+
+  // Define the TMF matrix mapped to the diagram
+  TMF_t test_tmf[4] = {
+    // Task 1 (Level 4). Needs R0, R1, R2.
+    {.preemption_level = 4, .resource_hold_times = {45, 45, 45}, .stackSize = configMINIMAL_STACK_SIZE},
+
+    // Task 2 (Level 3). Needs R1 (Blue).
+    {.preemption_level = 3, .resource_hold_times = {0, 109, 0},  .stackSize = configMINIMAL_STACK_SIZE},
+
+    // Task 3 (Level 2). Needs R2 (Yellow).
+    {.preemption_level = 2, .resource_hold_times = {0, 0, 109},  .stackSize = configMINIMAL_STACK_SIZE},
+
+    // Task 4 (Level 1). Needs R0 (Red).
+    {.preemption_level = 1, .resource_hold_times = {157, 0, 0},  .stackSize = configMINIMAL_STACK_SIZE}
+  };
+
+  // 1. Initialize SRP with our TMF matrix
+  vSRP_Initialize(test_tmf, num_test_tasks, user_ceilings_memory);
+
+  TaskHandle_t t1, t2, t3, t4;
+
+  // 2. Create the tasks
+  // Deadlines are scaled so T1 < T2 < T3 < T4 to allow the EDF scheduler to naturally map the correct priorities.
+
+  // Task 1: Level 4 (Highest). Arrives at t=400 (Middle of T2's Blue segment).
+  xTaskCreateAperiodic( //
+    vSRPTest2Task1,
+    "Task1",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(500),
+    pdMS_TO_TICKS(400),
+    pdMS_TO_TICKS(500),
+    &t1
+  );
+  aperiodic_tasks[0].preemption_level = 4;
+
+  // Task 2: Level 3 (Medium-High). Arrives at t=279 (End of T3's first cyan segment).
+  xTaskCreateAperiodic( //
+    vSRPTest2Task2,
+    "Task2",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(1000),
+    pdMS_TO_TICKS(279),
+    pdMS_TO_TICKS(1000),
+    &t2
+  );
+  aperiodic_tasks[1].preemption_level = 3;
+
+  // Task 3: Level 2 (Medium-Low). Arrives at t=150 (Middle of T4's Red segment).
+  xTaskCreateAperiodic( //
+    vSRPTest2Task3,
+    "Task3",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(1500),
+    pdMS_TO_TICKS(150),
+    pdMS_TO_TICKS(1500),
+    &t3
+  );
+  aperiodic_tasks[2].preemption_level = 2;
+
+  // Task 4: Level 1 (Lowest). Arrives at t=0.
+  xTaskCreateAperiodic( //
+    vSRPTest2Task4,
+    "Task4",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(2000),
+    pdMS_TO_TICKS(0),
+    pdMS_TO_TICKS(2000),
+    &t4
+  );
+  aperiodic_tasks[3].preemption_level = 1;
+
+  const TickType_t TEST_DURATION = 1300; // Run the test long enough for all tasks to complete
+  return TEST_DURATION;
+}
+
+
+#endif // USE_SRP

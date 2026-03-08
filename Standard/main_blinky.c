@@ -64,35 +64,21 @@
 #include "main_blinky.h"
 
 /* Kernel includes. */
-#include "FreeRTOS.h"
-#include "task.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "semphr.h"
+#include "task.h"
 
 /* Library includes. */
-#include <stdio.h>
 #include "hardware/gpio.h"
+#include <stdio.h>
 
 // Custom scheduler includes
 #include "edf_scheduler.h"
-#include "srp.h"
-#include "testing/edf_tests.h"
-#include "testing/srp_tests.h"
+#include "testing/edf_tests.h" // IWYU pragma: keep
+#include "testing/srp_tests.h" // IWYU pragma: keep
 
 // Other includes
-#include "pico/stdlib.h"
-
-/* Priorities at which the tasks are created. */
-#define mainQUEUE_RECEIVE_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
-#define mainQUEUE_SEND_TASK_PRIORITY    (tskIDLE_PRIORITY + 1)
-
-/* The rate at which data is sent to the queue.  The 200ms value is converted
-to ticks using the portTICK_PERIOD_MS constant. */
-#define mainQUEUE_SEND_FREQUENCY_MS (200 / portTICK_PERIOD_MS)
-
-/* The number of items the queue can hold.  This is 1 as the receive task
-will remove items as they are added, meaning the send task should always find
-the queue empty. */
-#define mainQUEUE_LENGTH (1)
+#include "pico/stdlib.h" // IWYU pragma: keep
 
 /*-----------------------------------------------------------*/
 
@@ -103,54 +89,23 @@ the queue empty. */
 void main_blinky(void);
 
 /*
- * The tasks as described in the comments at the top of this file.
- */
-static void vMainLEDBlinkTask(void *pvParameters);
-
-/*
  * Helpers
  */
 void initialize_gpio_pins(void);
 
 /*-----------------------------------------------------------*/
 
-/* The queue used by both tasks. */
-static QueueHandle_t xQueue = NULL;
-
-/*-----------------------------------------------------------*/
-
-#define TEST_DURATION_MS 3000
-
-// void print_trace_buffer() {
-//   printf("TIMESTAMP,TASK_ID\n");
-//   for (size_t i = 0; i < trace_count; i++) {
-//     printf("%lu,%u\n", trace_buffer[i].timestamp, trace_buffer[i].task_id);
-//   }
-// }
-void print_trace_buffer() {
-  printf("TIMESTAMP,EVENT,TASK_TYPE,TASK_ID,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
-  for (size_t i = 0; i < trace_count; i++) {
-    TraceRecord_t *r = &trace_buffer[i];
-    printf(
-      "%lu,%d,%d,%u,%u,%u,%u,%lu\n", r->timestamp, r->event_type, r->task_type, r->task_id,
-      r->resource_id, r->system_ceiling, r->preempt_level, r->deadline
-    );
-  }
-}
+#define TEST_DURATION_MS_DEFAULT 1300
 
 void vTraceMonitorTask(void *pvParameters) {
+  TickType_t test_duration = (TickType_t)pvParameters;
+
   // Sleep for the exact duration of your test
-  vTaskDelay(pdMS_TO_TICKS(TEST_DURATION_MS));
+  vTaskDelay(pdMS_TO_TICKS(test_duration));
 
   // The test is over. Freeze the scheduler so no more task switches occur.
   vTaskSuspendAll();
-  // Alternatively, taskENTER_CRITICAL(); if you also want to stop interrupts.
-
-  // Now we are safely in a task context, and the system is frozen.
-  printf("\n--- TEST COMPLETE ---\n");
-  printf("Traces captured: %u\n", trace_count);
   print_trace_buffer();
-  printf("--- END OF TRACE ---\n");
 
   // Spin forever. The test is done.
   while (1) {
@@ -168,17 +123,11 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  xTaskCreate(
-    vTraceMonitorTask, "Monitor",
-    configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
-    NULL,
-    configMAX_PRIORITIES - 1,       // Highest priority so it stops everything right at 500ms
-    NULL
-  );
-
   // Execute a test. Don't run multiple tests at once, as they will interfere with each other.
   // Comment out the test you don't want to run.
   printf("Starting test.\n");
+  TickType_t test_duration = TEST_DURATION_MS_DEFAULT;
+
   // EDF Tests
   // edf_test_1();
   // edf_test_2();
@@ -193,12 +142,22 @@ void main_blinky(void) {
   // edf_test_11();
 
   // SRP Tests
-  srp_test_1();
-  // srp_test_2();
+  // test_duration = srp_test_1();
+  test_duration = srp_test_2();
+
+  // clang-format off
+  xTaskCreate(
+    vTraceMonitorTask, "Monitor",
+    configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
+    // (void *)test_duration, // Pass the test duration as a parameter
+    (void *)test_duration,
+    configMAX_PRIORITIES - 1,
+    NULL
+  );
+  // clang-format on
 
   /* Start the tasks and timer running. */
-  printf("Starting scheduler.\n");
-  vTaskStartScheduler();
+  EDF_scheduler_start();
 
   /* If all is well, the scheduler will now be running, and the following
   line will never be reached.  If the following line does execute, then
@@ -209,22 +168,6 @@ void main_blinky(void) {
   for (;;)
     ;
 }
-/*-----------------------------------------------------------*/
-static void vMainLEDBlinkTask(void *pvParameters) {
-  const TickType_t xDelay250ms = pdMS_TO_TICKS(250UL);
-
-  /* Remove compiler warning about unused parameter. */
-  (void)pvParameters;
-
-  for (;;) {
-    /* Toggle the LED each time data is received. */
-    gpio_xor_mask(1 << PICO_DEFAULT_LED_PIN);
-
-    /* Wait for the next cycle. */
-    vTaskDelay(xDelay250ms);
-  }
-}
-/*-----------------------------------------------------------*/
 
 void initialize_gpio_pins(void) {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
