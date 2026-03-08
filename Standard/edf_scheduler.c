@@ -160,10 +160,8 @@ void updatePriorities() {
 
   if (current_task != NULL) {
     const UBaseType_t task_priority = uxTaskPriorityGet(current_task_handle);
-    
-    if (task_priority == PRIORITY_RUNNING) {
-      deprioritize_task(current_task);
-    }
+    configASSERT(task_priority == PRIORITY_RUNNING); // Only running tasks should be deprioritized
+    deprioritize_task(current_task);
   }
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
@@ -192,6 +190,7 @@ void taskPeriodicDone(TaskHandle_t task_handle) {
   record_trace_event(TRACE_EVENT_DONE, TRACE_TASK_EITHER, task_tmb, 0);
 
   task_tmb->is_done = true;
+  updatePriorities();
 
   if (xTaskGetTickCount() > task_tmb->absolute_deadline) {
     deadline_miss(task_tmb);
