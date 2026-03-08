@@ -6,6 +6,9 @@ Language: Cpp # Also covers at least C, ObjC, ObjC++
 IndentWidth: 2
 ColumnLimit: 120
 
+BinPackArguments: false
+BinPackParameters: false
+
 # Keep (virtually) all empty lines
 MaxEmptyLinesToKeep: 9999
 
