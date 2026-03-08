@@ -114,6 +114,7 @@ typedef struct {
   TraceTaskType_t task_type;
   uint8_t         task_id;  // e.g., 0, 1, 2 for the specific task array index
   UBaseType_t     priority; // Captured priority at the time of the event
+  eTaskState      task_state;
 
 
   // --- Contextual Data ---

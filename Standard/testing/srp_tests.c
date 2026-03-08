@@ -15,14 +15,12 @@ void vSRPTest1Task3(void *pvParameters) {
   execute_for_ticks(20);   // Finish remaining work
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 void vSRPTest1Task2(void *pvParameters) {
   // printf("System ceiling: %u\n", get_srp_system_ceiling());
   execute_for_ticks(50);
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 void vSRPTest1Task1(void *pvParameters) {
   // printf("System ceiling: %u\n", get_srp_system_ceiling());
@@ -32,7 +30,6 @@ void vSRPTest1Task1(void *pvParameters) {
   vBinSemaphoreGiveSRP(0); // Give R1
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 TickType_t srp_test_1() {
   // 1 Resource (R1), 3 Tasks
@@ -110,7 +107,6 @@ void vSRPTest2Task4(void *pvParameters) {
   execute_for_ticks(93);   // Finish remaining work
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 void vSRPTest2Task3(void *pvParameters) {
   execute_for_ticks(90);   // 29 ticks before T2 arrives + 61 ticks after T2 finishes
@@ -120,7 +116,6 @@ void vSRPTest2Task3(void *pvParameters) {
   execute_for_ticks(93);   // Finish remaining work
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 void vSRPTest2Task2(void *pvParameters) {
   execute_for_ticks(93);   // Initial execution
@@ -130,7 +125,6 @@ void vSRPTest2Task2(void *pvParameters) {
   execute_for_ticks(93);   // Finish remaining work
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 void vSRPTest2Task1(void *pvParameters) {
   execute_for_ticks(93);   // Initial execution
@@ -154,7 +148,6 @@ void vSRPTest2Task1(void *pvParameters) {
   execute_for_ticks(45);   // Finish remaining work
 
   taskPeriodicDone(xTaskGetCurrentTaskHandle());
-  vTaskSuspend(NULL);
 }
 
 // This test is taken from https://cpen432.github.io/resources/bader-slides/8-ResourceSharing.pdf

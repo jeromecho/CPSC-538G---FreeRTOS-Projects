@@ -35,6 +35,10 @@ void setSchedulable() {
         task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
         task->periodic.next_period = task->periodic.next_period + task->periodic.period;
         task->is_done              = false;
+        record_trace_event(TRACE_EVENT_DEADLINE_MISS, TRACE_TASK_PERIODIC, task, 0);
+        xTaskResumeFromISR(task->handle);
+
+        // TODO: resource_id should be UINT8_MAX when not used
         record_trace_event(TRACE_EVENT_RESCHEDULED, TRACE_TASK_PERIODIC, task, 0);
       }
     }
@@ -94,18 +98,18 @@ static void set_highest_priority(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  record_trace_event(TRACE_EVENT_PRIORITY_SET, TRACE_TASK_EITHER, task, 0);
-
   vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
+
+  record_trace_event(TRACE_EVENT_PRIORITY_SET, TRACE_TASK_EITHER, task, 0);
 }
 
 static void deprioritize_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  record_trace_event(TRACE_EVENT_DEPRIORITIZED, TRACE_TASK_EITHER, task, 0);
-
   vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
+
+  record_trace_event(TRACE_EVENT_DEPRIORITIZED, TRACE_TASK_EITHER, task, 0);
 }
 
 static void release_task(const TMB_t *const task) {
@@ -181,17 +185,22 @@ void vApplicationTickHook(void) {
 
 // TODO: This should accept the TMB instead of the task handle.
 // TODO: Naming scheme
+// TODO: Rename, as both periodic and aperiodic tasks might use this
 void taskPeriodicDone(TaskHandle_t task_handle) {
+  // This call to ENTER_CRITICAL is necessary both to prevent race conditions, where a task might get preempted in the
+  // middle of calling this function, but also because of the calls to vTaskSuspend and vTaskPrioritySet in the middle
+  // of it, which would otherwise cause the scheduler to perform a context switch immediately
   taskENTER_CRITICAL();
 
   configASSERT(task_handle != NULL);
   TMB_t *const task_tmb = get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
-  record_trace_event(TRACE_EVENT_DONE, TRACE_TASK_EITHER, task_tmb, 0);
-
+  vTaskSuspend(task_handle); // Suspension is needed so that idle task will run when no tasks are ready
   task_tmb->is_done = true;
   updatePriorities();
+
+  record_trace_event(TRACE_EVENT_DONE, TRACE_TASK_EITHER, task_tmb, 0);
 
   if (xTaskGetTickCount() > task_tmb->absolute_deadline) {
     deadline_miss(task_tmb);
@@ -374,14 +383,17 @@ void record_trace_event( //
       trace_buffer[trace_count].task_id  = task->id;
       trace_buffer[trace_count].deadline = task->absolute_deadline;
       if (task->handle != NULL) {
-        trace_buffer[trace_count].priority = uxTaskPriorityGet(task->handle);
+        trace_buffer[trace_count].priority   = uxTaskPriorityGet(task->handle);
+        trace_buffer[trace_count].task_state = eTaskGetState(task->handle);
       } else {
-        trace_buffer[trace_count].priority = portMAX_DELAY; // Set priority to a default value (e.g., max)
+        trace_buffer[trace_count].priority   = portMAX_DELAY; // Set priority to a default value (e.g., max)
+        trace_buffer[trace_count].task_state = eInvalid;
       }
     } else {
-      trace_buffer[trace_count].task_id  = UINT8_MAX;
-      trace_buffer[trace_count].deadline = portMAX_DELAY;
-      trace_buffer[trace_count].priority = portMAX_DELAY;
+      trace_buffer[trace_count].task_id    = UINT8_MAX;
+      trace_buffer[trace_count].deadline   = portMAX_DELAY;
+      trace_buffer[trace_count].priority   = portMAX_DELAY;
+      trace_buffer[trace_count].task_state = eInvalid;
     }
 
 #if USE_SRP
@@ -490,7 +502,6 @@ void vPeriodicTask(void *pvParameters) {
   for (;;) {
     execute_for_ticks(xCompletionTime);
     taskPeriodicDone(xTaskGetCurrentTaskHandle());
-    vTaskSuspend(NULL); // TODO: Do we really need to suspend at the end here?
   }
 }
 
@@ -515,19 +526,20 @@ TMB_t *get_task_by_handle(const TaskHandle_t handle) {
 void print_trace_buffer() {
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_count);
-  printf("TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
+  printf("TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
 
   // clang-format off
   for (size_t i = 0; i < trace_count; i++) {
     const TraceRecord_t *const r = &trace_buffer[i];
     printf(
-      "%u,%d,%llu,%d,%u,%u,%u,%u,%u,%u\n",
+      "%u,%d,%llu,%d,%u,%u,%d,%u,%u,%u,%u\n",
       r->FreeRTOS_tick,
       r->event_type,
       to_us_since_boot(r->time),
       r->task_type,
       r->task_id,
       (unsigned int)r->priority,
+      (int)r->task_state,
       r->resource_id,
       r->system_ceiling,
       r->preempt_level,

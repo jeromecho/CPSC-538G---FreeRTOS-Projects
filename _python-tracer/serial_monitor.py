@@ -90,6 +90,15 @@ def plot_rtos_trace(csv_data):
         exec_bars = []
         active_ins = {}
 
+        state_mapping = {
+            0: "eRunning",
+            1: "eReady",
+            2: "eBlocked",
+            3: "eSuspended",
+            4: "eDeleted",
+            5: "eInvalid",
+        }
+
         for _, row in df_switches.iterrows():
             t_name = row["TASK_NAME"]
 
@@ -106,7 +115,10 @@ def plot_rtos_trace(csv_data):
                             "DURATION": row["TIMESTAMP"] - current_in["TIMESTAMP"],
                             "ABS_TIME_START": current_in["ABS_TIME"],
                             "ABS_TIME_END": row["ABS_TIME"],
-                            "PRIORITY": current_in["PRIORITY"],  # Captured Priority
+                            "PRIORITY": current_in["PRIORITY"],
+                            "TASK_STATE": state_mapping.get(
+                                current_in["TASK_STATE"], "Unknown"
+                            ),
                             "DEADLINE": current_in["DEADLINE"],
                             "PREEMPT_LVL": current_in["PREEMPT_LVL"],
                             "CEILING": current_in["CEILING"],
@@ -165,6 +177,9 @@ def plot_rtos_trace(csv_data):
                     + "RTOS Priority: "
                     + df_task["PRIORITY"].astype(str)
                     + "<br>"
+                    + "Task State: "
+                    + df_task["TASK_STATE"].astype(str)
+                    + "<br>"
                     + "Preempt Lvl: "
                     + df_task["PREEMPT_LVL"].astype(str)
                     + "<br>"
@@ -197,6 +212,7 @@ def plot_rtos_trace(csv_data):
                         f"Abs Time: {r['ABS_TIME']} µs<br>"
                         f"Deadline: {r['DEADLINE']}<br>"
                         f"RTOS Priority: {r['PRIORITY']}<br>"
+                        f"Task State: {state_mapping.get(r['TASK_STATE'], 'Unknown')}<br>"
                         f"Preempt Level: {r['PREEMPT_LVL']}<br>"
                         f"System Ceiling: {r['CEILING']}<br>"
                         f"Resource ID: {r['RESOURCE']}"
