@@ -129,7 +129,7 @@ void main_blinky(void) {
   TickType_t test_duration = TEST_DURATION_MS_DEFAULT;
 
   // EDF Tests
-  // edf_test_1();
+  edf_test_1();
   // edf_test_2();
   // edf_test_3();
   // edf_test_4();
@@ -143,13 +143,13 @@ void main_blinky(void) {
 
   // SRP Tests
   // test_duration = srp_test_1();
-  test_duration = srp_test_2();
+  // test_duration = srp_test_2();
+
 
   // clang-format off
   xTaskCreate(
     vTraceMonitorTask, "Monitor",
     configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
-    // (void *)test_duration, // Pass the test duration as a parameter
     (void *)test_duration,
     configMAX_PRIORITIES - 1,
     NULL

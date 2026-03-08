@@ -131,6 +131,7 @@ def plot_rtos_trace(csv_data):
             8: ("Deprioritized", "triangle-down-open", "gray"),
             9: ("Priority Set", "triangle-up-open", "gold"),
             10: ("Task Done", "circle-dot", "teal"),
+            11: ("Rescheduled", "star-open", "mediumseagreen"),
         }
 
         fig = go.Figure()

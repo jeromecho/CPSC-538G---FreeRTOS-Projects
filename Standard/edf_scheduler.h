@@ -95,6 +95,7 @@ typedef enum {
   TRACE_EVENT_DEPRIORITIZED,
   TRACE_EVENT_PRIORITY_SET,
   TRACE_EVENT_DONE, // When a task finishes execution
+  TRACE_EVENT_RESCHEDULED,
 } TraceEventType_t;
 
 typedef enum {

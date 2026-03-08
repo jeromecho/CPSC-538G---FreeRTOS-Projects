@@ -35,7 +35,7 @@ void setSchedulable() {
         task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
         task->periodic.next_period = task->periodic.next_period + task->periodic.period;
         task->is_done              = false;
-        record_trace_event(TRACE_EVENT_RELEASE, TRACE_TASK_PERIODIC, task, 0);
+        record_trace_event(TRACE_EVENT_RESCHEDULED, TRACE_TASK_PERIODIC, task, 0);
       }
     }
   }
@@ -144,7 +144,7 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 
   return highest_priority_task->handle != current_task;
 }
-
+// TODO: Naming scheme
 void updatePriorities() {
   const TMB_t *const highest_priority_task = produce_highest_priority_task();
   const bool         should_update         = should_update_priorities(highest_priority_task);
@@ -160,8 +160,9 @@ void updatePriorities() {
 
   if (current_task != NULL) {
     const UBaseType_t task_priority = uxTaskPriorityGet(current_task_handle);
-    configASSERT(task_priority == PRIORITY_RUNNING); // Only running tasks should be deprioritized
-    deprioritize_task(current_task);
+    if (task_priority == PRIORITY_RUNNING) {
+      deprioritize_task(current_task);
+    }
   }
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
