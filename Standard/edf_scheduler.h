@@ -50,9 +50,9 @@ BaseType_t xTaskCreatePeriodic(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
-  TickType_t                   completionTime,
-  TickType_t                   xPeriod,
-  TickType_t                   xDeadlineRelative,
+  const TickType_t             completionTime,
+  const TickType_t             xPeriod,
+  const TickType_t             xDeadlineRelative,
   TaskHandle_t *const          pxCreatedTask
 );
 
@@ -60,9 +60,9 @@ BaseType_t xTaskCreateAperiodic(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
-  TickType_t                   completionTime,
-  TickType_t                   xReleaseTime,
-  TickType_t                   xDeadlineRelative,
+  const TickType_t             completionTime,
+  const TickType_t             xReleaseTime,
+  const TickType_t             xDeadlineRelative,
   TaskHandle_t *const          pxCreatedTask
 );
 
@@ -101,7 +101,8 @@ typedef enum {
   TRACE_TASK_IDLE = 0,
   TRACE_TASK_PERIODIC,
   TRACE_TASK_APERIODIC,
-  TRACE_TASK_SYSTEM // For any other task that doesn't fit the above categories
+  TRACE_TASK_SYSTEM, // For any other task that doesn't fit the above categories
+  TRACE_TASK_EITHER, // The trace function will automatically determine if this is a periodic or aperiodic task
 } TraceTaskType_t;
 
 typedef struct {
@@ -121,7 +122,12 @@ typedef struct {
   TickType_t   deadline;       // Absolute deadline of the acting task (for EDF checks)
 } TraceRecord_t;
 
-void record_trace_event(TraceEventType_t event, TraceTaskType_t task_type, TMB_t *task, uint8_t resource_id);
+void record_trace_event( //
+  const TraceEventType_t event,
+  TraceTaskType_t        task_type,
+  const TMB_t *const     task,
+  const uint8_t          resource_id
+);
 
 extern TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
 extern size_t        trace_count;
@@ -130,6 +136,6 @@ extern size_t        trace_count;
 
 void print_trace_buffer();
 
-void deadline_miss(TMB_t *task);
+void deadline_miss(const TMB_t *const task);
 
 void EDF_scheduler_start();

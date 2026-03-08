@@ -1,47 +1,60 @@
 
-#include "edf_scheduler.h"
 #include "admission_control.h"
+#include "edf_scheduler.h"
 #include "helpers.h"
 // TODO: is there potential overheaded introduced by import of math.h?
 #include "math.h"
 
 /// @brief demand bound function - assumes task set is synchronnized
-static double dbf(TickType_t L, TickType_t C_new, TickType_t T_new, TickType_t D_new) {
+static double dbf( //
+  const TickType_t L,
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new
+) {
   double demand = 0.0;
-  /* Existing tasks */
+
+  // Existing tasks
   for (size_t i = 0; i < periodic_task_count; i++) {
-    TickType_t Ci = periodic_tasks[i].completion_time;
-    TickType_t Ti = periodic_tasks[i].periodic.period;
-    TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
+    const TickType_t Ci = periodic_tasks[i].completion_time;
+    const TickType_t Ti = periodic_tasks[i].periodic.period;
+    const TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
 
     demand += (floor((double)(L + Ti - Di) / Ti)) * Ci;
   }
-  /* New task */
+
+  // New task
   demand += (floor((double)(L + T_new - D_new) / T_new)) * C_new;
   return demand;
 }
 
-double calculate_l_star(TickType_t C_new, TickType_t T_new, TickType_t D_new, double U) {
+double calculate_l_star( //
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new,
+  const double     U
+) {
   double numerator = 0.0;
-  /* existing tasks */
+
+  // Existing tasks
   for (size_t i = 0; i < periodic_task_count; i++) {
-    double Ci = (double)periodic_tasks[i].completion_time;
-    double Ti = (double)periodic_tasks[i].periodic.period;
-    double Di = (double)periodic_tasks[i].periodic.relative_deadline;
-    double Ui = Ci / Ti;
+    const double Ci = (double)periodic_tasks[i].completion_time;
+    const double Ti = (double)periodic_tasks[i].periodic.period;
+    const double Di = (double)periodic_tasks[i].periodic.relative_deadline;
+    const double Ui = Ci / Ti;
 
     numerator += (Ti - Di) * Ui;
   }
 
-  /* new task */
-  double U_new = (double)C_new / T_new;
+  // New task
+  const double U_new = (double)C_new / T_new;
   numerator += (T_new - D_new) * U_new;
 
-  double L_star = numerator / (1.0 - U);
+  const double L_star = numerator / (1.0 - U);
   return L_star;
 }
 
-TickType_t calculate_d_max(TickType_t D_new) {
+TickType_t calculate_d_max(const TickType_t D_new) {
   TickType_t D_max = D_new;
   for (size_t i = 0; i < periodic_task_count; i++) {
     if (periodic_tasks[i].periodic.relative_deadline > D_max) {
@@ -52,16 +65,21 @@ TickType_t calculate_d_max(TickType_t D_new) {
 }
 
 /// @brief checks if demand bound functions evaluates to leq L at points of interest
-bool check_deadlines(TickType_t C_new, TickType_t T_new, TickType_t D_new, TickType_t upper) {
+bool check_deadlines( //
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new,
+  const TickType_t upper
+) {
   bool is_schedulable = true;
-  /* Check deadlines of existing tasks */
+
+  // Check deadlines of existing tasks
   for (size_t i = 0; i < periodic_task_count; i++) {
-    TickType_t Ti = periodic_tasks[i].periodic.period;
-    TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
+    const TickType_t Ti = periodic_tasks[i].periodic.period;
+    const TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
 
     for (TickType_t k = 0;; k++) {
-
-      TickType_t t = k * Ti + Di;
+      const TickType_t t = k * Ti + Di;
       if (t > upper)
         break;
 
@@ -72,8 +90,7 @@ bool check_deadlines(TickType_t C_new, TickType_t T_new, TickType_t D_new, TickT
   }
   /* Check deadlines of new task */
   for (TickType_t k = 0;; k++) {
-
-    TickType_t t = k * T_new + D_new;
+    const TickType_t t = k * T_new + D_new;
     if (t > upper)
       break;
 
@@ -88,12 +105,16 @@ bool check_deadlines(TickType_t C_new, TickType_t T_new, TickType_t D_new, TickT
 //         implements theorem 4.6 of Buttazzo's textbook
 // NOTE: Admission control test might be conservative as it currently
 //       auto-rejects for U = 1 case
-bool can_admit_periodic_task(TickType_t C_new, TickType_t T_new, TickType_t D_new) {
-  // 1. Check Utilization Condition
+bool can_admit_periodic_task( //
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new
+) {
+  // Check Utilization Condition
   double U = (double)C_new / T_new;
   for (size_t i = 0; i < periodic_task_count; i++) {
-    double Ci = (double)periodic_tasks[i].completion_time;
-    double Ti = (double)periodic_tasks[i].periodic.period;
+    const double Ci = (double)periodic_tasks[i].completion_time;
+    const double Ti = (double)periodic_tasks[i].periodic.period;
     U += Ci / Ti;
   }
 
@@ -101,13 +122,13 @@ bool can_admit_periodic_task(TickType_t C_new, TickType_t T_new, TickType_t D_ne
     return false;
   }
 
-  // 2. Check Processor Demand Conditions
-  double     l_star = calculate_l_star(C_new, T_new, D_new, U);
-  TickType_t H      = compute_hyperperiod(T_new);
-  TickType_t D_max  = calculate_d_max(D_new);
-  TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
+  // Check Processor Demand Conditions
+  const double     l_star = calculate_l_star(C_new, T_new, D_new, U);
+  const TickType_t H      = compute_hyperperiod(T_new);
+  const TickType_t D_max  = calculate_d_max(D_new);
+  const TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
 
-  bool is_schedulable = check_deadlines(C_new, T_new, D_new, upper);
+  const bool is_schedulable = check_deadlines(C_new, T_new, D_new, upper);
   return is_schedulable;
 }
 

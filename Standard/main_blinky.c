@@ -98,7 +98,7 @@ void initialize_gpio_pins(void);
 #define TEST_DURATION_MS_DEFAULT 1300
 
 void vTraceMonitorTask(void *pvParameters) {
-  TickType_t test_duration = (TickType_t)pvParameters;
+  const TickType_t test_duration = (TickType_t)pvParameters;
 
   // Sleep for the exact duration of your test
   vTaskDelay(pdMS_TO_TICKS(test_duration));
@@ -129,7 +129,7 @@ void main_blinky(void) {
   TickType_t test_duration = TEST_DURATION_MS_DEFAULT;
 
   // EDF Tests
-  // edf_test_1();
+  edf_test_1();
   // edf_test_2();
   // edf_test_3();
   // edf_test_4();
@@ -143,7 +143,7 @@ void main_blinky(void) {
 
   // SRP Tests
   // test_duration = srp_test_1();
-  test_duration = srp_test_2();
+  // test_duration = srp_test_2();
 
   // clang-format off
   xTaskCreate(

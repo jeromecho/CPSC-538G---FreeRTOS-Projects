@@ -13,7 +13,11 @@ static unsigned int resource_ceilings[N_RESOURCES];
 static SRP_Stack_Element_t srp_stack[N_RESOURCES];
 static int                 srp_stack_pointer = -1;
 
-void vSRP_Initialize(TMF_t *task_matrix, size_t num_tasks, unsigned int *user_ceilings_memory) {
+void vSRP_Initialize( //
+  TMF_t *const              task_matrix,
+  const size_t              num_tasks,
+  const unsigned int *const user_ceilings_memory
+) {
   srp_state.global_priority_ceiling = 0; // Assuming 0 is the lowest preemption level
 
   // Initialize all resources to available (1)
@@ -37,7 +41,8 @@ void vSRP_Initialize(TMF_t *task_matrix, size_t num_tasks, unsigned int *user_ce
   srp_state.initialized = true;
 }
 
-BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
+// TODO: Naming scheme
+BaseType_t vBinSempahoreTakeSRP(const unsigned int semaphoreIdx) {
   taskENTER_CRITICAL();
 
   configASSERT(semaphoreIdx < N_RESOURCES);
@@ -48,12 +53,9 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
 
     // This is only for tracing/debugging purposes to show which task took which resource at what
     // time. It is not needed for the actual SRP logic.
-    TaskHandle_t    current_task     = xTaskGetCurrentTaskHandle();
-    TMB_t          *current_task_tmb = get_task_by_handle(current_task);
-    TraceTaskType_t trace_task_type =
-      (current_task_tmb != NULL)
-        ? ((current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC)
-        : TRACE_TASK_SYSTEM;
+    const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+    const TMB_t *const current_task        = get_task_by_handle(current_task_handle);
+    configASSERT(current_task != NULL);
 
     // Push current ceiling and semaphoreIdx onto the stack
     srp_stack_pointer++;
@@ -65,7 +67,7 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
     if (resource_ceiling > srp_state.global_priority_ceiling) {
       srp_state.global_priority_ceiling = resource_ceiling;
     }
-    record_trace_event(TRACE_EVENT_SEMAPHORE_TAKE, trace_task_type, current_task_tmb, semaphoreIdx);
+    record_trace_event(TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_EITHER, current_task, semaphoreIdx);
 
     taskEXIT_CRITICAL();
     return pdTRUE;
@@ -87,7 +89,10 @@ BaseType_t vBinSempahoreTakeSRP(unsigned int semaphoreIdx) {
   }
 }
 
-void vBinSemaphoreGiveSRP(unsigned int semaphoreIdx) {
+// TODO: Create push() and pop() function for SRP stack, which should return an error if the srp_stack_pointer exceeds
+// the upper/lower bounds
+// TODO: Naming scheme
+void vBinSemaphoreGiveSRP(const unsigned int semaphoreIdx) {
   configASSERT(semaphoreIdx < N_RESOURCES);
   configASSERT(srp_stack_pointer >= 0);
 
@@ -103,13 +108,10 @@ void vBinSemaphoreGiveSRP(unsigned int semaphoreIdx) {
 
   // This is only for tracing/debugging purposes to show which task took which resource at what
   // time. It is not needed for the actual SRP logic.
-  TaskHandle_t    current_task     = xTaskGetCurrentTaskHandle();
-  TMB_t          *current_task_tmb = get_task_by_handle(current_task);
-  TraceTaskType_t trace_task_type =
-    (current_task_tmb != NULL)
-      ? ((current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC)
-      : TRACE_TASK_SYSTEM;
-  record_trace_event(TRACE_EVENT_SEMAPHORE_GIVE, trace_task_type, current_task_tmb, semaphoreIdx);
+  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  const TMB_t *const current_task        = get_task_by_handle(current_task_handle);
+  configASSERT(current_task != NULL);
+  record_trace_event(TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_EITHER, current_task, semaphoreIdx);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();

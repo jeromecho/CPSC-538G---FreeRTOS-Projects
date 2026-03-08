@@ -4,7 +4,7 @@
 #include "admission_control.h"
 #include "helpers.h"
 #include "pico/time.h"
-#include "srp.h"
+#include "srp.h" // IWYU pragma: keep
 
 #include <stdint.h>
 #include <stdio.h>
@@ -18,21 +18,19 @@ size_t aperiodic_task_count = 0;
 TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
 size_t        trace_count = 0;
 
-void setSchedulable();
+void       setSchedulable(); // TODO: Naming scheme
+void       releaseTasks();   // TODO: Naming scheme
+TickType_t calculate_release_time_for_dropped_task(const TickType_t new_period);
 
-void       deprioritizeAllTasks();
-void       releaseTasks();
-TickType_t calculate_release_time_for_dropped_task(TickType_t new_period);
-
-bool should_update_priorities(TMB_t **task_highest_priority);
-void updatePriorities();
+bool should_update_priorities(const TMB_t *const highest_priority_task);
+void updatePriorities(); // TODO: Naming scheme
 
 void setSchedulable() {
   // Iterate through all periodic tasks and set their deadlines
   for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *task = &periodic_tasks[i];
+    TMB_t *const task = &periodic_tasks[i];
     if (task->is_done) {
-      TickType_t current_tick = xTaskGetTickCount();
+      const TickType_t current_tick = xTaskGetTickCount();
       if (current_tick >= task->periodic.next_period) {
         task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
         task->periodic.next_period = task->periodic.next_period + task->periodic.period;
@@ -44,10 +42,10 @@ void setSchedulable() {
 }
 
 // Helper function to find the pending task with the nearest deadline
-static TMB_t *get_highest_priority_candidate(TMB_t *tasks, size_t count) {
-  TMB_t     *candidate         = NULL;
-  TickType_t earliest_deadline = portMAX_DELAY;
-  TickType_t current_tick      = xTaskGetTickCount();
+static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
+  const TickType_t current_tick      = xTaskGetTickCount();
+  TMB_t           *candidate         = NULL;
+  TickType_t       earliest_deadline = portMAX_DELAY;
 
   for (size_t i = 0; i < count; ++i) {
     TMB_t *task = &tasks[i];
@@ -62,26 +60,27 @@ static TMB_t *get_highest_priority_candidate(TMB_t *tasks, size_t count) {
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *produce_highest_priority_task() {
-  TMB_t *periodic_candidate  = get_highest_priority_candidate(periodic_tasks, periodic_task_count);
-  TMB_t *aperiodic_candidate = get_highest_priority_candidate(aperiodic_tasks, aperiodic_task_count);
+  TMB_t *periodic_candidate  = candidate_highest_priority(periodic_tasks, periodic_task_count);
+  TMB_t *aperiodic_candidate = candidate_highest_priority(aperiodic_tasks, aperiodic_task_count);
 
   // // Early return if there are no tasks available
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
     return NULL;
   }
 
-  TickType_t periodic_deadline = (periodic_candidate != NULL) ? periodic_candidate->absolute_deadline : portMAX_DELAY;
-  TickType_t aperiodic_deadline =
+  const TickType_t periodic_deadline =
+    (periodic_candidate != NULL) ? periodic_candidate->absolute_deadline : portMAX_DELAY;
+  const TickType_t aperiodic_deadline =
     (aperiodic_candidate != NULL) ? aperiodic_candidate->absolute_deadline : portMAX_DELAY;
   TMB_t *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
 
 // --- SRP PREEMPTION CHECK ---
 #if USE_SRP
   configASSERT(srp_is_initialized());
-  unsigned int current_system_ceiling = get_srp_system_ceiling();
+  const unsigned int current_system_ceiling = get_srp_system_ceiling();
   if (candidate->preemption_level <= current_system_ceiling) {
-    TaskHandle_t current_task     = xTaskGetCurrentTaskHandle();
-    TMB_t       *current_task_tmb = get_task_by_handle(current_task);
+    const TaskHandle_t current_task     = xTaskGetCurrentTaskHandle();
+    TMB_t             *current_task_tmb = get_task_by_handle(current_task);
     configASSERT(current_task_tmb != NULL);
 
     return current_task_tmb;
@@ -91,38 +90,40 @@ TMB_t *produce_highest_priority_task() {
   return candidate;
 }
 
-static void set_highest_priority(TMB_t *task) {
+static void set_highest_priority(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
-  configASSERT(!task->is_done); // We should never be prioritizing a task that's already done
+
+  record_trace_event(TRACE_EVENT_PRIORITY_SET, TRACE_TASK_EITHER, task, 0);
+
   vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
-  record_trace_event(
-    TRACE_EVENT_PRIORITY_SET, (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC, task, 0
-  );
 }
 
-static void deprioritize_task(TMB_t *task) {
+static void deprioritize_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
-  configASSERT(!task->is_done); // We should never be deprioritizing a task that's already done
-  // configASSERT(
-  //   uxTaskPriorityGet(task->handle) != PRIORITY_NOT_RUNNING
-  // ); // We should never be deprioritizing a task that's already not running
+
+  record_trace_event(TRACE_EVENT_DEPRIORITIZED, TRACE_TASK_EITHER, task, 0);
+
   vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
-  record_trace_event(
-    TRACE_EVENT_DEPRIORITIZED, (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC, task, 0
-  );
-  // vTaskSuspend(task->handle);
 }
 
-static void release_tasks_in_array(TMB_t *tasks, size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    TMB_t *task = &tasks[i];
-    if (!task->is_done && task->release_time <= xTaskGetTickCount() && eTaskGetState(task->handle) == eSuspended) {
-      xTaskResumeFromISR(task->handle);
+static void release_task(const TMB_t *const task) {
+  configASSERT(task != NULL);
+  configASSERT(task->handle != NULL);
 
-      TraceTaskType_t trace_task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
-      record_trace_event(TRACE_EVENT_RELEASE, trace_task_type, task, 0);
+  record_trace_event(TRACE_EVENT_RELEASE, TRACE_TASK_EITHER, task, 0);
+
+  xTaskResumeFromISR(task->handle);
+}
+static void release_tasks_in_array(const TMB_t *const tasks, const size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const TMB_t *const task           = &tasks[i];
+    const bool         task_done      = task->is_done;
+    const bool         task_released  = task->release_time <= xTaskGetTickCount();
+    const bool         task_suspended = eTaskGetState(task->handle) == eSuspended;
+    if (!task_done && task_released && task_suspended) {
+      release_task(task);
     }
   }
 }
@@ -132,52 +133,44 @@ void releaseTasks() {
 }
 
 /// @brief produce true if currently running task is different from the highest priority task
-bool should_update_priorities(TMB_t **task_highest_priority) {
-  *task_highest_priority    = produce_highest_priority_task();
-  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+bool should_update_priorities(const TMB_t *const highest_priority_task) {
+  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
 
   // If there are no schedulable tasks, then we should be running the idle task. In that case, we only want to update
   // priorities if we're not already running the idle task (i.e. if current_task is not the idle task handle).
-  if (*task_highest_priority == NULL) {
+  if (highest_priority_task == NULL) {
     return current_task != xTaskGetIdleTaskHandle();
   }
 
-  return (*task_highest_priority)->handle != current_task;
+  return highest_priority_task->handle != current_task;
 }
 
 void updatePriorities() {
-  TMB_t *new_highest_priority_task = NULL;
-  bool   should_update             = should_update_priorities(&new_highest_priority_task);
+  const TMB_t *const highest_priority_task = produce_highest_priority_task();
+  const bool         should_update         = should_update_priorities(highest_priority_task);
   if (!should_update) {
     return;
   }
 
-  const size_t new_highest_priority_task_marker =
-    (new_highest_priority_task != NULL) ? new_highest_priority_task->id : UINT8_MAX;
-  // record_trace_event(TRACE_EVENT_UPDATING_PRIORITIES, TRACE_TASK_SYSTEM, new_highest_priority_task, 0);
-  record_trace_event(
-    TRACE_EVENT_UPDATING_PRIORITIES, TRACE_TASK_SYSTEM, new_highest_priority_task, new_highest_priority_task_marker
-  );
+  record_trace_event(TRACE_EVENT_UPDATING_PRIORITIES, TRACE_TASK_SYSTEM, highest_priority_task, 0);
 
-  TaskHandle_t current_task     = xTaskGetCurrentTaskHandle();
-  TMB_t       *current_task_tmb = get_task_by_handle(current_task);
-  // configASSERT(current_task_tmb != NULL);
+  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  TMB_t       *current_task        = get_task_by_handle(current_task_handle);
+  // configASSERT(current_task != NULL);
 
-  if (current_task_tmb != NULL) {
-    // We only want to deprioritize the current task if it's not the idle task, since the idle task is a special case
-    // where it should always be ready to run when there are no other tasks.
-    if (current_task != xTaskGetIdleTaskHandle()) {
-      // configASSERT(
-      //   uxTaskPriorityGet(current_task) == PRIORITY_RUNNING
-      // ); // We should only be deprioritizing a task that's currently running
-      deprioritize_task(current_task_tmb);
+  if (current_task != NULL) {
+    const UBaseType_t task_priority = uxTaskPriorityGet(current_task_handle);
+    
+    if (task_priority == PRIORITY_RUNNING) {
+      deprioritize_task(current_task);
     }
   }
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
-  // task. In that case, we can just deprioritize the current task and let the scheduler switch to the idle task.
-  if (new_highest_priority_task != NULL) {
-    set_highest_priority(new_highest_priority_task);
+  // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
+  // to run the Idle task.
+  if (highest_priority_task != NULL) {
+    set_highest_priority(highest_priority_task);
   }
 }
 
@@ -188,15 +181,15 @@ void vApplicationTickHook(void) {
 }
 
 // TODO: This should accept the TMB instead of the task handle.
+// TODO: Naming scheme
 void taskPeriodicDone(TaskHandle_t task_handle) {
   taskENTER_CRITICAL();
 
   configASSERT(task_handle != NULL);
-  TMB_t *task_tmb = get_task_by_handle(task_handle);
+  TMB_t *const task_tmb = get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
-  TraceTaskType_t trace_task_type = (task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
-  record_trace_event(TRACE_EVENT_DONE, trace_task_type, task_tmb, 0);
+  record_trace_event(TRACE_EVENT_DONE, TRACE_TASK_EITHER, task_tmb, 0);
 
   task_tmb->is_done = true;
 
@@ -208,15 +201,15 @@ void taskPeriodicDone(TaskHandle_t task_handle) {
 }
 
 /// @brief calculates release time for dropped task
-TickType_t calculate_release_time_for_dropped_task(TickType_t new_period) {
-  TickType_t H = compute_hyperperiod(new_period);
+TickType_t calculate_release_time_for_dropped_task(const TickType_t new_period) {
+  const TickType_t H = compute_hyperperiod(new_period);
   // Hypothesis: value of xNow doesn't change during duration of function body's
   // execution if function is only called in context of tick hook
-  TickType_t xNow = xTaskGetTickCount();
+  const TickType_t xNow = xTaskGetTickCount();
   // NB: Theoretically, we shouldn't hit this code block
   if (xNow == 0)
     return 0;
-  TickType_t remainder = xNow % H;
+  const TickType_t remainder = xNow % H;
   if (remainder == 0) {
     return xNow;
   } else {
@@ -230,9 +223,9 @@ BaseType_t xTaskCreatePeriodic(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
-  TickType_t                   completionTime,
-  TickType_t                   xPeriod,
-  TickType_t                   xDeadlineRelative,
+  const TickType_t             completionTime,
+  const TickType_t             xPeriod,
+  const TickType_t             xDeadlineRelative,
   TaskHandle_t *const          pxCreatedTask
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
@@ -248,11 +241,11 @@ BaseType_t xTaskCreatePeriodic(
   configASSERT(xDeadlineRelative <= xPeriod);
 
   TaskHandle_t task_handle;
+  const bool   isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
   // TODO: priority of task below is a magic number
   // Q: Should the priority below really be "1" (not done - not running?)
 
-  bool       isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  BaseType_t result             = xTaskCreate( //
+  const BaseType_t result = xTaskCreate( //
     pxTaskCode,
     pcName,
     uxStackDepth,
@@ -264,7 +257,7 @@ BaseType_t xTaskCreatePeriodic(
   // pass it as a parameter to created task (a single handle to TMB might be sufficient)
   if (result == pdPASS) {
     const size_t index    = periodic_task_count; // Store the current count as the index for the new task
-    TMB_t       *new_task = &periodic_tasks[index];
+    TMB_t *const new_task = &periodic_tasks[index];
     periodic_task_count++;
 
     new_task->type    = TASK_PERIODIC;
@@ -281,7 +274,6 @@ BaseType_t xTaskCreatePeriodic(
       new_task->release_time         = xTaskGetTickCount();
       new_task->periodic.next_period = xTaskGetTickCount() + xPeriod;
       new_task->absolute_deadline    = xTaskGetTickCount() + xDeadlineRelative;
-      record_trace_event(TRACE_EVENT_RELEASE, TRACE_TASK_PERIODIC, new_task, 0);
     } else {
       TickType_t release_time        = calculate_release_time_for_dropped_task(xPeriod);
       new_task->release_time         = release_time;
@@ -308,18 +300,18 @@ BaseType_t xTaskCreateAperiodic(
   TaskFunction_t               pxTaskCode,        // Task function
   const char *const            pcName,            // Task name
   const configSTACK_DEPTH_TYPE uxStackDepth,      // Stack depth
-  TickType_t                   completionTime,    // Completion time
-  TickType_t                   xReleaseTime,      // Release time
-  TickType_t                   xDeadlineRelative, // Relative Deadline
+  const TickType_t             completionTime,    // Completion time
+  const TickType_t             xReleaseTime,      // Release time
+  const TickType_t             xDeadlineRelative, // Relative Deadline
   TaskHandle_t *const          pxCreatedTask      // Task handle
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
-  TaskHandle_t task_handle;
-  bool         isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  BaseType_t   result             = xTaskCreate( //
+  TaskHandle_t     task_handle;
+  const bool       isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
+  const BaseType_t result             = xTaskCreate( //
     pxTaskCode,
     pcName,
     uxStackDepth,
@@ -330,7 +322,7 @@ BaseType_t xTaskCreateAperiodic(
 
   if (result == pdPASS) {
     const size_t index    = aperiodic_task_count; // Store the current count as the index for the new task
-    TMB_t       *new_task = &aperiodic_tasks[index];
+    TMB_t *const new_task = &aperiodic_tasks[index];
     aperiodic_task_count++;
 
     new_task->type    = TASK_APERIODIC;
@@ -359,7 +351,17 @@ BaseType_t xTaskCreateAperiodic(
 // TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
 // bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
 // to 0 when SRP is not enabled.
-void record_trace_event(TraceEventType_t event, TraceTaskType_t task_type, TMB_t *task, uint8_t resource_id) {
+void record_trace_event( //
+  const TraceEventType_t event,
+  TraceTaskType_t        task_type,
+  const TMB_t *const     task,
+  const uint8_t          resource_id
+) {
+  if (task_type == TRACE_TASK_EITHER) {
+    configASSERT(task != NULL);
+    task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
+  }
+
   taskENTER_CRITICAL();
   if (trace_count < MAX_TRACE_RECORDS) {
     trace_buffer[trace_count].FreeRTOS_tick = xTaskGetTickCount();
@@ -400,8 +402,8 @@ void record_trace_event(TraceEventType_t event, TraceTaskType_t task_type, TMB_t
 }
 
 void task_switched_out(void) {
-  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
 
   if (current_task == NULL)
     return;
@@ -424,22 +426,20 @@ void task_switched_out(void) {
     return;
   }
 
-  TMB_t *current_task_tmb = get_task_by_handle(current_task);
+  const TMB_t *const current_task_tmb = get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
     // This should never happen, but just in case
     record_trace_event(TRACE_EVENT_SWITCH_OUT, TRACE_TASK_SYSTEM, NULL, 0);
     return;
   }
 
-  TraceTaskType_t trace_task_type =
-    (current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
-  record_trace_event(TRACE_EVENT_SWITCH_OUT, trace_task_type, current_task_tmb, 0);
+  record_trace_event(TRACE_EVENT_SWITCH_OUT, TRACE_TASK_EITHER, current_task_tmb, 0);
 #endif
 }
 
 void task_switched_in(void) {
-  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
 
   // Can this ever happen?
   if (current_task == NULL)
@@ -463,16 +463,14 @@ void task_switched_in(void) {
     return;
   }
 
-  TMB_t *current_task_tmb = get_task_by_handle(current_task);
+  const TMB_t *const current_task_tmb = get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
     // This should never happen, but just in case
     record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_SYSTEM, NULL, 0);
     return;
   }
 
-  TraceTaskType_t trace_task_type =
-    (current_task_tmb->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
-  record_trace_event(TRACE_EVENT_SWITCH_IN, trace_task_type, current_task_tmb, 0);
+  record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_EITHER, current_task_tmb, 0);
 #endif
 }
 
@@ -487,9 +485,7 @@ void vPeriodicTask(void *pvParameters) {
   // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
   // once they are finished executing.
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
-  TickType_t       previousTick    = xTaskGetTickCount();
-
-  BaseType_t xTimeSlicesExecutedThusFar = 0;
+  const TickType_t previousTick    = xTaskGetTickCount();
 
   for (;;) {
     execute_for_ticks(xCompletionTime);
@@ -500,7 +496,7 @@ void vPeriodicTask(void *pvParameters) {
 
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only
 // looking for aperiodic tasks?
-TMB_t *get_task_by_handle(TaskHandle_t handle) {
+TMB_t *get_task_by_handle(const TaskHandle_t handle) {
   for (size_t i = 0; i < periodic_task_count; ++i) {
     if (periodic_tasks[i].handle == handle) {
       return &periodic_tasks[i];
@@ -523,7 +519,7 @@ void print_trace_buffer() {
 
   // clang-format off
   for (size_t i = 0; i < trace_count; i++) {
-    TraceRecord_t *r = &trace_buffer[i];
+    const TraceRecord_t *const r = &trace_buffer[i];
     printf(
       "%u,%d,%llu,%d,%u,%u,%u,%u,%u,%u\n",
       r->FreeRTOS_tick,
@@ -543,7 +539,7 @@ void print_trace_buffer() {
   printf("--- END OF TRACE ---\n");
 }
 
-void deadline_miss(TMB_t *task) {
+void deadline_miss(const TMB_t *const task) {
   // configASSERT(task != NULL);
   // vTaskSuspendAll(); // Freeze the scheduler to prevent being preempted in the middle of printing the error message
   // and rebooting
@@ -569,11 +565,13 @@ void EDF_scheduler_start() {
   /* Start the tasks and timer running. */
   printf("Starting scheduler.\n");
 
+  vApplicationTickHook();
+
   // Set the highest priority to the task with the earliest deadline at the moment of scheduler start
-  TMB_t *initial_highest_priority_task = produce_highest_priority_task();
-  if (initial_highest_priority_task != NULL) {
-    set_highest_priority(initial_highest_priority_task);
-  }
+  // TMB_t *initial_highest_priority_task = produce_highest_priority_task();
+  // if (initial_highest_priority_task != NULL) {
+  //   set_highest_priority(initial_highest_priority_task);
+  // }
 
   vTaskStartScheduler();
 }
