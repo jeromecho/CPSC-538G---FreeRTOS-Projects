@@ -44,9 +44,7 @@ typedef struct TMB_t {
   };
 } TMB_t;
 
-void taskPeriodicDone(TaskHandle_t task_handle);
-
-BaseType_t xTaskCreatePeriodic(
+BaseType_t EDF_create_periodic_task(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
@@ -56,7 +54,7 @@ BaseType_t xTaskCreatePeriodic(
   TaskHandle_t *const          pxCreatedTask
 );
 
-BaseType_t xTaskCreateAperiodic(
+BaseType_t EDF_create_aperiodic_task(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
@@ -66,10 +64,12 @@ BaseType_t xTaskCreateAperiodic(
   TaskHandle_t *const          pxCreatedTask
 );
 
-void vPeriodicTask(void *pvParameters);
+void EDF_periodic_task(void *pvParameters);
 
-TMB_t *produce_highest_priority_task();
-TMB_t *get_task_by_handle(TaskHandle_t handle);
+TMB_t *EDF_produce_highest_priority_task();
+TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
+void   EDF_mark_task_done(TaskHandle_t task_handle);
+void   EDF_scheduler_start();
 
 #define MAXIMUM_PERIODIC_TASKS  100
 #define MAXIMUM_APERIODIC_TASKS 100
@@ -79,6 +79,8 @@ extern size_t periodic_task_count;
 
 extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 extern size_t aperiodic_task_count;
+
+// TODO: Move trace functionality into its own file
 
 #define MAX_TRACE_RECORDS         300
 #define TRACE_WITH_LOGIC_ANALYZER false
@@ -124,6 +126,9 @@ typedef struct {
   TickType_t   deadline;       // Absolute deadline of the acting task (for EDF checks)
 } TraceRecord_t;
 
+extern TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
+extern size_t        trace_count;
+
 void record_trace_event( //
   const TraceEventType_t event,
   TraceTaskType_t        task_type,
@@ -131,13 +136,6 @@ void record_trace_event( //
   const uint8_t          resource_id
 );
 
-extern TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
-extern size_t        trace_count;
-
-#endif // EDF_SCHEDULER_H
-
 void print_trace_buffer();
 
-void deadline_miss(const TMB_t *const task);
-
-void EDF_scheduler_start();
+#endif // EDF_SCHEDULER_H

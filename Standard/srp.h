@@ -2,12 +2,13 @@
 #define SRP_H
 
 #include "FreeRTOS.h" // IWYU pragma: keep
-#include "task.h"
+#include "ProjectConfig.h"
 
-// Client must define this, or it can be passed via a config file
-#define N_RESOURCES 3
+#if USE_SRP
 
-// TMF structure as defined in your design
+#define N_RESOURCES 3 // TODO: Move into SRP config file
+
+// TMF structure as defined in design document
 typedef struct {
   unsigned int           preemption_level;
   unsigned int           resource_hold_times[N_RESOURCES];
@@ -28,10 +29,12 @@ typedef struct {
 } SRP_Stack_Element_t;
 
 // API Declarations
-void vSRP_Initialize(TMF_t *const task_matrix, const size_t num_tasks, const unsigned int *const user_ceilings_memory);
-BaseType_t   vBinSempahoreTakeSRP(const unsigned int semaphoreIdx);
-void         vBinSemaphoreGiveSRP(const unsigned int semaphoreIdx);
-unsigned int get_srp_system_ceiling();
-bool         srp_is_initialized();
+void SRP_initialize(TMF_t *const task_matrix, const size_t num_tasks, const unsigned int *const user_ceilings_memory);
+BaseType_t   SRP_take_binary_semaphore(const unsigned int semaphoreIdx);
+void         SRP_give_binary_semaphore(const unsigned int semaphoreIdx);
+unsigned int SRP_get_system_ceiling();
+bool         SRP_initialized();
+
+#endif // USE_SRP
 
 #endif // SRP_H

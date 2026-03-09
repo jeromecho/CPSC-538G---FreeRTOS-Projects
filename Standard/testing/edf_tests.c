@@ -11,8 +11,8 @@
  */
 // TEST 11: Missed Deadline (Total Utilization: 105%)
 void edf_test_11() {
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Task_A",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
@@ -20,8 +20,8 @@ void edf_test_11() {
     pdMS_TO_TICKS(100),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Task_B",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(130),
@@ -41,8 +41,8 @@ void edf_test_11() {
 void vTestRunner10() {
   // --- TEST B: Inadmissible Drop-in ---
   // Base Task: 20ms work, 100ms period (U=0.2)
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Base_B",
     configMINIMAL_STACK_SIZE,
     20,
@@ -55,8 +55,8 @@ void vTestRunner10() {
 
   // Drop-in Task: 90ms work, 200ms period (U=0.45)
   // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
-  BaseType_t result = xTaskCreatePeriodic( //
-    vPeriodicTask,
+  BaseType_t result = EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Drop_B",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(90),
@@ -81,8 +81,8 @@ void edf_test_10() {
 void vTestRunner9() {
   // --- TEST A: Admissible Drop-in ---
   // Base Task: 160ms work, 800ms period
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Base_A",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 20),
@@ -97,8 +97,8 @@ void vTestRunner9() {
   // Drop-in Task: 400ms work, 800ms period.
   // Total Demand: 560ms < 800ms. Should pass PDC.
   // TODO: show why total demand is not exceeded
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Drop_A",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 50),
@@ -124,8 +124,8 @@ void edf_test_9() {
  */
 // --- TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50) ---
 void edf_test_8() {
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Fail_A",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(11),
@@ -133,8 +133,8 @@ void edf_test_8() {
     pdMS_TO_TICKS(50),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Fail_B",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
@@ -146,8 +146,8 @@ void edf_test_8() {
 
 // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
 void edf_test_7() {
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Adm_A",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(10),
@@ -155,8 +155,8 @@ void edf_test_7() {
     pdMS_TO_TICKS(50),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Adm_B",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
@@ -172,8 +172,8 @@ void edf_test_6() {
   for (int i = 0; i < 10; i++) {
     char taskName[16];
     sprintf(taskName, "Fail_%d", i);
-    xTaskCreatePeriodic( //
-      vPeriodicTask,
+    EDF_create_periodic_task( //
+      EDF_periodic_task,
       taskName,
       configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(11),
@@ -190,8 +190,8 @@ void edf_test_5() {
   for (int i = 0; i < 10; i++) {
     char taskName[16];
     sprintf(taskName, "Adm_%d", i);
-    xTaskCreatePeriodic( //
-      vPeriodicTask,
+    EDF_create_periodic_task( //
+      EDF_periodic_task,
       taskName,
       configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(10),
@@ -208,8 +208,8 @@ void edf_test_4() {
     // NB: This breaks without downstream copying of task
     char taskName[16];
     sprintf(taskName, "test %d", i);
-    xTaskCreatePeriodic( //
-      vPeriodicTask,
+    EDF_create_periodic_task( //
+      EDF_periodic_task,
       taskName,
       configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(8),
@@ -225,8 +225,8 @@ void edf_test_3() {
   for (int i = 0; i < 100; i++) {
     char taskName[16];
     sprintf(taskName, "test %d", i);
-    xTaskCreatePeriodic( //
-      vPeriodicTask,
+    EDF_create_periodic_task( //
+      EDF_periodic_task,
       taskName,
       configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(15),
@@ -243,8 +243,8 @@ void edf_test_3() {
 
 // Test 2: Mark's Deadline DNE Period Smoke Test
 void edf_test_2() {
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Periodic Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
@@ -252,8 +252,8 @@ void edf_test_2() {
     pdMS_TO_TICKS(400),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Periodic Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
@@ -261,8 +261,8 @@ void edf_test_2() {
     pdMS_TO_TICKS(500),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Periodic Task 3",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(300),
@@ -274,8 +274,8 @@ void edf_test_2() {
 
 // Smoke Test for Periodic Tasks (relative deadline == period)
 void edf_test_1() {
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Periodic Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
@@ -283,8 +283,8 @@ void edf_test_1() {
     pdMS_TO_TICKS(600),
     NULL
   );
-  xTaskCreatePeriodic( //
-    vPeriodicTask,
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
     "Periodic Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(100),

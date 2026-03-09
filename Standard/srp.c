@@ -1,5 +1,7 @@
 #include "srp.h"
 
+#if USE_SRP
+
 #include "edf_scheduler.h" // Needed to find the highest priority task on give
 
 #include <stdio.h>
@@ -13,7 +15,10 @@ static unsigned int resource_ceilings[N_RESOURCES];
 static SRP_Stack_Element_t srp_stack[N_RESOURCES];
 static int                 srp_stack_pointer = -1;
 
-void vSRP_Initialize( //
+// === API FUNCTION DEFINITIONS ===
+
+/// @brief Initializes the SRP state for the system. Must be called before any calls to SRP-specific
+void SRP_initialize( //
   TMF_t *const              task_matrix,
   const size_t              num_tasks,
   const unsigned int *const user_ceilings_memory
@@ -41,8 +46,7 @@ void vSRP_Initialize( //
   srp_state.initialized = true;
 }
 
-// TODO: Naming scheme
-BaseType_t vBinSempahoreTakeSRP(const unsigned int semaphoreIdx) {
+BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   taskENTER_CRITICAL();
 
   configASSERT(semaphoreIdx < N_RESOURCES);
@@ -54,7 +58,7 @@ BaseType_t vBinSempahoreTakeSRP(const unsigned int semaphoreIdx) {
     // This is only for tracing/debugging purposes to show which task took which resource at what
     // time. It is not needed for the actual SRP logic.
     const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-    const TMB_t *const current_task        = get_task_by_handle(current_task_handle);
+    const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
     configASSERT(current_task != NULL);
 
     // Push current ceiling and semaphoreIdx onto the stack
@@ -92,7 +96,7 @@ BaseType_t vBinSempahoreTakeSRP(const unsigned int semaphoreIdx) {
 // TODO: Create push() and pop() function for SRP stack, which should return an error if the srp_stack_pointer exceeds
 // the upper/lower bounds
 // TODO: Naming scheme
-void vBinSemaphoreGiveSRP(const unsigned int semaphoreIdx) {
+void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
   configASSERT(semaphoreIdx < N_RESOURCES);
   configASSERT(srp_stack_pointer >= 0);
 
@@ -109,7 +113,7 @@ void vBinSemaphoreGiveSRP(const unsigned int semaphoreIdx) {
   // This is only for tracing/debugging purposes to show which task took which resource at what
   // time. It is not needed for the actual SRP logic.
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  const TMB_t *const current_task        = get_task_by_handle(current_task_handle);
+  const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
   configASSERT(current_task != NULL);
   record_trace_event(TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_EITHER, current_task, semaphoreIdx);
 
@@ -125,6 +129,8 @@ void vBinSemaphoreGiveSRP(const unsigned int semaphoreIdx) {
 
 /// @brief Getter for the current system ceiling, which is used in the EDF scheduler to determine if
 /// a task can preempt or not
-unsigned int get_srp_system_ceiling(void) { return srp_state.global_priority_ceiling; }
+unsigned int SRP_get_system_ceiling(void) { return srp_state.global_priority_ceiling; }
 
-bool srp_is_initialized() { return srp_state.initialized; }
+bool SRP_initialized() { return srp_state.initialized; }
+
+#endif // USE_SRP
