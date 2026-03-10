@@ -3,6 +3,7 @@
 #if USE_SRP
 
 #include "edf_scheduler.h" // Needed to find the highest priority task on give
+#include "tracer.h"
 
 #include <stdio.h>
 
@@ -71,7 +72,7 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
     if (resource_ceiling > srp_state.global_priority_ceiling) {
       srp_state.global_priority_ceiling = resource_ceiling;
     }
-    record_trace_event(TRACE_EVENT_SEMAPHORE_TAKE, TRACE_TASK_EITHER, current_task, semaphoreIdx);
+    record_trace_event(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
     taskEXIT_CRITICAL();
     return pdTRUE;
@@ -115,7 +116,7 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
   configASSERT(current_task != NULL);
-  record_trace_event(TRACE_EVENT_SEMAPHORE_GIVE, TRACE_TASK_EITHER, current_task, semaphoreIdx);
+  record_trace_event(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();

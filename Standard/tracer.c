@@ -1,0 +1,99 @@
+#include "tracer.h"
+
+#include "pico/time.h"
+#include "srp.h"
+
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+
+TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
+size_t        trace_count = 0;
+
+// TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
+// bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
+// to 0 when SRP is not enabled.
+/// @brief Records a trace, so debugging is simpler even without a logic analyzer
+void record_trace_event( //
+  const TraceEvent_t event,
+  TraceTaskType_t    task_type,
+  const TMB_t *const task
+) {
+  if (task_type == TRACE_TASK_EITHER) {
+    configASSERT(task != NULL);
+    task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
+  }
+
+  taskENTER_CRITICAL();
+  if (trace_count < MAX_TRACE_RECORDS) {
+    trace_buffer[trace_count].FreeRTOS_tick = xTaskGetTickCount();
+    trace_buffer[trace_count].time          = get_absolute_time();
+    trace_buffer[trace_count].event         = event;
+    trace_buffer[trace_count].task_type     = task_type;
+
+    if (task != NULL) {
+      trace_buffer[trace_count].task_id  = task->id;
+      trace_buffer[trace_count].deadline = task->absolute_deadline;
+      if (task->handle != NULL) {
+        trace_buffer[trace_count].priority   = uxTaskPriorityGet(task->handle);
+        trace_buffer[trace_count].task_state = eTaskGetState(task->handle);
+      } else {
+        trace_buffer[trace_count].priority   = UINT_MAX;
+        trace_buffer[trace_count].task_state = eInvalid;
+      }
+    } else {
+      trace_buffer[trace_count].task_id    = UINT8_MAX;
+      trace_buffer[trace_count].deadline   = portMAX_DELAY;
+      trace_buffer[trace_count].priority   = UINT_MAX;
+      trace_buffer[trace_count].task_state = eInvalid;
+    }
+
+#if USE_SRP
+    trace_buffer[trace_count].system_ceiling = SRP_get_system_ceiling();
+    if (task != NULL) {
+      trace_buffer[trace_count].preempt_level = task->preemption_level;
+    } else {
+      trace_buffer[trace_count].preempt_level = UINT_MAX; // For idle task or system events, set preemption level to 0
+    }
+#else
+    trace_buffer[trace_count].system_ceiling = UINT_MAX; // Not used when SRP is disabled
+    trace_buffer[trace_count].preempt_level  = UINT_MAX; // Not used when SRP is disabled
+#endif
+
+    trace_count++;
+  }
+  taskEXIT_CRITICAL();
+}
+
+/// @brief Prints all recorded traces to the host computer
+void print_trace_buffer() {
+  printf("\n--- TEST COMPLETE ---\n");
+  printf("Traces captured: %u\n", trace_count);
+  printf("TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
+
+  for (size_t i = 0; i < trace_count; i++) {
+    const TraceRecord_t *const r = &trace_buffer[i];
+
+    uint8_t resource_id = UINT8_MAX;
+    if (r->event.type == TRACE_SEMAPHORE_TAKE || r->event.type == TRACE_SEMAPHORE_GIVE) {
+      resource_id = r->event.data.semaphore_index;
+    }
+
+    printf(
+      "%u,%d,%llu,%d,%u,%u,%d,%u,%u,%u,%u\n",
+      r->FreeRTOS_tick,
+      (int)r->event.type,
+      to_us_since_boot(r->time),
+      r->task_type,
+      r->task_id,
+      (unsigned int)r->priority,
+      (int)r->task_state,
+      resource_id,
+      r->system_ceiling,
+      r->preempt_level,
+      r->deadline
+    );
+  }
+
+  printf("--- END OF TRACE ---\n");
+}

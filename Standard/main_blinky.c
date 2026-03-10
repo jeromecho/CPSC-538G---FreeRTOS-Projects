@@ -74,8 +74,15 @@
 
 // Custom scheduler includes
 #include "edf_scheduler.h"
-#include "testing/edf_tests.h" // IWYU pragma: keep
-#include "testing/srp_tests.h" // IWYU pragma: keep
+#include "tracer.h"
+
+#if !USE_SRP
+#include "testing/edf_tests.h"
+#endif // USE_SRP
+
+#if USE_SRP
+#include "testing/srp_tests.h"
+#endif // USE_SRP
 
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
@@ -128,8 +135,9 @@ void main_blinky(void) {
   printf("Starting test.\n");
   TickType_t test_duration = TEST_DURATION_MS_DEFAULT;
 
-  // EDF Tests
-  // edf_test_1();
+// EDF Tests
+#if !USE_SRP
+  edf_test_1();
   // edf_test_2();
   // edf_test_3();
   // edf_test_4();
@@ -140,10 +148,11 @@ void main_blinky(void) {
   // edf_test_9();
   // edf_test_10();
   // edf_test_11();
-
+#else
   // SRP Tests
   // test_duration = srp_test_1();
   test_duration = srp_test_2();
+#endif
 
 
   // clang-format off

@@ -3,10 +3,12 @@
 #include "ProjectConfig.h"
 #include "admission_control.h"
 #include "helpers.h"
-#include "pico/time.h"
-#include "srp.h" // IWYU pragma: keep
+#include "tracer.h"
 
-#include <stdint.h>
+#if USE_SRP
+#include "srp.h"
+#endif
+
 #include <stdio.h>
 
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
@@ -14,9 +16,6 @@ size_t periodic_task_count = 0;
 
 TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t aperiodic_task_count = 0;
-
-TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
-size_t        trace_count = 0;
 
 // === LOCAL FUNCTION DECLARATIONS ===
 void          reschedule_periodic_tasks();
@@ -33,15 +32,6 @@ TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          task_switched_out(void);
 void          task_switched_in(void);
 void          deadline_miss(const TMB_t *const task);
-
-// Trace stuff
-void record_trace_event( //
-  const TraceEventType_t event,
-  TraceTaskType_t        task_type,
-  const TMB_t *const     task,
-  const uint8_t          resource_id
-);
-void print_trace_buffer();
 
 // === API FUNCTION DEFINITIONS ===
 
@@ -94,7 +84,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   task_tmb->is_done = true;
   update_priorities();
 
-  record_trace_event(TRACE_EVENT_DONE, TRACE_TASK_EITHER, task_tmb, 0);
+  record_trace_event(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb);
 
   if (xTaskGetTickCount() > task_tmb->absolute_deadline) {
     deadline_miss(task_tmb);
@@ -298,9 +288,7 @@ void reschedule_periodic_tasks() {
         task->periodic.next_period = task->periodic.next_period + task->periodic.period;
         task->is_done              = false;
         xTaskResumeFromISR(task->handle);
-
-        // TODO: resource_id should be UINT8_MAX when not used
-        record_trace_event(TRACE_EVENT_RESCHEDULED, TRACE_TASK_PERIODIC, task, 0);
+        record_trace_event(EVENT_BASIC(TRACE_RESCHEDULED), TRACE_TASK_PERIODIC, task);
       }
     }
   }
@@ -331,7 +319,7 @@ static void set_highest_priority(const TMB_t *const task) {
 
   vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
 
-  record_trace_event(TRACE_EVENT_PRIORITY_SET, TRACE_TASK_EITHER, task, 0);
+  record_trace_event(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
 }
 
 /// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
@@ -341,7 +329,7 @@ static void deprioritize_task(const TMB_t *const task) {
 
   vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
 
-  record_trace_event(TRACE_EVENT_DEPRIORITIZED, TRACE_TASK_EITHER, task, 0);
+  record_trace_event(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
 }
 
 /// @brief Resumes a task
@@ -349,7 +337,7 @@ static void release_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  record_trace_event(TRACE_EVENT_RELEASE, TRACE_TASK_EITHER, task, 0);
+  record_trace_event(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task);
 
   xTaskResumeFromISR(task->handle);
 }
@@ -395,7 +383,7 @@ void update_priorities() {
     return;
   }
 
-  record_trace_event(TRACE_EVENT_UPDATING_PRIORITIES, TRACE_TASK_SYSTEM, highest_priority_task, 0);
+  record_trace_event(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, highest_priority_task);
 
   TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
@@ -462,18 +450,17 @@ void task_switched_out(void) {
   }
 #else
   if (current_task == idle_task) {
-    record_trace_event(TRACE_EVENT_SWITCH_OUT, TRACE_TASK_IDLE, NULL, 0);
+    record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_IDLE, NULL);
     return;
   }
 
   const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
-    // This should never happen, but just in case
-    record_trace_event(TRACE_EVENT_SWITCH_OUT, TRACE_TASK_SYSTEM, NULL, 0);
+    record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_SYSTEM, NULL);
     return;
   }
 
-  record_trace_event(TRACE_EVENT_SWITCH_OUT, TRACE_TASK_EITHER, current_task_tmb, 0);
+  record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_EITHER, current_task_tmb);
 #endif
 }
 
@@ -500,18 +487,18 @@ void task_switched_in(void) {
   }
 #else
   if (current_task == idle_task) {
-    record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_IDLE, NULL, 0);
+    record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_IDLE, NULL);
     return;
   }
 
   const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
     // This should never happen, but just in case
-    record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_SYSTEM, NULL, 0);
+    record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_SYSTEM, NULL);
     return;
   }
 
-  record_trace_event(TRACE_EVENT_SWITCH_IN, TRACE_TASK_EITHER, current_task_tmb, 0);
+  record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_EITHER, current_task_tmb);
 #endif
 }
 
@@ -539,93 +526,5 @@ void deadline_miss(const TMB_t *const task) {
   // watchdog_enable(1, 1); // Reboot the system immediately
 }
 
-// TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
-// bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
-// to 0 when SRP is not enabled.
-/// @brief Records a trace, so debugging is simpler even without a logic analyzer
-void record_trace_event( //
-  const TraceEventType_t event,
-  TraceTaskType_t        task_type,
-  const TMB_t *const     task,
-  const uint8_t          resource_id
-) {
-  if (task_type == TRACE_TASK_EITHER) {
-    configASSERT(task != NULL);
-    task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
-  }
-
-  taskENTER_CRITICAL();
-  if (trace_count < MAX_TRACE_RECORDS) {
-    trace_buffer[trace_count].FreeRTOS_tick = xTaskGetTickCount();
-    trace_buffer[trace_count].time          = get_absolute_time();
-    trace_buffer[trace_count].event_type    = event;
-    trace_buffer[trace_count].resource_id   = resource_id;
-    trace_buffer[trace_count].task_type     = task_type;
-
-    if (task != NULL) {
-      trace_buffer[trace_count].task_id  = task->id;
-      trace_buffer[trace_count].deadline = task->absolute_deadline;
-      if (task->handle != NULL) {
-        trace_buffer[trace_count].priority   = uxTaskPriorityGet(task->handle);
-        trace_buffer[trace_count].task_state = eTaskGetState(task->handle);
-      } else {
-        trace_buffer[trace_count].priority   = portMAX_DELAY; // Set priority to a default value (e.g., max)
-        trace_buffer[trace_count].task_state = eInvalid;
-      }
-    } else {
-      trace_buffer[trace_count].task_id    = UINT8_MAX;
-      trace_buffer[trace_count].deadline   = portMAX_DELAY;
-      trace_buffer[trace_count].priority   = portMAX_DELAY;
-      trace_buffer[trace_count].task_state = eInvalid;
-    }
-
-#if USE_SRP
-    trace_buffer[trace_count].system_ceiling = SRP_get_system_ceiling(); // Grab current ceiling dynamically
-    if (task != NULL) {
-      trace_buffer[trace_count].preempt_level = task->preemption_level;
-    } else {
-      trace_buffer[trace_count].preempt_level = 0; // For idle task or system events, we can set preemption level to 0
-    }
-#else
-    trace_buffer[trace_count].system_ceiling = 0; // Not used when SRP is disabled
-    trace_buffer[trace_count].preempt_level  = 0; // Not used when SRP is disabled
-#endif
-
-    trace_count++;
-  }
-  taskEXIT_CRITICAL();
-}
-
-/// @brief Prints all recorded traces to the host computer
-void print_trace_buffer() {
-  printf("\n--- TEST COMPLETE ---\n");
-  printf("Traces captured: %u\n", trace_count);
-  printf("TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
-
-  // clang-format off
-  for (size_t i = 0; i < trace_count; i++) {
-    const TraceRecord_t *const r = &trace_buffer[i];
-    printf(
-      "%u,%d,%llu,%d,%u,%u,%d,%u,%u,%u,%u\n",
-      r->FreeRTOS_tick,
-      r->event_type,
-      to_us_since_boot(r->time),
-      r->task_type,
-      r->task_id,
-      (unsigned int)r->priority,
-      (int)r->task_state,
-      r->resource_id,
-      r->system_ceiling,
-      r->preempt_level,
-      r->deadline
-    );
-  }
-  // clang-format on
-
-  printf("--- END OF TRACE ---\n");
-}
-
-// TODO: Add another tick hook for suspended tasks, or for when tasks are deprioritized. When tasks are marked as done,
-// the scheduler will choose another task to run, and relies on the default priority of the tasks in that case.
 // TODO: An alternative to the above would be to move away from only raising the priority of the next task, and instead
 // give tasks a priority proportional to their index in a sorted list of deadlines.

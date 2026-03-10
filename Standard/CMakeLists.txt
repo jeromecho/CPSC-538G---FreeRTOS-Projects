@@ -31,6 +31,7 @@ add_executable(main_blinky
         srp.c
         admission_control.c
         
+        tracer.c
         helpers.c
         
         testing/edf_tests.c
