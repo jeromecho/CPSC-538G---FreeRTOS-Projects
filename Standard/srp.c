@@ -77,7 +77,6 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
     taskEXIT_CRITICAL();
     return pdTRUE;
   } else {
-    // Note: In pure SRP, this task wouldn't have been allowed to preempt in the first place.
     taskEXIT_CRITICAL();
     printf(
       "Tick: %u FATAL: SRP Scheduler failed to prevent preemption. Resource %u is locked!\n",
@@ -96,7 +95,6 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
 
 // TODO: Create push() and pop() function for SRP stack, which should return an error if the srp_stack_pointer exceeds
 // the upper/lower bounds
-// TODO: Naming scheme
 void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
   configASSERT(semaphoreIdx < N_RESOURCES);
   configASSERT(srp_stack_pointer >= 0);

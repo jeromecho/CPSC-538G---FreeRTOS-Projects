@@ -232,15 +232,16 @@ BaseType_t EDF_create_aperiodic_task(
 /// next period starts.
 /// @param pvParameters
 void EDF_periodic_task(void *pvParameters) {
-  // TODO: Replace with macro, so that the scheduler can be responsible for marking tasks as done
-  // and suspending them, instead of the tasks themselves.
-  // TODO: This would also mean that the scheduler can be responsible for deleting aperiodic tasks
-  // once they are finished executing.
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
   const TickType_t previousTick    = xTaskGetTickCount();
 
+  // Setup code goes here
+
   for (;;) {
+    // Application logic goes here, and replaces execute_for_ticks
     execute_for_ticks(xCompletionTime);
+
+    // This needs to be included for periodic tasks
     EDF_mark_task_done(xTaskGetCurrentTaskHandle());
   }
 }
@@ -525,6 +526,3 @@ void deadline_miss(const TMB_t *const task) {
 
   // watchdog_enable(1, 1); // Reboot the system immediately
 }
-
-// TODO: An alternative to the above would be to move away from only raising the priority of the next task, and instead
-// give tasks a priority proportional to their index in a sorted list of deadlines.

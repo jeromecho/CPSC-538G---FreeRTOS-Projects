@@ -13,7 +13,6 @@ TickType_t gcd(TickType_t a, TickType_t b) {
 TickType_t lcm(const TickType_t a, const TickType_t b) { return (a / gcd(a, b)) * b; }
 
 /// @brief Computes hyperperiod between existing periods and period of newly added task
-// TODO: This should accept the array and number of TMBs
 TickType_t compute_hyperperiod(const TickType_t new_period) {
   TickType_t H = new_period;
 
