@@ -77,12 +77,12 @@
 #include "tracer.h"
 
 #if !USE_SRP
-#include "testing/edf_tests.h"
-#endif // USE_SRP
+#include "testing/edf_tests.h" // IWYU pragma: keep
+#endif                         // USE_SRP
 
 #if USE_SRP
-#include "testing/srp_tests.h"
-#endif // USE_SRP
+#include "testing/srp_tests.h" // IWYU pragma: keep
+#endif                         // USE_SRP
 
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
@@ -98,7 +98,8 @@ void main_blinky(void);
 /*
  * Helpers
  */
-void initialize_gpio_pins(void);
+void       initialize_gpio_pins(void);
+TickType_t run_test();
 
 /*-----------------------------------------------------------*/
 
@@ -130,40 +131,21 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  // Execute a test. Don't run multiple tests at once, as they will interfere with each other.
-  // Comment out the test you don't want to run.
   printf("Starting test.\n");
-  TickType_t test_duration = TEST_DURATION_MS_DEFAULT;
+  TickType_t test_duration = run_test();
 
-// EDF Tests
-#if !USE_SRP
-  edf_test_1();
-  // edf_test_2();
-  // edf_test_3();
-  // edf_test_4();
-  // edf_test_5();
-  // edf_test_6();
-  // edf_test_7();
-  // edf_test_8();
-  // edf_test_9();
-  // edf_test_10();
-  // edf_test_11();
-#else
-  // SRP Tests
-  // test_duration = srp_test_1();
-  test_duration = srp_test_2();
-#endif
-
-
-  // clang-format off
+#if !TRACE_WITH_LOGIC_ANALYZER
+  // This creates the monitor task, which is responsible for printing all trace data after a certain amount of time has
+  // passed. It doesn't interfere with the scheduling.
   xTaskCreate(
-    vTraceMonitorTask, "Monitor",
+    vTraceMonitorTask,
+    "Monitor",
     configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
     (void *)test_duration,
     configMAX_PRIORITIES - 1,
     NULL
   );
-  // clang-format on
+#endif
 
   /* Start the tasks and timer running. */
   EDF_scheduler_start();
@@ -186,4 +168,21 @@ void initialize_gpio_pins(void) {
   gpio_put(mainGPIO_LED_TASK_4, 0);
   gpio_put(mainGPIO_LED_TASK_5, 0);
   gpio_put(mainGPIO_LED_TASK_6, 0);
+}
+
+#define PASTE(x, y)        x##y
+#define PASTE_EXPAND(x, y) PASTE(x, y)
+TickType_t run_test() {
+  // clang-format off
+#if USE_EDF
+  #if USE_SRP
+    // If TEST_NR is 1, this becomes: return srp_test_1();
+    return PASTE_EXPAND(srp_test_, TEST_NR)();
+    
+  #else
+    // If TEST_NR is 3, this becomes: edf_test_3();
+    return PASTE_EXPAND(edf_test_, TEST_NR)();
+  #endif
+#endif
+  // clang-format on
 }

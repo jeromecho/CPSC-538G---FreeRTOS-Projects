@@ -1,16 +1,18 @@
 #ifndef EDF_TESTS_H
 #define EDF_TESTS_H
 
-void edf_test_1();
-void edf_test_2();
-void edf_test_3();
-void edf_test_4();
-void edf_test_5();
-void edf_test_6();
-void edf_test_7();
-void edf_test_8();
-void edf_test_9();
-void edf_test_10();
-void edf_test_11();
+#include "FreeRTOS.h" // IWYU pragma: keep
+
+TickType_t edf_test_1();
+TickType_t edf_test_2();
+TickType_t edf_test_3();
+TickType_t edf_test_4();
+TickType_t edf_test_5();
+TickType_t edf_test_6();
+TickType_t edf_test_7();
+TickType_t edf_test_8();
+TickType_t edf_test_9();
+TickType_t edf_test_10();
+TickType_t edf_test_11();
 
 #endif // EDF_TESTS_H

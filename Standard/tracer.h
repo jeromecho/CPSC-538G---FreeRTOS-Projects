@@ -5,9 +5,6 @@
 #include "edf_scheduler.h"
 #include "task.h"
 
-#define MAX_TRACE_RECORDS         300
-#define TRACE_WITH_LOGIC_ANALYZER false
-
 typedef enum {
   // Basic events, which are _not_ used together with additional data
   TRACE_RELEASE = 0, // When a task wakes up / is ready

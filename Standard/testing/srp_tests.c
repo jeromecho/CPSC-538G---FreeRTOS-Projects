@@ -94,8 +94,8 @@ TickType_t srp_test_1() {
   );
   aperiodic_tasks[2].preemption_level = 1;
 
-  TickType_t test_duration = 3000; // Run the test long enough for all tasks to complete
-  return test_duration;
+  const TickType_t TEST_DURATION = 250; // Run the test long enough for all tasks to complete
+  return TEST_DURATION;
 }
 
 // === Test 2: Basic SRP Functionality Test with Multiple Resources ===

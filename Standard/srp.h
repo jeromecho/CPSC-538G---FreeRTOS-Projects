@@ -6,8 +6,6 @@
 
 #if USE_SRP
 
-#define N_RESOURCES 3 // TODO: Move into SRP config file
-
 // TMF structure as defined in design document
 typedef struct {
   unsigned int           preemption_level;

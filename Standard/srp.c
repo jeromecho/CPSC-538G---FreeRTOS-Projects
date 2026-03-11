@@ -2,7 +2,7 @@
 
 #if USE_SRP
 
-#include "edf_scheduler.h" // Needed to find the highest priority task on give
+#include "edf_scheduler.h" // Needed in order to find the highest priority task on give
 #include "tracer.h"
 
 #include <stdio.h>

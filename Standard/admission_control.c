@@ -105,6 +105,7 @@ bool check_deadlines( //
 //         implements theorem 4.6 of Buttazzo's textbook
 // NOTE: Admission control test might be conservative as it currently
 //       auto-rejects for U = 1 case
+// TODO: This fails for U=1.0 in some cases because of floating point imprecision
 bool can_admit_periodic_task( //
   const TickType_t C_new,
   const TickType_t T_new,

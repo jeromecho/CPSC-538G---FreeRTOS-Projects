@@ -71,9 +71,6 @@ TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
 void   EDF_scheduler_start();
 
-#define MAXIMUM_PERIODIC_TASKS  100
-#define MAXIMUM_APERIODIC_TASKS 100
-
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
 
