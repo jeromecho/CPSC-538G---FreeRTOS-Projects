@@ -110,10 +110,8 @@ BaseType_t EDF_create_periodic_task(
   }
 
   if (!can_admit_periodic_task(completionTime, xPeriod, xDeadlineRelative)) {
-    // TODO: for testing: printf("xTaskCreatePeriodic - admission failed\n");
-    return errADMISSION_FAILED;
-  } else {
-    // TODO: for testing: printf("xTaskCreatePeriodic - admission: %s successed\n", pcName);
+    printf("%s - Admission failed for: %s\n", __func__, pcName);
+    configASSERT(false);
   }
   configASSERT(xDeadlineRelative <= xPeriod);
 

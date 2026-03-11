@@ -2,11 +2,8 @@
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
-// Tests 3 and 6 don't crash the system when the admission control fails
-
-// TODO: EDF test 8 doesn't crash with admission control
-
 // TODO: EDF test 9 is crashing without outputting any trace
+
 // TODO: EDF test 10 is crashing without outputting any trace
 
 // TODO: EDF test 11 doesn't crash when deadline is missed
@@ -24,7 +21,7 @@
 TickType_t edf_test_1() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Periodic Task 1",
+    "EDF Test 1, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(600),
@@ -33,7 +30,7 @@ TickType_t edf_test_1() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Periodic Task 2",
+    "EDF Test 1, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(200),
@@ -49,7 +46,7 @@ TickType_t edf_test_1() {
 TickType_t edf_test_2() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Periodic Task 1",
+    "EDF Test 2, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(600),
@@ -58,7 +55,7 @@ TickType_t edf_test_2() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Periodic Task 2",
+    "EDF Test 2, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(800),
@@ -67,7 +64,7 @@ TickType_t edf_test_2() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Periodic Task 3",
+    "EDF Test 2, Task 3",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(300),
     pdMS_TO_TICKS(900),
@@ -86,8 +83,8 @@ TickType_t edf_test_2() {
 // TEST3: 100 Tasks NON-ADMISSIBLE
 TickType_t edf_test_3() {
   for (int i = 0; i < 100; i++) {
-    char taskName[16];
-    sprintf(taskName, "test %d", i);
+    char taskName[19];
+    sprintf(taskName, "EDF Test 3, Task %d", i);
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
@@ -108,8 +105,8 @@ TickType_t edf_test_3() {
 TickType_t edf_test_4() {
   for (int i = 0; i < 100; i++) {
     // NB: This breaks without downstream copying of task
-    char taskName[16];
-    sprintf(taskName, "test %d", i);
+    char taskName[19];
+    sprintf(taskName, "EDF Test 4, Task %d", i);
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
@@ -130,8 +127,8 @@ TickType_t edf_test_4() {
 // Total Utilization = 1.0 (100%)
 TickType_t edf_test_5() {
   for (int i = 0; i < 10; i++) {
-    char taskName[16];
-    sprintf(taskName, "Adm_%d", i);
+    char taskName[19];
+    sprintf(taskName, "EDF Test 5, Task %d", i);
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
@@ -152,8 +149,8 @@ TickType_t edf_test_5() {
 // Total Utilization = 1.1 (110%)
 TickType_t edf_test_6() {
   for (int i = 0; i < 10; i++) {
-    char taskName[16];
-    sprintf(taskName, "Fail_%d", i);
+    char taskName[19];
+    sprintf(taskName, "EDF Test 6, Task %d", i);
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
@@ -174,7 +171,7 @@ TickType_t edf_test_6() {
 TickType_t edf_test_7() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Adm_A",
+    "EDF Test 7, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(10),
     pdMS_TO_TICKS(50),
@@ -183,7 +180,7 @@ TickType_t edf_test_7() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Adm_B",
+    "EDF Test 7, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(200),
@@ -199,7 +196,7 @@ TickType_t edf_test_7() {
 TickType_t edf_test_8() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Fail_A",
+    "EDF Test 8, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(11),
     pdMS_TO_TICKS(50),
@@ -208,7 +205,7 @@ TickType_t edf_test_8() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Fail_B",
+    "EDF Test 8, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(200),
@@ -234,7 +231,7 @@ void vTestRunner9() {
   // Base Task: 160ms work, 800ms period
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Base_A",
+    "EDF Test 9, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 20),
     pdMS_TO_TICKS(8 * 100),
@@ -250,7 +247,7 @@ void vTestRunner9() {
   // TODO: show why total demand is not exceeded
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Drop_A",
+    "EDF Test 9, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 50),
     pdMS_TO_TICKS(8 * 100),
@@ -262,7 +259,7 @@ void vTestRunner9() {
 TickType_t edf_test_9() {
   xTaskCreate( //
     vTestRunner9,
-    "test runner 9",
+    "EDF Test 9, Test Runner",
     configMINIMAL_STACK_SIZE,
     NULL,
     configMAX_PRIORITIES - 1,
@@ -279,7 +276,7 @@ void vTestRunner10() {
   // Base Task: 20ms work, 100ms period (U=0.2)
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Base_B",
+    "EDF Test 10, Task 1",
     configMINIMAL_STACK_SIZE,
     20,
     pdMS_TO_TICKS(100),
@@ -293,7 +290,7 @@ void vTestRunner10() {
   // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
   BaseType_t result = EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Drop_B",
+    "EDF Test 10, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(90),
     pdMS_TO_TICKS(200),
@@ -305,7 +302,7 @@ void vTestRunner10() {
 TickType_t edf_test_10() {
   xTaskCreate( //
     vTestRunner10,
-    "test runner 10",
+    "EDF Test 10, Test Runner",
     configMINIMAL_STACK_SIZE,
     NULL,
     configMAX_PRIORITIES - 1,
@@ -326,7 +323,7 @@ TickType_t edf_test_10() {
 TickType_t edf_test_11() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Task_A",
+    "EDF Test 11, Task 1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(100),
@@ -335,7 +332,7 @@ TickType_t edf_test_11() {
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
-    "Task_B",
+    "EDF Test 11, Task 2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(130),
     pdMS_TO_TICKS(200),
