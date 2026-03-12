@@ -348,7 +348,9 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 
   // If there are no schedulable tasks, then we should be running the idle task. In that case, we only want to update
   // priorities if we're not already running the idle task (i.e. if current_task is not the idle task handle).
-  if (highest_priority_task == NULL) {
+  // Also note that we are not allowed to call xTaskGetIdleTaskHandle before the scheduler has started.
+  const bool scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
+  if (scheduler_started && highest_priority_task == NULL) {
     return current_task != xTaskGetIdleTaskHandle();
   }
 

@@ -2,10 +2,6 @@
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
-// TODO: EDF test 9 is crashing without outputting any trace
-
-// TODO: EDF test 10 is crashing without outputting any trace
-
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 
@@ -36,7 +32,7 @@ TickType_t edf_test_1() {
     NULL
   );
 
-  const TickType_t TEST_DURATION = 1200;
+  const TickType_t TEST_DURATION = 1150;
   return TEST_DURATION;
 }
 
@@ -226,18 +222,6 @@ TickType_t edf_test_8() {
 // TEST 9: Admissible Drop-in
 void vTestRunner9() {
   // --- TEST A: Admissible Drop-in ---
-  // Base Task: 160ms work, 800ms period
-
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 9, Task 1",
-    configMINIMAL_STACK_SIZE,
-    pdMS_TO_TICKS(8 * 20),
-    pdMS_TO_TICKS(8 * 100),
-    pdMS_TO_TICKS(8 * 100),
-    NULL
-  );
-
   // Wait 5 cycles (500ms) to show stable execution
   vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -256,6 +240,17 @@ void vTestRunner9() {
   vTaskDelete(NULL);
 }
 TickType_t edf_test_9() {
+  // Base Task: 160ms work, 800ms period
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
+    "EDF Test 9, Task 1",
+    configMINIMAL_STACK_SIZE,
+    pdMS_TO_TICKS(8 * 20),
+    pdMS_TO_TICKS(8 * 100),
+    pdMS_TO_TICKS(8 * 100),
+    NULL
+  );
+
   xTaskCreate( //
     vTestRunner9,
     "EDF Test 9, Test Runner",
@@ -272,17 +267,6 @@ TickType_t edf_test_9() {
 // TEST 10: Inadmissible Drop-in
 void vTestRunner10() {
   // --- TEST B: Inadmissible Drop-in ---
-  // Base Task: 20ms work, 100ms period (U=0.2)
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 10, Task 1",
-    configMINIMAL_STACK_SIZE,
-    20,
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(100),
-    NULL
-  );
-
   vTaskDelay(pdMS_TO_TICKS(500));
 
   // Drop-in Task: 90ms work, 200ms period (U=0.45)
@@ -299,6 +283,17 @@ void vTestRunner10() {
   vTaskDelete(NULL);
 }
 TickType_t edf_test_10() {
+  // Base Task: 20ms work, 100ms period (U=0.2)
+  EDF_create_periodic_task( //
+    EDF_periodic_task,
+    "EDF Test 10, Task 1",
+    configMINIMAL_STACK_SIZE,
+    20,
+    pdMS_TO_TICKS(100),
+    pdMS_TO_TICKS(100),
+    NULL
+  );
+
   xTaskCreate( //
     vTestRunner10,
     "EDF Test 10, Test Runner",
@@ -308,8 +303,7 @@ TickType_t edf_test_10() {
     NULL
   );
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = 1000;
   return TEST_DURATION;
 }
 

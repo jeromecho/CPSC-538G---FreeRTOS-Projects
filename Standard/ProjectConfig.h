@@ -6,7 +6,7 @@
 #define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
 
 #define USE_SRP 0
-#define TEST_NR 11
+#define TEST_NR 10
 
 #define MAX_TRACE_RECORDS         300
 #define TRACE_WITH_LOGIC_ANALYZER 0
