@@ -23,10 +23,9 @@ static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
 static void   set_highest_priority(const TMB_t *const task);
 static void   deprioritize_task(const TMB_t *const task);
 static void   release_task(const TMB_t *const task);
-static void   release_tasks_in_array(const TMB_t *const tasks, const size_t count);
-void          release_tasks();
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
+void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
 void          vApplicationTickHook(void);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          task_switched_out(void);
@@ -109,10 +108,13 @@ BaseType_t EDF_create_periodic_task(
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
+#if PERFORM_ADMISSION_CONTROL
   if (!can_admit_periodic_task(completionTime, xPeriod, xDeadlineRelative)) {
     printf("%s - Admission failed for: %s\n", __func__, pcName);
     configASSERT(false);
   }
+#endif // PERFORM_ADMISSION_CONTROL
+
   configASSERT(xDeadlineRelative <= xPeriod);
 
   TaskHandle_t task_handle;
@@ -279,16 +281,15 @@ void EDF_scheduler_start() {
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 void reschedule_periodic_tasks() {
   for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const task = &periodic_tasks[i];
-    if (task->is_done) {
-      const TickType_t current_tick = xTaskGetTickCount();
-      if (current_tick >= task->periodic.next_period) {
-        task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
-        task->periodic.next_period = task->periodic.next_period + task->periodic.period;
-        task->is_done              = false;
-        xTaskResumeFromISR(task->handle);
-        record_trace_event(EVENT_BASIC(TRACE_RESCHEDULED), TRACE_TASK_PERIODIC, task);
-      }
+    TMB_t *const     task         = &periodic_tasks[i];
+    const TickType_t current_tick = xTaskGetTickCount();
+
+    if (task->is_done && current_tick >= task->periodic.next_period) {
+      task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
+      task->periodic.next_period = task->periodic.next_period + task->periodic.period;
+      task->is_done              = false;
+      xTaskResumeFromISR(task->handle);
+      record_trace_event(EVENT_BASIC(TRACE_RESCHEDULED), TRACE_TASK_PERIODIC, task);
     }
   }
 }
@@ -341,25 +342,6 @@ static void release_task(const TMB_t *const task) {
   xTaskResumeFromISR(task->handle);
 }
 
-/// @brief Loops through the provided array and resumes all tasks which have reached/surpassed their release time
-static void release_tasks_in_array(const TMB_t *const tasks, const size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    const TMB_t *const task           = &tasks[i];
-    const bool         task_done      = task->is_done;
-    const bool         task_released  = task->release_time <= xTaskGetTickCount();
-    const bool         task_suspended = eTaskGetState(task->handle) == eSuspended;
-    if (!task_done && task_released && task_suspended) {
-      release_task(task);
-    }
-  }
-}
-
-/// @brief Calls release_tasks_in_array on both the periodic and aperiodic tasks
-void release_tasks() {
-  release_tasks_in_array(periodic_tasks, periodic_task_count);
-  release_tasks_in_array(aperiodic_tasks, aperiodic_task_count);
-}
-
 /// @brief produce true if currently running task is different from the highest priority task
 bool should_update_priorities(const TMB_t *const highest_priority_task) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
@@ -382,7 +364,7 @@ void update_priorities() {
     return;
   }
 
-  record_trace_event(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, highest_priority_task);
+  record_trace_event(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
 
   TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
@@ -403,10 +385,35 @@ void update_priorities() {
   }
 }
 
+/// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
+/// should be released.
+void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const TMB_t *const task      = &tasks[i];
+    const bool         task_done = task->is_done;
+
+    // Checks if the task has missed its deadline
+    const bool deadline_missed = (xTaskGetTickCount() > task->absolute_deadline);
+    if (!task_done && deadline_missed) {
+      deadline_miss(task);
+    }
+
+    // Checks if a task should be released
+    const bool task_released  = task->release_time <= xTaskGetTickCount();
+    const bool task_suspended = eTaskGetState(task->handle) == eSuspended;
+    if (!task_done && task_released && task_suspended) {
+      release_task(task);
+    }
+  }
+}
+
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
   reschedule_periodic_tasks();
-  release_tasks();
+
+  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
+  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
+
   update_priorities();
 }
 
@@ -504,23 +511,16 @@ void task_switched_in(void) {
 /// @brief Logic for whatever should happen when a deadline is missed
 // TODO: This needs to be re-implemented
 void deadline_miss(const TMB_t *const task) {
-  // configASSERT(task != NULL);
-  // vTaskSuspendAll(); // Freeze the scheduler to prevent being preempted in the middle of printing the error message
-  // and rebooting
+  record_trace_event(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
 
-  // record_trace_event(TRACE_EVENT_DEADLINE_MISS, (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC :
-  // TRACE_TASK_APERIODIC, task, 0);
+  printf( //
+    "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
+    xTaskGetTickCount(),
+    task->id,
+    task->absolute_deadline
+  );
 
-  // printf(
-  //   "Time: %lu FATAL: Task %d missed its deadline of %lu ticks!\n", xTaskGetTickCount(), task->id,
-  //   task->absolute_deadline
-  // );
+  print_trace_buffer();
 
-  // print_trace_buffer();
-
-  // vTaskDelay(pdMS_TO_TICKS(5000)); // Delay to ensure all trace events are printed
-
-  // configASSERT(false);
-
-  // watchdog_enable(1, 1); // Reboot the system immediately
+  configASSERT(false);
 }

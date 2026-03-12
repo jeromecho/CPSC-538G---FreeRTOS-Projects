@@ -103,8 +103,6 @@ TickType_t run_test();
 
 /*-----------------------------------------------------------*/
 
-#define TEST_DURATION_MS_DEFAULT 1300
-
 void vTraceMonitorTask(void *pvParameters) {
   const TickType_t test_duration = (TickType_t)pvParameters;
 

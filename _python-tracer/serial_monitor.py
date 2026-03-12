@@ -50,6 +50,36 @@ TASK_STATES = {
     5: "eInvalid",
 }
 
+# --- GLOBAL EVENT CONFIGURATION ---
+# Format: EventID: ("Legend Name", "Symbol", "Color", visible_by_default, y_offset)
+# y_offset shifts markers vertically (0.0 is center, -0.4 is top of the bar, +0.4 is the bottom)
+# fmt: off
+EVENT_CONFIG = {
+    # Group: Context Switching (Centered)
+    TraceEvent.TRACE_SWITCH_IN: ("Switch In", "triangle-right", "lightgreen", True, -0.4),
+    TraceEvent.TRACE_SWITCH_OUT: ("Switch Out", "triangle-left", "pink", True, -0.4),
+    
+    # Group: Task Lifecycles (Shifted Up)
+    TraceEvent.TRACE_RELEASE: ("Release", "star", "green", True, 0),
+    TraceEvent.TRACE_RESCHEDULED: ("Rescheduled", "star-open", "mediumseagreen", True, 0),
+    TraceEvent.TRACE_DONE: ("Task Done", "circle-dot", "teal", True, 0.0),
+    TraceEvent.TRACE_DEADLINE_MISS: ("Deadline Miss", "hexagram", "darkred", True, 0.0),
+    
+    # Absolute Deadline (Centered, uses large marker size in code)
+    "ABSOLUTE_DEADLINE": ("Task Deadline", "arrow-bar-down", "black", True, 0.4),
+
+    # Group: Priority Changes (Shifted Down)
+    TraceEvent.TRACE_UPDATING_PRIORITIES: ("Update Priorities", "diamond", "purple", True, 0),
+    TraceEvent.TRACE_PRIORITY_SET: ("Priority Set", "triangle-up-open", "gold", False, 0.2),
+    TraceEvent.TRACE_DEPRIORITIZED: ("Deprioritized", "triangle-down-open", "gray", False, 0.2),
+
+    # Group: Resources (Shifted further to the edges)
+    TraceEvent.TRACE_SRP_BLOCK: ("SRP Blocked", "x", "orange", True, 0.0),
+    TraceEvent.TRACE_SEMAPHORE_TAKE: ("Take Semaphore", "triangle-down", "red", True, -0.2),
+    TraceEvent.TRACE_SEMAPHORE_GIVE: ("Give Semaphore", "triangle-up", "blue", True, -0.2),
+}
+# fmt: on
+
 
 def force_quit(signum, frame):
     print("\n[Monitor] Force quitting instantly...")
@@ -120,6 +150,10 @@ def plot_rtos_trace(csv_data):
 
         df["TASK_NAME"] = df.apply(get_task_name, axis=1)
 
+        # Sort tasks so they appear in a consistent logical order
+        unique_tasks = sorted(df["TASK_NAME"].unique())
+        task_y_map = {task: i for i, task in enumerate(unique_tasks)}
+
         # 1. Calculate Execution Bars
         df_switches = df[
             df["EVENT"].isin([TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT])
@@ -155,36 +189,32 @@ def plot_rtos_trace(csv_data):
                     )
                     del active_ins[t_name]
 
+        if active_ins:
+            last_timestamp = df["TIMESTAMP"].max()
+            last_abs_time = df["ABS_TIME"].max()
+
+            for t_name, current_in in active_ins.items():
+                exec_bars.append(
+                    {
+                        "TASK_NAME": current_in["TASK_NAME"],
+                        "TIMESTAMP": current_in["TIMESTAMP"],
+                        "END_TIMESTAMP": last_timestamp,
+                        "DURATION": last_timestamp - current_in["TIMESTAMP"],
+                        "ABS_TIME_START": current_in["ABS_TIME"],
+                        "ABS_TIME_END": last_abs_time,
+                        "PRIORITY": current_in["PRIORITY"],
+                        "TASK_STATE": TASK_STATES.get(
+                            current_in["TASK_STATE"], "Unknown"
+                        ),
+                        "DEADLINE": current_in["DEADLINE"],
+                        "PREEMPT_LVL": current_in["PREEMPT_LVL"],
+                        "CEILING": current_in["CEILING"],
+                        "RESOURCE": current_in["RESOURCE"],
+                    }
+                )
+
         df_exec = pd.DataFrame(exec_bars)
         df_events = df.copy()
-
-        # Map Event IDs to visual markers
-        event_mapping = {
-            TraceEvent.TRACE_RELEASE: ("Release", "star", "green"),
-            TraceEvent.TRACE_SWITCH_IN: ("Switch In", "triangle-right", "lightgreen"),
-            TraceEvent.TRACE_SWITCH_OUT: ("Switch Out", "triangle-left", "pink"),
-            TraceEvent.TRACE_DONE: ("Task Done", "circle-dot", "teal"),
-            TraceEvent.TRACE_RESCHEDULED: (
-                "Rescheduled",
-                "star-open",
-                "mediumseagreen",
-            ),
-            TraceEvent.TRACE_UPDATING_PRIORITIES: (
-                "Update Priorities",
-                "diamond",
-                "purple",
-            ),
-            TraceEvent.TRACE_DEPRIORITIZED: (
-                "Deprioritized",
-                "triangle-down-open",
-                "gray",
-            ),
-            TraceEvent.TRACE_PRIORITY_SET: ("Priority Set", "triangle-up-open", "gold"),
-            TraceEvent.TRACE_DEADLINE_MISS: ("Deadline Miss", "hexagram", "darkred"),
-            TraceEvent.TRACE_SRP_BLOCK: ("SRP Blocked", "x", "orange"),
-            TraceEvent.TRACE_SEMAPHORE_TAKE: ("Take Semaphore", "triangle-down", "red"),
-            TraceEvent.TRACE_SEMAPHORE_GIVE: ("Give Semaphore", "triangle-up", "blue"),
-        }
 
         # --- Dynamic Hover Text Builders ---
         def build_bar_hover(r):
@@ -245,7 +275,7 @@ def plot_rtos_trace(csv_data):
                     go.Bar(
                         base=df_task["TIMESTAMP"],
                         x=df_task["DURATION"],
-                        y=df_task["TASK_NAME"],
+                        y=df_task["TASK_NAME"].map(task_y_map),  # Map to numeric
                         orientation="h",
                         name=task_name,
                         marker=dict(line=dict(width=1, color="black")),
@@ -255,20 +285,50 @@ def plot_rtos_trace(csv_data):
                 )
 
         # Add event markers
-        for event_id, (evt_name, symbol, color) in event_mapping.items():
-            df_evt = df_events[df_events["EVENT"] == event_id]
-            if not df_evt.empty:
-                # Apply the dynamic builder function, passing in the mapped event name
-                hover_texts = df_evt.apply(
-                    lambda r: build_marker_hover(r, evt_name), axis=1
+        for event_id, (
+            evt_name,
+            symbol,
+            color,
+            default_visible,
+            y_offset,
+        ) in EVENT_CONFIG.items():
+            # --- Special Case: Absolute Deadlines ---
+            if event_id == "ABSOLUTE_DEADLINE":
+                df_evt = df_events[df_events["DEADLINE"] != UINT32_MAX].drop_duplicates(
+                    subset=["TASK_NAME", "DEADLINE"]
                 )
+                x_col = "DEADLINE"
+
+                if not df_evt.empty:
+                    hover_texts = df_evt.apply(
+                        lambda r: (
+                            f"<b>{evt_name}</b><br>Task: {r['TASK_NAME']}<br>Tick: {r['DEADLINE']}"
+                        ),
+                        axis=1,
+                    )
+            else:
+                df_evt = df_events[df_events["EVENT"] == event_id]
+                x_col = "TIMESTAMP"
+
+                if not df_evt.empty:
+                    hover_texts = df_evt.apply(
+                        lambda r: build_marker_hover(r, evt_name), axis=1
+                    )
+
+            # Draw the trace if we found data
+            if not df_evt.empty:
+                visibility = True if default_visible else "legendonly"
+
+                # Apply mapping and the configured offset
+                numeric_y = df_evt["TASK_NAME"].map(task_y_map) + y_offset
 
                 fig.add_trace(
                     go.Scatter(
-                        x=df_evt["TIMESTAMP"],
-                        y=df_evt["TASK_NAME"],
+                        x=df_evt[x_col],
+                        y=numeric_y,  # Pass the adjusted numeric coordinates
                         mode="markers",
                         name=evt_name,
+                        visible=visibility,
                         marker=dict(
                             symbol=symbol,
                             size=12,
@@ -283,12 +343,17 @@ def plot_rtos_trace(csv_data):
         fig.update_layout(
             title="FreeRTOS EDF+SRP Scheduling Trace",
             xaxis_title="System Ticks",
-            yaxis_title="Tasks",
+            yaxis=dict(
+                title="Tasks",
+                tickmode="array",
+                tickvals=list(task_y_map.values()),
+                ticktext=list(task_y_map.keys()),
+                autorange="reversed",  # Keeps highest priority/first tasks at the top
+            ),
             barmode="overlay",
             hovermode="closest",
             legend_title="Events & Tasks",
         )
-        fig.update_yaxes(categoryorder="category descending")
 
         fig.show()
     except Exception as e:

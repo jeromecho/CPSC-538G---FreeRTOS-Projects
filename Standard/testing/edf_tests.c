@@ -6,8 +6,6 @@
 
 // TODO: EDF test 10 is crashing without outputting any trace
 
-// TODO: EDF test 11 doesn't crash when deadline is missed
-
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 
@@ -229,6 +227,7 @@ TickType_t edf_test_8() {
 void vTestRunner9() {
   // --- TEST A: Admissible Drop-in ---
   // Base Task: 160ms work, 800ms period
+
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 9, Task 1",
@@ -317,7 +316,6 @@ TickType_t edf_test_10() {
 ; // =================================
 ; // === Tests for Missed Deadline ===
 ; // =================================
-// Note: Turn off/Comment Out Admission Control to Allow Easy Deadline Miss
 
 // TEST 11: Missed Deadline (Total Utilization: 105%)
 TickType_t edf_test_11() {
@@ -325,9 +323,9 @@ TickType_t edf_test_11() {
     EDF_periodic_task,
     "EDF Test 11, Task 1",
     configMINIMAL_STACK_SIZE,
-    pdMS_TO_TICKS(40),
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(100),
+    pdMS_TO_TICKS(50),
+    pdMS_TO_TICKS(120),
+    pdMS_TO_TICKS(50),
     NULL
   );
   EDF_create_periodic_task( //
@@ -340,6 +338,6 @@ TickType_t edf_test_11() {
     NULL
   );
 
-  const TickType_t TEST_DURATION = 200;
+  const TickType_t TEST_DURATION = 250;
   return TEST_DURATION;
 }

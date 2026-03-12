@@ -9,7 +9,7 @@
 #define TEST_NR 11
 
 #define MAX_TRACE_RECORDS         300
-#define TRACE_WITH_LOGIC_ANALYZER false
+#define TRACE_WITH_LOGIC_ANALYZER 0
 
 #if USE_EDF
 
@@ -27,14 +27,14 @@
     #else
       #error "Invalid or undefined TEST_NR"
 
-    #endif
+    #endif // TEST_NR
 
     // Validation of definitions
     #ifndef N_RESOURCES
       #error "Missing N_RESOURCES definition"
     #endif
 
-  #else
+  #else // USE_SRP
 
     #if TEST_NR == 1
       #define MAXIMUM_PERIODIC_TASKS  2
@@ -67,15 +67,16 @@
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
     #elif TEST_NR == 11
-      #define MAXIMUM_PERIODIC_TASKS  2
-      #define MAXIMUM_APERIODIC_TASKS 0
+      #define MAXIMUM_PERIODIC_TASKS    2
+      #define MAXIMUM_APERIODIC_TASKS   0
+      #define PERFORM_ADMISSION_CONTROL 0
 
     #else
       #error "Invalid or undefined TEST_NR"
 
-    #endif
+    #endif // TEST_NR
 
-  #endif
+  #endif // USE_SRP
 
   // Validation of definitions
   #ifndef MAXIMUM_PERIODIC_TASKS
@@ -84,6 +85,10 @@
 
   #ifndef MAXIMUM_APERIODIC_TASKS
     #error "Missing MAXIMUM_APERIODIC_TASKS definition"
+  #endif
+
+  #ifndef PERFORM_ADMISSION_CONTROL
+    #define PERFORM_ADMISSION_CONTROL 1
   #endif
 
 #endif // USE_EDF
