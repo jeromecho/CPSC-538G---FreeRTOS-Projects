@@ -1,7 +1,10 @@
 #include "tracer.h"
 
 #include "pico/time.h"
+
+#if USE_SRP
 #include "srp.h"
+#endif
 
 #include <limits.h>
 #include <stdint.h>

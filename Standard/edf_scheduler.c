@@ -96,77 +96,73 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 /// @brief Creates a periodic task and initializes all information the EDF scheduler requires to know about it.
 /// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t EDF_create_periodic_task(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  const TickType_t             completionTime,
-  const TickType_t             xPeriod,
-  const TickType_t             xDeadlineRelative,
-  TaskHandle_t *const          pxCreatedTask
+  TaskFunction_t               pxTaskCode,   // Task function
+  const char *const            pcName,       // Task name
+  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
+  const TickType_t             completion_time,
+  const TickType_t             period,
+  const TickType_t             relative_deadline,
+  TMB_t **const                TMB_handle
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
 #if PERFORM_ADMISSION_CONTROL
-  if (!can_admit_periodic_task(completionTime, xPeriod, xDeadlineRelative)) {
+  if (!can_admit_periodic_task(completion_time, period, relative_deadline)) {
     printf("%s - Admission failed for: %s\n", __func__, pcName);
     configASSERT(false);
   }
 #endif // PERFORM_ADMISSION_CONTROL
 
-  configASSERT(xDeadlineRelative <= xPeriod);
+  configASSERT(relative_deadline <= period);
 
-  TaskHandle_t task_handle;
-  const bool   isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  // TODO: priority of task below is a magic number
-  // Q: Should the priority below really be "1" (not done - not running?)
-
-  const BaseType_t result = xTaskCreate( //
+  TaskHandle_t     task_handle;
+  const bool       scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
+  const BaseType_t result            = xTaskCreate( //
     pxTaskCode,
     pcName,
     uxStackDepth,
-    (void *)completionTime,
+    (void *)completion_time,
     PRIORITY_NOT_RUNNING,
     &task_handle
   );
-  // TODO: it might be a bit redundant to pass completion time as a reference and also
-  // pass it as a parameter to created task (a single handle to TMB might be sufficient)
-  if (result == pdPASS) {
-    const size_t index    = periodic_task_count; // Store the current count as the index for the new task
-    TMB_t *const new_task = &periodic_tasks[index];
-    periodic_task_count++;
 
-    new_task->type    = TASK_PERIODIC;
-    new_task->id      = index;
-    new_task->handle  = task_handle;
-    new_task->is_done = false;
-
-    new_task->completion_time = completionTime;
-
-    new_task->periodic.period            = xPeriod;
-    new_task->periodic.relative_deadline = xDeadlineRelative;
-
-    if (!isSchedulerStarted) {
-      new_task->release_time         = xTaskGetTickCount();
-      new_task->periodic.next_period = xTaskGetTickCount() + xPeriod;
-      new_task->absolute_deadline    = xTaskGetTickCount() + xDeadlineRelative;
-    } else {
-      TickType_t release_time        = calculate_release_time_for_new_task(xPeriod);
-      new_task->release_time         = release_time;
-      new_task->periodic.next_period = release_time + xPeriod;
-      new_task->absolute_deadline    = release_time + xDeadlineRelative;
-    }
-    vTaskSuspend(task_handle);
-
-    if (pxCreatedTask != NULL) {
-      *pxCreatedTask = task_handle;
-    }
-  } else {
-    if (pxCreatedTask != NULL) {
-      *pxCreatedTask = NULL;
-    }
+  if (result != pdPASS) {
+    *TMB_handle = NULL;
+    return result;
   }
+
+  const size_t index    = periodic_task_count; // Store the current count as the index for the new task
+  TMB_t *const new_task = &periodic_tasks[index];
+  periodic_task_count++;
+
+  new_task->type    = TASK_PERIODIC;
+  new_task->id      = index;
+  new_task->handle  = task_handle;
+  new_task->is_done = false;
+
+  new_task->completion_time = completion_time;
+
+  new_task->periodic.period            = period;
+  new_task->periodic.relative_deadline = relative_deadline;
+
+  if (!scheduler_started) {
+    new_task->release_time         = xTaskGetTickCount();
+    new_task->periodic.next_period = xTaskGetTickCount() + period;
+    new_task->absolute_deadline    = xTaskGetTickCount() + relative_deadline;
+  } else {
+    TickType_t release_time        = calculate_release_time_for_new_task(period);
+    new_task->release_time         = release_time;
+    new_task->periodic.next_period = release_time + period;
+    new_task->absolute_deadline    = release_time + relative_deadline;
+  }
+  vTaskSuspend(task_handle);
+
+  if (TMB_handle != NULL) {
+    *TMB_handle = new_task;
+  }
+
   return result;
 }
 
@@ -175,52 +171,51 @@ BaseType_t EDF_create_periodic_task(
 // aperiodic tasks are not reused like periodic tasks.
 /// @brief Creates an aperiodic task and initializes all information the EDF scheduler requires to know about it.
 BaseType_t EDF_create_aperiodic_task(
-  TaskFunction_t               pxTaskCode,        // Task function
-  const char *const            pcName,            // Task name
-  const configSTACK_DEPTH_TYPE uxStackDepth,      // Stack depth
-  const TickType_t             completionTime,    // Completion time
-  const TickType_t             xReleaseTime,      // Release time
-  const TickType_t             xDeadlineRelative, // Relative Deadline
-  TaskHandle_t *const          pxCreatedTask      // Task handle
+  TaskFunction_t               pxTaskCode,   // Task function
+  const char *const            pcName,       // Task name
+  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
+  const TickType_t             completion_time,
+  const TickType_t             release_time,
+  const TickType_t             relative_deadline,
+  TMB_t **const                TMB_handle
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
   TaskHandle_t     task_handle;
-  const bool       isSchedulerStarted = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  const BaseType_t result             = xTaskCreate( //
+  const bool       scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
+  const BaseType_t result            = xTaskCreate( //
     pxTaskCode,
     pcName,
     uxStackDepth,
-    (void *)completionTime,
+    (void *)completion_time,
     PRIORITY_NOT_RUNNING,
     &task_handle
   );
 
-  if (result == pdPASS) {
-    const size_t index    = aperiodic_task_count; // Store the current count as the index for the new task
-    TMB_t *const new_task = &aperiodic_tasks[index];
-    aperiodic_task_count++;
+  if (result != pdPASS) {
+    *TMB_handle = NULL;
+    return result;
+  }
 
-    new_task->type    = TASK_APERIODIC;
-    new_task->id      = index;
-    new_task->handle  = task_handle;
-    new_task->is_done = false;
+  const size_t index    = aperiodic_task_count; // Store the current count as the index for the new task
+  TMB_t *const new_task = &aperiodic_tasks[index];
+  aperiodic_task_count++;
 
-    new_task->completion_time   = completionTime;
-    new_task->release_time      = xReleaseTime;
-    new_task->absolute_deadline = xReleaseTime + xDeadlineRelative;
+  new_task->type    = TASK_APERIODIC;
+  new_task->id      = index;
+  new_task->handle  = task_handle;
+  new_task->is_done = false;
 
-    vTaskSuspend(task_handle);
+  new_task->completion_time   = completion_time;
+  new_task->release_time      = release_time;
+  new_task->absolute_deadline = release_time + relative_deadline;
 
-    if (pxCreatedTask != NULL) {
-      *pxCreatedTask = task_handle;
-    }
-  } else {
-    if (pxCreatedTask != NULL) {
-      *pxCreatedTask = NULL;
-    }
+  vTaskSuspend(task_handle);
+
+  if (TMB_handle != NULL) {
+    *TMB_handle = new_task;
   }
 
   return result;

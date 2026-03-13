@@ -51,48 +51,41 @@ TickType_t srp_test_1() {
   // 1. Initialize SRP with our TMF matrix
   SRP_initialize(test_tmf, num_test_tasks, user_ceilings_memory);
 
-  // 2. Create the tasks using your Aperiodic creation function
-  // (Assuming you've modified xTaskCreateAperiodic or your TMB struct to accept preemption levels)
-  TaskHandle_t t1, t2, t3;
-
-  // Note: You might need to adjust this depending on how you added preemptionLevel to your structs.
-  // For now, we rely on the EDF scheduler prioritizing the shortest absolute deadline.
-
   // Task 1: Level 3 (Highest). Deadline = 100.
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest1Task1,
     "Task1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(100),
-    &t1
+    NULL,
+    3
   );
-  aperiodic_tasks[0].preemption_level = 3;
 
   // Task 2: Level 2 (Medium). Deadline = 200.
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest1Task2,
     "Task2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(20),
     pdMS_TO_TICKS(200),
-    &t2
+    NULL,
+    2
   );
-  aperiodic_tasks[1].preemption_level = 2;
 
   // // Task 3: Level 1 (Lowest). Deadline = 300.
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest1Task3,
     "Task3",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(300),
     pdMS_TO_TICKS(0),
     pdMS_TO_TICKS(300),
-    &t3
+    NULL,
+    1
   );
-  aperiodic_tasks[2].preemption_level = 1;
 
   const TickType_t TEST_DURATION = 250; // Run the test long enough for all tasks to complete
   return TEST_DURATION;
@@ -176,58 +169,58 @@ TickType_t srp_test_2() {
 
   TaskHandle_t t1, t2, t3, t4;
 
-  // 2. Create the tasks
+  // Create the tasks
   // Deadlines are scaled so T1 < T2 < T3 < T4 to allow the EDF scheduler to naturally map the correct priorities.
 
   // Task 1: Level 4 (Highest). Arrives at t=400 (Middle of T2's Blue segment).
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest2Task1,
     "Task1",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(500),
     pdMS_TO_TICKS(400),
     pdMS_TO_TICKS(500),
-    &t1
+    NULL,
+    4
   );
-  aperiodic_tasks[0].preemption_level = 4;
 
   // Task 2: Level 3 (Medium-High). Arrives at t=279 (End of T3's first cyan segment).
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest2Task2,
     "Task2",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(1000),
     pdMS_TO_TICKS(279),
     pdMS_TO_TICKS(1000),
-    &t2
+    NULL,
+    3
   );
-  aperiodic_tasks[1].preemption_level = 3;
 
   // Task 3: Level 2 (Medium-Low). Arrives at t=150 (Middle of T4's Red segment).
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest2Task3,
     "Task3",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(1500),
     pdMS_TO_TICKS(150),
     pdMS_TO_TICKS(1500),
-    &t3
+    NULL,
+    2
   );
-  aperiodic_tasks[2].preemption_level = 2;
 
   // Task 4: Level 1 (Lowest). Arrives at t=0.
-  EDF_create_aperiodic_task( //
+  SRP_create_aperiodic_task( //
     vSRPTest2Task4,
     "Task4",
     configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(2000),
     pdMS_TO_TICKS(0),
     pdMS_TO_TICKS(2000),
-    &t4
+    NULL,
+    1
   );
-  aperiodic_tasks[3].preemption_level = 1;
 
-  const TickType_t TEST_DURATION = 1300; // Run the test long enough for all tasks to complete
+  const TickType_t TEST_DURATION = 1500; // Run the test long enough for all tasks to complete
   return TEST_DURATION;
 }
 

@@ -3,6 +3,8 @@
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "ProjectConfig.h"
+#include "edf_scheduler.h"
+#include "task.h"
 
 #if USE_SRP
 
@@ -32,6 +34,26 @@ BaseType_t   SRP_take_binary_semaphore(const unsigned int semaphoreIdx);
 void         SRP_give_binary_semaphore(const unsigned int semaphoreIdx);
 unsigned int SRP_get_system_ceiling();
 bool         SRP_initialized();
+BaseType_t   SRP_create_periodic_task(
+    TaskFunction_t               pxTaskCode,
+    const char *const            pcName,
+    const configSTACK_DEPTH_TYPE uxStackDepth,
+    const TickType_t             completion_time,
+    const TickType_t             period,
+    const TickType_t             relative_deadline,
+    TMB_t **const                TMB_handle,
+    const BaseType_t             preemption_level
+  );
+BaseType_t SRP_create_aperiodic_task(
+  TaskFunction_t               pxTaskCode,
+  const char *const            pcName,
+  const configSTACK_DEPTH_TYPE uxStackDepth,
+  const TickType_t             completionTime,
+  const TickType_t             release_time,
+  const TickType_t             relative_deadline,
+  TMB_t **const                TMB_handle,
+  const BaseType_t             preemption_level
+);
 
 #endif // USE_SRP
 

@@ -48,20 +48,20 @@ BaseType_t EDF_create_periodic_task(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
-  const TickType_t             completionTime,
-  const TickType_t             xPeriod,
-  const TickType_t             xDeadlineRelative,
-  TaskHandle_t *const          pxCreatedTask
+  const TickType_t             completion_time,
+  const TickType_t             period,
+  const TickType_t             relative_deadline,
+  TMB_t **const                TMB_handle
 );
 
 BaseType_t EDF_create_aperiodic_task(
   TaskFunction_t               pxTaskCode,
   const char *const            pcName,
   const configSTACK_DEPTH_TYPE uxStackDepth,
-  const TickType_t             completionTime,
-  const TickType_t             xReleaseTime,
-  const TickType_t             xDeadlineRelative,
-  TaskHandle_t *const          pxCreatedTask
+  const TickType_t             completion_time,
+  const TickType_t             release_time,
+  const TickType_t             relative_deadline,
+  TMB_t **const                TMB_handle
 );
 
 void EDF_periodic_task(void *pvParameters);

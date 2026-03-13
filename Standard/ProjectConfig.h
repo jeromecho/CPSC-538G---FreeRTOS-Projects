@@ -1,28 +1,30 @@
-// clang-format off
-
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
 #define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
 
-#define USE_SRP 0
-#define TEST_NR 10
+#define USE_SRP 1
+#define TEST_NR 2
 
 #define MAX_TRACE_RECORDS         300
 #define TRACE_WITH_LOGIC_ANALYZER 0
+
+// clang-format off
 
 #if USE_EDF
 
   #if USE_SRP
 
     #if TEST_NR == 1
-      #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 3
-      #define N_RESOURCES             3
+      #define MAXIMUM_PERIODIC_TASKS   0
+      #define MAXIMUM_APERIODIC_TASKS  3
+      #define N_RESOURCES              3
+      #define MAXIMUM_PREEMPTION_LEVEL 3
     #elif TEST_NR == 2
-      #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 4
-      #define N_RESOURCES             3
+      #define MAXIMUM_PERIODIC_TASKS   0
+      #define MAXIMUM_APERIODIC_TASKS  4
+      #define N_RESOURCES              3
+      #define MAXIMUM_PREEMPTION_LEVEL 4
 
     #else
       #error "Invalid or undefined TEST_NR"
@@ -32,6 +34,9 @@
     // Validation of definitions
     #ifndef N_RESOURCES
       #error "Missing N_RESOURCES definition"
+    #endif
+    #ifndef MAXIMUM_PREEMPTION_LEVEL
+      #error "Missing MAXIMUM_PREEMPTION_LEVEL definition"
     #endif
 
   #else // USE_SRP
