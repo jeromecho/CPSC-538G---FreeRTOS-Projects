@@ -1,7 +1,7 @@
 
 #include "admission_control.h"
-#include "edf_scheduler.h"
 #include "helpers.h"
+#include "scheduler_internal.h" // Gives access to the task arrays
 // TODO: is there potential overheaded introduced by import of math.h?
 #include "math.h"
 
@@ -125,7 +125,7 @@ bool can_admit_periodic_task( //
 
   // Check Processor Demand Conditions
   const double     l_star = calculate_l_star(C_new, T_new, D_new, U);
-  const TickType_t H      = compute_hyperperiod(T_new);
+  const TickType_t H      = compute_hyperperiod(T_new, periodic_tasks, periodic_task_count);
   const TickType_t D_max  = calculate_d_max(D_new);
   const TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
 

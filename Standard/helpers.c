@@ -1,5 +1,5 @@
 #include "helpers.h"
-#include "edf_scheduler.h"
+#include "task.h"
 
 TickType_t gcd(TickType_t a, TickType_t b) {
   while (b != 0) {
@@ -13,11 +13,11 @@ TickType_t gcd(TickType_t a, TickType_t b) {
 TickType_t lcm(const TickType_t a, const TickType_t b) { return (a / gcd(a, b)) * b; }
 
 /// @brief Computes hyperperiod between existing periods and period of newly added task
-TickType_t compute_hyperperiod(const TickType_t new_period) {
+TickType_t compute_hyperperiod(const TickType_t new_period, const TMB_t *tasks_array, const size_t array_size) {
   TickType_t H = new_period;
 
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    H = lcm(H, periodic_tasks[i].periodic.period);
+  for (size_t i = 0; i < array_size; i++) {
+    H = lcm(H, tasks_array[i].periodic.period);
   }
 
   return H;

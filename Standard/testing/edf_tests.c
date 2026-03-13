@@ -16,7 +16,6 @@ TickType_t edf_test_1() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 1, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(600),
     pdMS_TO_TICKS(600),
@@ -25,7 +24,6 @@ TickType_t edf_test_1() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 1, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(200),
@@ -41,7 +39,6 @@ TickType_t edf_test_2() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(600),
     pdMS_TO_TICKS(400),
@@ -50,7 +47,6 @@ TickType_t edf_test_2() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(800),
     pdMS_TO_TICKS(500),
@@ -59,7 +55,6 @@ TickType_t edf_test_2() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 3",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(300),
     pdMS_TO_TICKS(900),
     pdMS_TO_TICKS(700),
@@ -82,7 +77,6 @@ TickType_t edf_test_3() {
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
-      configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(15),
       pdMS_TO_TICKS(1000),
       pdMS_TO_TICKS(500),
@@ -104,7 +98,6 @@ TickType_t edf_test_4() {
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
-      configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(8),
       pdMS_TO_TICKS(1000),
       pdMS_TO_TICKS(1000),
@@ -126,7 +119,6 @@ TickType_t edf_test_5() {
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
-      configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(10),
       pdMS_TO_TICKS(100),
       pdMS_TO_TICKS(100),
@@ -148,7 +140,6 @@ TickType_t edf_test_6() {
     EDF_create_periodic_task( //
       EDF_periodic_task,
       taskName,
-      configMINIMAL_STACK_SIZE,
       pdMS_TO_TICKS(11),
       pdMS_TO_TICKS(100),
       pdMS_TO_TICKS(100),
@@ -166,7 +157,6 @@ TickType_t edf_test_7() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 7, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(10),
     pdMS_TO_TICKS(50),
     pdMS_TO_TICKS(50),
@@ -175,7 +165,6 @@ TickType_t edf_test_7() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 7, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(50),
@@ -191,7 +180,6 @@ TickType_t edf_test_8() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 8, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(11),
     pdMS_TO_TICKS(50),
     pdMS_TO_TICKS(50),
@@ -200,7 +188,6 @@ TickType_t edf_test_8() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 8, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(50),
@@ -231,7 +218,6 @@ void vTestRunner9() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 9, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 50),
     pdMS_TO_TICKS(8 * 100),
     pdMS_TO_TICKS(8 * 100),
@@ -244,7 +230,6 @@ TickType_t edf_test_9() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 9, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(8 * 20),
     pdMS_TO_TICKS(8 * 100),
     pdMS_TO_TICKS(8 * 100),
@@ -274,7 +259,6 @@ void vTestRunner10() {
   BaseType_t result = EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 10, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(90),
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(100),
@@ -287,7 +271,6 @@ TickType_t edf_test_10() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 10, Task 1",
-    configMINIMAL_STACK_SIZE,
     20,
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(100),
@@ -316,7 +299,6 @@ TickType_t edf_test_11() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 11, Task 1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(50),
     pdMS_TO_TICKS(120),
     pdMS_TO_TICKS(50),
@@ -325,7 +307,6 @@ TickType_t edf_test_11() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 11, Task 2",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(130),
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(200),

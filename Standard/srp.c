@@ -2,7 +2,8 @@
 
 #if USE_SRP
 
-#include "edf_scheduler.h" // Needed in order to find the highest priority task on give
+#include "edf_scheduler.h"
+#include "scheduler_internal.h"
 #include "tracer.h"
 
 #include <stdio.h>
@@ -15,6 +16,9 @@ static unsigned int resource_ceilings[N_RESOURCES];
 // Max depth is bounded by N_RESOURCES because a task can only take each resource once
 static SRP_Stack_Element_t srp_stack[N_RESOURCES];
 static int                 srp_stack_pointer = -1;
+
+// Statically allocated stack for the stack sharing enabled by SRP
+static StackType_t shared_stacks[MAXIMUM_PREEMPTION_LEVEL][SHARED_STACK_SIZE];
 
 // === API FUNCTION DEFINITIONS ===
 
@@ -134,77 +138,72 @@ bool SRP_initialized() { return srp_state.initialized; }
 
 /// @brief Creates a periodic task, making sure all the fields required for SRP are set
 BaseType_t SRP_create_periodic_task(
-  TaskFunction_t               pxTaskCode,   // Task function
-  const char *const            pcName,       // Task name
-  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
-  const TickType_t             completion_time,
-  const TickType_t             period,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle,
-  const BaseType_t             preemption_level
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  period,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle,
+  const BaseType_t  preemption_level
 ) {
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= MAXIMUM_PREEMPTION_LEVEL);
 
-  TMB_t     *handle;
-  BaseType_t result = EDF_create_periodic_task( //
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
+  TMB_t     *handle = NULL;
+  BaseType_t result = _create_periodic_task_internal( //
+    task_function,
+    task_name,
+    // shared_stacks[preemption_level],
+    edf_private_stacks_periodic[periodic_task_count],
     completion_time,
     period,
     relative_deadline,
     &handle
   );
 
-  if (result != pdPASS) {
-    *TMB_handle = NULL;
-    return result;
+  if (result == pdPASS) {
+    handle->preemption_level = preemption_level;
+    if (TMB_handle != NULL) {
+      *TMB_handle = handle;
+    }
   }
 
-  handle->preemption_level = preemption_level;
-  if (TMB_handle != NULL) {
-    *TMB_handle = handle;
-  }
-
-  return pdPASS;
+  return result;
 }
 
 /// @brief Creates an aperiodic task, making sure all the fields required for SRP are set
 BaseType_t SRP_create_aperiodic_task(
-  TaskFunction_t               pxTaskCode,   // Task function
-  const char *const            pcName,       // Task name
-  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
-  const TickType_t             completionTime,
-  const TickType_t             release_time,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle,
-  const BaseType_t             preemption_level
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  release_time,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle,
+  const BaseType_t  preemption_level
 ) {
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= MAXIMUM_PREEMPTION_LEVEL);
 
-  TMB_t     *handle;
-  BaseType_t result = EDF_create_aperiodic_task( //
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    completionTime,
+  TMB_t     *handle = NULL;
+  BaseType_t result = _create_aperiodic_task_internal( //
+    task_function,
+    task_name,
+    // shared_stacks[preemption_level],
+    edf_private_stacks_aperiodic[aperiodic_task_count],
+    completion_time,
     release_time,
     relative_deadline,
     &handle
   );
-  if (result != pdPASS) {
-    *TMB_handle = NULL;
-    return result;
+
+  if (result == pdPASS) {
+    handle->preemption_level = preemption_level;
+    if (TMB_handle != NULL) {
+      *TMB_handle = handle;
+    }
   }
 
-  handle->preemption_level = preemption_level;
-  if (TMB_handle != NULL) {
-    *TMB_handle = handle;
-  }
-
-  return pdPASS;
+  return result;
 }
 
 #endif // USE_SRP

@@ -54,8 +54,7 @@ TickType_t srp_test_1() {
   // Task 1: Level 3 (Highest). Deadline = 100.
   SRP_create_aperiodic_task( //
     vSRPTest1Task1,
-    "Task1",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 1, Task 1",
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(40),
     pdMS_TO_TICKS(100),
@@ -66,8 +65,7 @@ TickType_t srp_test_1() {
   // Task 2: Level 2 (Medium). Deadline = 200.
   SRP_create_aperiodic_task( //
     vSRPTest1Task2,
-    "Task2",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 1, Task 2",
     pdMS_TO_TICKS(200),
     pdMS_TO_TICKS(20),
     pdMS_TO_TICKS(200),
@@ -78,8 +76,7 @@ TickType_t srp_test_1() {
   // // Task 3: Level 1 (Lowest). Deadline = 300.
   SRP_create_aperiodic_task( //
     vSRPTest1Task3,
-    "Task3",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 1, Task 3",
     pdMS_TO_TICKS(300),
     pdMS_TO_TICKS(0),
     pdMS_TO_TICKS(300),
@@ -175,8 +172,7 @@ TickType_t srp_test_2() {
   // Task 1: Level 4 (Highest). Arrives at t=400 (Middle of T2's Blue segment).
   SRP_create_aperiodic_task( //
     vSRPTest2Task1,
-    "Task1",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 2, Task 1",
     pdMS_TO_TICKS(500),
     pdMS_TO_TICKS(400),
     pdMS_TO_TICKS(500),
@@ -187,8 +183,7 @@ TickType_t srp_test_2() {
   // Task 2: Level 3 (Medium-High). Arrives at t=279 (End of T3's first cyan segment).
   SRP_create_aperiodic_task( //
     vSRPTest2Task2,
-    "Task2",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 2, Task 2",
     pdMS_TO_TICKS(1000),
     pdMS_TO_TICKS(279),
     pdMS_TO_TICKS(1000),
@@ -199,8 +194,7 @@ TickType_t srp_test_2() {
   // Task 3: Level 2 (Medium-Low). Arrives at t=150 (Middle of T4's Red segment).
   SRP_create_aperiodic_task( //
     vSRPTest2Task3,
-    "Task3",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 2, Task 3",
     pdMS_TO_TICKS(1500),
     pdMS_TO_TICKS(150),
     pdMS_TO_TICKS(1500),
@@ -211,8 +205,7 @@ TickType_t srp_test_2() {
   // Task 4: Level 1 (Lowest). Arrives at t=0.
   SRP_create_aperiodic_task( //
     vSRPTest2Task4,
-    "Task4",
-    configMINIMAL_STACK_SIZE,
+    "SRP Test 2, Task 4",
     pdMS_TO_TICKS(2000),
     pdMS_TO_TICKS(0),
     pdMS_TO_TICKS(2000),

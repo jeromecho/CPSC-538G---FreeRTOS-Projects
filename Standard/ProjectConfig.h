@@ -1,11 +1,13 @@
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
-#define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
+#include "FreeRTOS.h" // IWYU pragma: keep
 
+#define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 1
 #define TEST_NR 2
 
+#define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         300
 #define TRACE_WITH_LOGIC_ANALYZER 0
 
@@ -20,11 +22,13 @@
       #define MAXIMUM_APERIODIC_TASKS  3
       #define N_RESOURCES              3
       #define MAXIMUM_PREEMPTION_LEVEL 3
+      #define ENABLE_STACK_SHARING     1
     #elif TEST_NR == 2
       #define MAXIMUM_PERIODIC_TASKS   0
       #define MAXIMUM_APERIODIC_TASKS  4
       #define N_RESOURCES              3
       #define MAXIMUM_PREEMPTION_LEVEL 4
+      #define ENABLE_STACK_SHARING     1
 
     #else
       #error "Invalid or undefined TEST_NR"
@@ -33,10 +37,13 @@
 
     // Validation of definitions
     #ifndef N_RESOURCES
-      #error "Missing N_RESOURCES definition"
+      #error "N_RESOURCES not set"
     #endif
     #ifndef MAXIMUM_PREEMPTION_LEVEL
-      #error "Missing MAXIMUM_PREEMPTION_LEVEL definition"
+      #error "MAXIMUM_PREEMPTION_LEVEL not set"
+    #endif
+    #ifndef ENABLE_STACK_SHARING
+      #error "ENABLE_STACK_SHARING not set"
     #endif
 
   #else // USE_SRP
@@ -85,11 +92,11 @@
 
   // Validation of definitions
   #ifndef MAXIMUM_PERIODIC_TASKS
-    #error "Missing MAXIMUM_PERIODIC_TASKS definition"
+    #error "MAXIMUM_PERIODIC_TASKS not set"
   #endif
 
   #ifndef MAXIMUM_APERIODIC_TASKS
-    #error "Missing MAXIMUM_APERIODIC_TASKS definition"
+    #error "MAXIMUM_APERIODIC_TASKS not set"
   #endif
 
   #ifndef PERFORM_ADMISSION_CONTROL

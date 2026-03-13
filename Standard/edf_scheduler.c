@@ -1,4 +1,5 @@
 #include "edf_scheduler.h"
+#include "scheduler_internal.h"
 
 #include "ProjectConfig.h"
 #include "admission_control.h"
@@ -16,6 +17,9 @@ size_t periodic_task_count = 0;
 
 TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t aperiodic_task_count = 0;
+
+StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
+StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 
 // === LOCAL FUNCTION DECLARATIONS ===
 void          reschedule_periodic_tasks();
@@ -92,17 +96,50 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   taskEXIT_CRITICAL();
 }
 
-// TODO: Maybe the pxCreatedTask pointer could return a pointer to the TMB instead, since it also includes the handle?
+/// @brief Creates an actual FreeRTOS task using the provided parameters, and sets common fields in the TMB afterwards.
+BaseType_t _create_task_internal(
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TaskType_t  type,
+  const size_t      id,
+  TMB_t *const      new_task,
+  const TickType_t  completion_time,
+  StackType_t      *stack_buffer,
+  StaticTask_t     *task_buffer
+) {
+  TaskHandle_t task_handle = xTaskCreateStatic( //
+    task_function,
+    task_name,
+    SHARED_STACK_SIZE,
+    (void *)completion_time,
+    PRIORITY_NOT_RUNNING,
+    stack_buffer,
+    task_buffer
+  );
+  if (task_handle == NULL) {
+    return pdFAIL;
+  }
+  vTaskSuspend(task_handle);
+
+  new_task->type   = type;
+  new_task->id     = id;
+  new_task->handle = task_handle;
+
+  new_task->is_done         = false;
+  new_task->completion_time = completion_time;
+
+  return pdPASS;
+}
+
 /// @brief Creates a periodic task and initializes all information the EDF scheduler requires to know about it.
-/// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
-BaseType_t EDF_create_periodic_task(
-  TaskFunction_t               pxTaskCode,   // Task function
-  const char *const            pcName,       // Task name
-  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
-  const TickType_t             completion_time,
-  const TickType_t             period,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle
+BaseType_t _create_periodic_task_internal(
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  StackType_t      *stack_buffer,
+  const TickType_t  completion_time,
+  const TickType_t  period,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
 ) {
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -110,43 +147,36 @@ BaseType_t EDF_create_periodic_task(
 
 #if PERFORM_ADMISSION_CONTROL
   if (!can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    printf("%s - Admission failed for: %s\n", __func__, pcName);
+    printf("%s - Admission failed for: %s\n", __func__, task_name);
     configASSERT(false);
   }
 #endif // PERFORM_ADMISSION_CONTROL
 
   configASSERT(relative_deadline <= period);
 
-  TaskHandle_t     task_handle;
-  const bool       scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  const BaseType_t result            = xTaskCreate( //
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    (void *)completion_time,
-    PRIORITY_NOT_RUNNING,
-    &task_handle
-  );
+  TMB_t *const new_task = &periodic_tasks[periodic_task_count];
 
+  BaseType_t result = _create_task_internal( //
+    task_function,
+    task_name,
+    TASK_PERIODIC,
+    periodic_task_count,
+    new_task,
+    completion_time,
+    stack_buffer,
+    &new_task->task_buffer
+  );
   if (result != pdPASS) {
-    *TMB_handle = NULL;
+    if (TMB_handle != NULL)
+      *TMB_handle = NULL;
     return result;
   }
-
-  const size_t index    = periodic_task_count; // Store the current count as the index for the new task
-  TMB_t *const new_task = &periodic_tasks[index];
   periodic_task_count++;
-
-  new_task->type    = TASK_PERIODIC;
-  new_task->id      = index;
-  new_task->handle  = task_handle;
-  new_task->is_done = false;
-
-  new_task->completion_time = completion_time;
 
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
 
+  const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
   if (!scheduler_started) {
     new_task->release_time         = xTaskGetTickCount();
     new_task->periodic.next_period = xTaskGetTickCount() + period;
@@ -157,68 +187,97 @@ BaseType_t EDF_create_periodic_task(
     new_task->periodic.next_period = release_time + period;
     new_task->absolute_deadline    = release_time + relative_deadline;
   }
-  vTaskSuspend(task_handle);
 
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
   }
 
-  return result;
+  return pdPASS;
 }
 
-// TODO: Implement the xTaskDeleteAperiodic function, which will be responsible for deleting
-// aperiodic tasks once they are done executing.  This is necessary to prevent memory leaks, since
-// aperiodic tasks are not reused like periodic tasks.
 /// @brief Creates an aperiodic task and initializes all information the EDF scheduler requires to know about it.
-BaseType_t EDF_create_aperiodic_task(
-  TaskFunction_t               pxTaskCode,   // Task function
-  const char *const            pcName,       // Task name
-  const configSTACK_DEPTH_TYPE uxStackDepth, // Stack depth
-  const TickType_t             completion_time,
-  const TickType_t             release_time,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle
+BaseType_t _create_aperiodic_task_internal(
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  StackType_t      *stack_buffer,
+  const TickType_t  completion_time,
+  const TickType_t  release_time,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
-  TaskHandle_t     task_handle;
-  const bool       scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  const BaseType_t result            = xTaskCreate( //
-    pxTaskCode,
-    pcName,
-    uxStackDepth,
-    (void *)completion_time,
-    PRIORITY_NOT_RUNNING,
-    &task_handle
-  );
+  TMB_t *const new_task = &aperiodic_tasks[aperiodic_task_count];
 
+  BaseType_t result = _create_task_internal( //
+    task_function,
+    task_name,
+    TASK_APERIODIC,
+    aperiodic_task_count,
+    new_task,
+    completion_time,
+    stack_buffer,
+    &new_task->task_buffer
+  );
   if (result != pdPASS) {
-    *TMB_handle = NULL;
+    if (TMB_handle != NULL)
+      *TMB_handle = NULL;
     return result;
   }
-
-  const size_t index    = aperiodic_task_count; // Store the current count as the index for the new task
-  TMB_t *const new_task = &aperiodic_tasks[index];
   aperiodic_task_count++;
 
-  new_task->type    = TASK_APERIODIC;
-  new_task->id      = index;
-  new_task->handle  = task_handle;
-  new_task->is_done = false;
-
-  new_task->completion_time   = completion_time;
   new_task->release_time      = release_time;
   new_task->absolute_deadline = release_time + relative_deadline;
-
-  vTaskSuspend(task_handle);
 
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
   }
 
-  return result;
+  return pdPASS;
+}
+
+/// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
+BaseType_t EDF_create_periodic_task(
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  period,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
+) {
+  return _create_periodic_task_internal( //
+    task_function,
+    task_name,
+    edf_private_stacks_periodic[periodic_task_count],
+    completion_time,
+    period,
+    relative_deadline,
+    TMB_handle
+  );
+}
+
+// TODO: Implement the xTaskDeleteAperiodic function, which will be responsible for deleting
+// aperiodic tasks once they are done executing.  This is necessary to prevent memory leaks, since
+// aperiodic tasks are not reused like periodic tasks.
+BaseType_t EDF_create_aperiodic_task(
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  release_time,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
+) {
+  return _create_aperiodic_task_internal( //
+    task_function,
+    task_name,
+    edf_private_stacks_aperiodic[aperiodic_task_count],
+    completion_time,
+    release_time,
+    relative_deadline,
+    TMB_handle
+  );
 }
 
 /// @brief Task function for periodic tasks. It will run until it has executed for a number of time
@@ -416,7 +475,7 @@ void vApplicationTickHook(void) {
 
 /// @brief Calculates release time for dropped task
 TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
-  const TickType_t H = compute_hyperperiod(new_period);
+  const TickType_t H = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
   // Hypothesis: value of xNow doesn't change during duration of function body's
   // execution if function is only called in context of tick hook
   const TickType_t xNow = xTaskGetTickCount();
@@ -520,4 +579,39 @@ void deadline_miss(const TMB_t *const task) {
   print_trace_buffer();
 
   configASSERT(false);
+}
+
+
+/* ------------------------------------------------------------------
+ * FreeRTOS Static Allocation Callbacks
+ * ------------------------------------------------------------------ */
+
+/* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
+implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
+used by the Idle task. */
+void vApplicationGetIdleTaskMemory(
+  StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize
+) {
+  /* These MUST be declared static so they survive after the function exits */
+  static StaticTask_t xIdleTaskTCB;
+  static StackType_t  uxIdleTaskStack[configMINIMAL_STACK_SIZE];
+
+  *ppxIdleTaskTCBBuffer   = &xIdleTaskTCB;
+  *ppxIdleTaskStackBuffer = uxIdleTaskStack;
+  *pulIdleTaskStackSize   = configMINIMAL_STACK_SIZE;
+}
+
+/* configSUPPORT_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, so the
+application must provide an implementation of vApplicationGetTimerTaskMemory()
+to provide the memory that is used by the Timer service task. */
+void vApplicationGetTimerTaskMemory(
+  StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize
+) {
+  /* These MUST be declared static so they survive after the function exits */
+  static StaticTask_t xTimerTaskTCB;
+  static StackType_t  uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH];
+
+  *ppxTimerTaskTCBBuffer   = &xTimerTaskTCB;
+  *ppxTimerTaskStackBuffer = uxTimerTaskStack;
+  *pulTimerTaskStackSize   = configTIMER_TASK_STACK_DEPTH;
 }

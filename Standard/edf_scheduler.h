@@ -14,6 +14,9 @@
 typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
 
 typedef struct TMB_t {
+  // --- FreeRTOS-specific data ---
+  StaticTask_t task_buffer;
+
   // --- Common Metadata ---
   TaskType_t   type;
   size_t       id; // Index in the corresponding TMB array, starting from 0
@@ -45,23 +48,21 @@ typedef struct TMB_t {
 } TMB_t;
 
 BaseType_t EDF_create_periodic_task(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  const TickType_t             completion_time,
-  const TickType_t             period,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  period,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
 );
 
 BaseType_t EDF_create_aperiodic_task(
-  TaskFunction_t               pxTaskCode,
-  const char *const            pcName,
-  const configSTACK_DEPTH_TYPE uxStackDepth,
-  const TickType_t             completion_time,
-  const TickType_t             release_time,
-  const TickType_t             relative_deadline,
-  TMB_t **const                TMB_handle
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  release_time,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle
 );
 
 void EDF_periodic_task(void *pvParameters);
@@ -70,11 +71,5 @@ TMB_t *EDF_produce_highest_priority_task();
 TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
 void   EDF_scheduler_start();
-
-extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
-extern size_t periodic_task_count;
-
-extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
-extern size_t aperiodic_task_count;
 
 #endif // EDF_SCHEDULER_H
