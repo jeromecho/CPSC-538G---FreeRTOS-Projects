@@ -374,5 +374,3 @@ TickType_t srp_test_6() { return srp_test_5(); }
 // TODO: Maybe one test showing the stack sharing in combination with the semaphores?
 
 // TODO: Admission control
-
-// TODO: Many weird system traces (switch in, switch out and update priorities) after end of test

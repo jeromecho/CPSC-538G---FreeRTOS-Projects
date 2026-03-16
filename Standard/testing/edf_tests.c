@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 
+static const TickType_t TEST_DURATION_DEFAULT = 1500;
+
 ; // ====================================
 ; // === Tests for Base Functionality ===
 ; // ====================================
@@ -16,21 +18,21 @@ TickType_t edf_test_1() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 1, Task 1",
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(600),
-    pdMS_TO_TICKS(600),
+    pdMS_TO_TICKS(2),
+    pdMS_TO_TICKS(6),
+    pdMS_TO_TICKS(6),
     NULL
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 1, Task 2",
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(200),
+    pdMS_TO_TICKS(1),
+    pdMS_TO_TICKS(2),
+    pdMS_TO_TICKS(2),
     NULL
   );
 
-  const TickType_t TEST_DURATION = 1150;
+  const TickType_t TEST_DURATION = 11;
   return TEST_DURATION;
 }
 
@@ -39,29 +41,29 @@ TickType_t edf_test_2() {
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 1",
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(600),
-    pdMS_TO_TICKS(400),
+    pdMS_TO_TICKS(2),
+    pdMS_TO_TICKS(6),
+    pdMS_TO_TICKS(4),
     NULL
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 2",
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(800),
-    pdMS_TO_TICKS(500),
+    pdMS_TO_TICKS(2),
+    pdMS_TO_TICKS(8),
+    pdMS_TO_TICKS(5),
     NULL
   );
   EDF_create_periodic_task( //
     EDF_periodic_task,
     "EDF Test 2, Task 3",
-    pdMS_TO_TICKS(300),
-    pdMS_TO_TICKS(900),
-    pdMS_TO_TICKS(700),
+    pdMS_TO_TICKS(3),
+    pdMS_TO_TICKS(9),
+    pdMS_TO_TICKS(7),
     NULL
   );
 
-  const TickType_t TEST_DURATION = 2400;
+  const TickType_t TEST_DURATION = 23;
   return TEST_DURATION;
 }
 
@@ -86,8 +88,7 @@ TickType_t edf_test_3() {
     );
   }
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
   return TEST_DURATION;
 }
 
@@ -107,8 +108,7 @@ TickType_t edf_test_4() {
     );
   }
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
   return TEST_DURATION;
 }
 
@@ -128,8 +128,7 @@ TickType_t edf_test_5() {
     );
   }
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
   return TEST_DURATION;
 }
 
@@ -149,8 +148,7 @@ TickType_t edf_test_6() {
     );
   }
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
   return TEST_DURATION;
 }
 
@@ -196,8 +194,7 @@ TickType_t edf_test_8() {
     NULL
   );
 
-  // Test duration is set to 0, since the point is to test the admission control
-  const TickType_t TEST_DURATION = 0;
+  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
   return TEST_DURATION;
 }
 

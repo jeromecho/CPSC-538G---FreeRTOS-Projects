@@ -150,7 +150,12 @@ BaseType_t _create_periodic_task_internal(
 #if PERFORM_ADMISSION_CONTROL
   if (!can_admit_periodic_task(completion_time, period, relative_deadline)) {
     printf("%s - Admission failed for: %s\n", __func__, task_name);
-    configASSERT(false);
+    vTaskSuspendAll();
+
+    // Spin forever to continue to allow USB functionality
+    while (1) {
+      __asm volatile("wfi");
+    }
   }
 #endif // PERFORM_ADMISSION_CONTROL
 
@@ -617,7 +622,10 @@ void deadline_miss(const TMB_t *const task) {
 
   TRACE_print_buffer();
 
-  configASSERT(false);
+  // Spin forever to continue to allow USB functionality
+  while (1) {
+    __asm volatile("wfi");
+  }
 }
 
 

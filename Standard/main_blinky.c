@@ -130,7 +130,6 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  printf("Starting test.\n");
   TickType_t test_duration = run_test();
 
 #if !TRACE_WITH_LOGIC_ANALYZER
@@ -175,10 +174,12 @@ TickType_t run_test() {
   // clang-format off
 #if USE_EDF
   #if USE_SRP
+    printf("Running SRP Test %d\n", TEST_NR);
     // If TEST_NR is 1, this becomes: return srp_test_1();
     return PASTE_EXPAND(srp_test_, TEST_NR)();
     
   #else
+    printf("Running EDF Test %d\n", TEST_NR);
     // If TEST_NR is 3, this becomes: edf_test_3();
     return PASTE_EXPAND(edf_test_, TEST_NR)();
   #endif
