@@ -69,6 +69,7 @@ BaseType_t EDF_create_aperiodic_task(
 );
 
 void EDF_periodic_task(void *pvParameters);
+void EDF_aperiodic_task(void *pvParameters);
 
 TMB_t *EDF_produce_highest_priority_task();
 TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);

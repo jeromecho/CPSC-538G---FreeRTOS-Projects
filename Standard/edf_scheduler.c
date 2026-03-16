@@ -305,12 +305,9 @@ BaseType_t EDF_create_aperiodic_task(
 }
 #endif // !USE_SRP
 
-// TODO: Add equivalent EDF_aperiodic_task function
-/// @brief Task function for periodic tasks. It will run until it has executed for a number of time
+/// @brief Dummy task function for periodic tasks. It will run until it has executed for a number of time
 /// slices equal to its completion time, at which point it will mark itself as done and suspend
-/// itself. Note that the task relies on the scheduler to mark it as not done and resume it when its
-/// next period starts.
-/// @param pvParameters
+/// itself. When used for periodic tasks, the scheduler should resume it for its next period.
 void EDF_periodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
 
@@ -318,6 +315,15 @@ void EDF_periodic_task(void *pvParameters) {
     execute_for_ticks(xCompletionTime);
     EDF_mark_task_done(xTaskGetCurrentTaskHandle());
   }
+}
+
+/// @brief Dummy task function for aperiodic tasks. It will run until it has executed for a number of time
+/// slices equal to its completion time, at which point it will mark itself as done and suspend
+/// itself.
+void EDF_aperiodic_task(void *pvParameters) {
+  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
+  execute_for_ticks(xCompletionTime);
+  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
 }
 
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only

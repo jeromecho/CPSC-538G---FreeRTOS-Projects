@@ -226,21 +226,6 @@ TickType_t srp_test_2() {
 /// - Task 2 (Level 1) arrives with an earlier deadline but is correctly blocked by the ceiling.
 /// - Task 3 (Level 2) arrives and successfully preempts Task 1.
 #elif TEST_NR == 3 || TEST_NR == 4
-void vSRPTest3Task3(void *pvParameters) {
-  execute_for_ticks(50);
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
-void vSRPTest3Task2(void *pvParameters) {
-  execute_for_ticks(100);
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
-void vSRPTest3Task1(void *pvParameters) {
-  execute_for_ticks(100);
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
 TickType_t srp_test_3() {
   const int num_test_tasks = 3;
 
@@ -260,7 +245,7 @@ TickType_t srp_test_3() {
   SRP_initialize(test_tmf, num_test_tasks, user_ceilings_memory);
 
   SRP_create_aperiodic_task( //
-    EDF_periodic_task,
+    EDF_aperiodic_task,
     "SRP Test 3, Task 1",
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(0),
@@ -269,7 +254,7 @@ TickType_t srp_test_3() {
     task1_preemption_level
   );
   SRP_create_aperiodic_task( //
-    EDF_periodic_task,
+    EDF_aperiodic_task,
     "SRP Test 3, Task 2",
     pdMS_TO_TICKS(100),
     pdMS_TO_TICKS(20),
@@ -279,7 +264,7 @@ TickType_t srp_test_3() {
   );
 
   SRP_create_aperiodic_task( //
-    EDF_periodic_task,
+    EDF_aperiodic_task,
     "SRP Test 3, Task 3",
     pdMS_TO_TICKS(50),
     pdMS_TO_TICKS(50),
@@ -303,11 +288,6 @@ TickType_t srp_test_4() { return srp_test_3(); }
 /// memory allocation required for the RTOS.
 ///
 #elif TEST_NR == 5 || TEST_NR == 6
-void vSRPTest5Task1(void *pvParameters) {
-  execute_for_ticks(10);
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
 TickType_t srp_test_5() {
   const unsigned int NUM_TASKS            = MAXIMUM_APERIODIC_TASKS;
   const unsigned int COMPLETION_TIME_MS   = 10;
@@ -332,7 +312,7 @@ TickType_t srp_test_5() {
     sprintf(taskName, "SRP Test 5, T%d", i);
 
     SRP_create_aperiodic_task( //
-      EDF_periodic_task,
+      EDF_aperiodic_task,
       taskName,
       pdMS_TO_TICKS(COMPLETION_TIME_MS),
       pdMS_TO_TICKS(0),
