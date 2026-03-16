@@ -5,7 +5,7 @@
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 1
-#define TEST_NR 2
+#define TEST_NR 6
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         300
@@ -18,17 +18,41 @@
   #if USE_SRP
 
     #if TEST_NR == 1
-      #define MAXIMUM_PERIODIC_TASKS   0
-      #define MAXIMUM_APERIODIC_TASKS  3
-      #define N_RESOURCES              3
-      #define MAXIMUM_PREEMPTION_LEVEL 3
-      #define ENABLE_STACK_SHARING     1
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 3
+      #define N_RESOURCES             1
+      #define N_PREEMPTION_LEVELS     4
+      #define ENABLE_STACK_SHARING    0
     #elif TEST_NR == 2
-      #define MAXIMUM_PERIODIC_TASKS   0
-      #define MAXIMUM_APERIODIC_TASKS  4
-      #define N_RESOURCES              3
-      #define MAXIMUM_PREEMPTION_LEVEL 4
-      #define ENABLE_STACK_SHARING     1
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 4
+      #define N_RESOURCES             3
+      #define N_PREEMPTION_LEVELS     5
+      #define ENABLE_STACK_SHARING    1
+    #elif TEST_NR == 3
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 3
+      #define N_RESOURCES             0
+      #define N_PREEMPTION_LEVELS     3
+      #define ENABLE_STACK_SHARING    0
+    #elif TEST_NR == 4
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 3
+      #define N_RESOURCES             0
+      #define N_PREEMPTION_LEVELS     3
+      #define ENABLE_STACK_SHARING    1
+    #elif TEST_NR == 5
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 25
+      #define N_RESOURCES             0
+      #define N_PREEMPTION_LEVELS     5
+      #define ENABLE_STACK_SHARING    0
+    #elif TEST_NR == 6
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 25
+      #define N_RESOURCES             0
+      #define N_PREEMPTION_LEVELS     5
+      #define ENABLE_STACK_SHARING    1
 
     #else
       #error "Invalid or undefined TEST_NR"
@@ -39,8 +63,8 @@
     #ifndef N_RESOURCES
       #error "N_RESOURCES not set"
     #endif
-    #ifndef MAXIMUM_PREEMPTION_LEVEL
-      #error "MAXIMUM_PREEMPTION_LEVEL not set"
+    #ifndef N_PREEMPTION_LEVELS
+      #error "N_PREEMPTION_LEVELS not set"
     #endif
     #ifndef ENABLE_STACK_SHARING
       #error "ENABLE_STACK_SHARING not set"

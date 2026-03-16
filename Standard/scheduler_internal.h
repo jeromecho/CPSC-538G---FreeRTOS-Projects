@@ -32,13 +32,19 @@ BaseType_t _create_periodic_task_internal(
   TMB_t **const     TMB_handle
 );
 
+BaseType_t _recreate_task_internal(TMB_t *const task);
+
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
 
 extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 extern size_t aperiodic_task_count;
 
+#if USE_SRP && ENABLE_STACK_SHARING
+extern StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
+#else
 extern StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+#endif // USE_SRP && ENABLE_STACK_SHARING
 
 #endif // SCHEDULER_INTERNAL_H

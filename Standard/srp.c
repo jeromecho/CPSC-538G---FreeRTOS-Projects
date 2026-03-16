@@ -18,9 +18,12 @@ static SRP_Stack_Element_t srp_stack[N_RESOURCES];
 static int                 srp_stack_pointer = -1;
 
 // Statically allocated stack for the stack sharing enabled by SRP
-static StackType_t shared_stacks[MAXIMUM_PREEMPTION_LEVEL][SHARED_STACK_SIZE];
+#if ENABLE_STACK_SHARING
+StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
+#endif
 
 // === API FUNCTION DEFINITIONS ===
+// ================================
 
 /// @brief Initializes the SRP state for the system. Must be called before any calls to SRP-specific
 void SRP_initialize( //
@@ -147,14 +150,20 @@ BaseType_t SRP_create_periodic_task(
   const BaseType_t  preemption_level
 ) {
   configASSERT(USE_SRP == 1);
-  configASSERT(preemption_level <= MAXIMUM_PREEMPTION_LEVEL);
+  configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
+  configASSERT(preemption_level > 0);
+
+#if ENABLE_STACK_SHARING
+  StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
+#else
+  StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_count];
+#endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_periodic_task_internal( //
     task_function,
     task_name,
-    // shared_stacks[preemption_level],
-    edf_private_stacks_periodic[periodic_task_count],
+    stack_buffer,
     completion_time,
     period,
     relative_deadline,
@@ -163,6 +172,7 @@ BaseType_t SRP_create_periodic_task(
 
   if (result == pdPASS) {
     handle->preemption_level = preemption_level;
+    handle->has_started      = false;
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
@@ -182,14 +192,20 @@ BaseType_t SRP_create_aperiodic_task(
   const BaseType_t  preemption_level
 ) {
   configASSERT(USE_SRP == 1);
-  configASSERT(preemption_level <= MAXIMUM_PREEMPTION_LEVEL);
+  configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
+  configASSERT(preemption_level > 0);
+
+#if USE_SRP && ENABLE_STACK_SHARING
+  StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
+#else
+  StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_count];
+#endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal( //
     task_function,
     task_name,
-    // shared_stacks[preemption_level],
-    edf_private_stacks_aperiodic[aperiodic_task_count],
+    stack_buffer,
     completion_time,
     release_time,
     relative_deadline,
@@ -198,12 +214,65 @@ BaseType_t SRP_create_aperiodic_task(
 
   if (result == pdPASS) {
     handle->preemption_level = preemption_level;
+    handle->has_started      = false;
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
   }
 
   return result;
+}
+
+// TODO: This should be made faster, probably using a LIFO queue for the system ceilings
+/// @brief Helper to calculate the true SRP System Ceiling
+unsigned int SRP_calculate_effective_system_ceiling() {
+  configASSERT(SRP_initialized());
+
+  unsigned int ceiling = SRP_get_system_ceiling(); // Semaphores
+
+  // Add preemption levels of all actively occupying tasks
+  for (size_t i = 0; i < periodic_task_count; i++) {
+    if (periodic_tasks[i].has_started) {
+      if (periodic_tasks[i].preemption_level > ceiling) {
+        ceiling = periodic_tasks[i].preemption_level;
+      }
+    }
+  }
+  for (size_t i = 0; i < aperiodic_task_count; i++) {
+    if (aperiodic_tasks[i].has_started) {
+      if (aperiodic_tasks[i].preemption_level > ceiling) {
+        ceiling = aperiodic_tasks[i].preemption_level;
+      }
+    }
+  }
+
+  return ceiling;
+}
+
+
+// Scheduler internal definitions
+// ==============================
+
+/// @brief Resets a FreeRTOS task's TCB, so that it can safely use shared stack memory even if it has used it
+/// previously. Without this, the task would attempt to pop the registers from the stack in order to resume its previous
+/// state, which wouldn't work when the shared stack has been used by another task in the mean time.
+void reset_task_stack(const TMB_t *const task) {
+  extern StackType_t *pxPortInitialiseStack(StackType_t * pxTopOfStack, TaskFunction_t pxCode, void *pvParameters);
+
+  // Find the top of the stack array
+  StackType_t *pxTopOfStack = &(task->stack_buffer[SHARED_STACK_SIZE - 1]);
+
+  // Ensure 8-byte alignment (Required by ARM Cortex-M architecture)
+  pxTopOfStack =
+    (StackType_t *)(((portPOINTER_SIZE_TYPE)pxTopOfStack) & (~((portPOINTER_SIZE_TYPE)portBYTE_ALIGNMENT_MASK)));
+
+  // Rebuild the ARM hardware stack frame (PC, LR, xPSR, etc.)
+  // We pass the completion time back in as the parameter to mimic task creation.
+  StackType_t *new_top_of_stack =
+    pxPortInitialiseStack(pxTopOfStack, task->task_function, (void *)task->completion_time);
+
+  // Overwrite the TCB's stack pointer
+  *((StackType_t **)task->handle) = new_top_of_stack;
 }
 
 #endif // USE_SRP

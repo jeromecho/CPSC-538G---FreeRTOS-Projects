@@ -15,7 +15,10 @@ typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
 
 typedef struct TMB_t {
   // --- FreeRTOS-specific data ---
-  StaticTask_t task_buffer;
+  TaskFunction_t task_function;
+  const char    *task_name;
+  StaticTask_t   task_buffer;
+  StackType_t   *stack_buffer;
 
   // --- Common Metadata ---
   TaskType_t   type;
@@ -30,9 +33,9 @@ typedef struct TMB_t {
 
   // --- SRP-specific Data ---
 #if USE_SRP
-  unsigned int preemption_level; // Only used for SRP, but it is more convenient to just store it in
-                                 // the TMB than to have a separate data structure for SRP tasks
-#endif
+  unsigned int preemption_level;
+  bool         has_started;
+#endif // USE_SRP
 
   // --- Type-Specific Data ---
   union {

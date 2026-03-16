@@ -47,12 +47,17 @@ BaseType_t SRP_create_periodic_task(
 BaseType_t SRP_create_aperiodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,
-  const TickType_t  completionTime,
+  const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
   const BaseType_t  preemption_level
 );
+
+void reset_task_stack(const TMB_t *const task);
+
+// === Helper to calculate the true SRP System Ceiling ===
+unsigned int SRP_calculate_effective_system_ceiling();
 
 #endif // USE_SRP
 

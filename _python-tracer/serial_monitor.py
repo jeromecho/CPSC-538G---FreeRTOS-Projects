@@ -62,7 +62,7 @@ EVENT_CONFIG = {
     # Group: Task Lifecycles (Shifted Up)
     TraceEvent.TRACE_RELEASE: ("Release", "star", "green", True, 0),
     TraceEvent.TRACE_RESCHEDULED: ("Rescheduled", "star-open", "mediumseagreen", True, 0),
-    TraceEvent.TRACE_DONE: ("Task Done", "circle-dot", "teal", True, 0.0),
+    TraceEvent.TRACE_DONE: ("Task Done", "circle-dot", "teal", True, 0.2),
     TraceEvent.TRACE_DEADLINE_MISS: ("Deadline Miss", "hexagram", "darkred", True, 0.0),
     
     # Absolute Deadline (Centered, uses large marker size in code)
@@ -140,12 +140,12 @@ def plot_rtos_trace(csv_data):
 
         def get_task_name(row):
             t_type = row["TASK_TYPE"]
-            t_id = row["TASK_ID"]
+            t_id = row["TASK_ID"] + 1
             base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
 
             # Append ID only for periodic/aperiodic tasks
             if t_type in [1, 2]:
-                return f"{base_name} {t_id}"
+                return f"{base_name} {t_id:02}"
             return base_name
 
         df["TASK_NAME"] = df.apply(get_task_name, axis=1)
