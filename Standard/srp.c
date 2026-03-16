@@ -83,7 +83,7 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
 
     const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
     const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-    record_trace_event(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
+    TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
     taskEXIT_CRITICAL();
     return pdTRUE;
@@ -97,7 +97,7 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
 
     vTaskSuspendAll(); // Freeze the scheduler to prevent being preempted in the middle of printing the error message
                        // and dumping the trace logs
-    print_trace_buffer();
+    TRACE_print_buffer();
     configASSERT(0);
 
     return pdFALSE;
@@ -114,7 +114,7 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
 
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-  record_trace_event(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
+  TRACE_record(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();

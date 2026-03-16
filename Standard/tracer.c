@@ -10,18 +10,24 @@
 #include <stdint.h>
 #include <stdio.h>
 
-TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
-size_t        trace_count = 0;
+static TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
+static size_t        trace_count = 0;
+
+static bool tracing_enabled = true;
 
 // TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
 // bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
 // to 0 when SRP is not enabled.
 /// @brief Records a trace, so debugging is simpler even without a logic analyzer
-void record_trace_event( //
+void TRACE_record( //
   const TraceEvent_t event,
   TraceTaskType_t    task_type,
   const TMB_t *const task
 ) {
+  if (!tracing_enabled) {
+    return;
+  }
+
   if (task_type == TRACE_TASK_EITHER) {
     configASSERT(task != NULL);
     task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
@@ -69,7 +75,9 @@ void record_trace_event( //
 }
 
 /// @brief Prints all recorded traces to the host computer
-void print_trace_buffer() {
+void TRACE_print_buffer() {
+  TRACE_disable();
+
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_count);
   printf("TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE\n");
@@ -100,3 +108,6 @@ void print_trace_buffer() {
 
   printf("--- END OF TRACE ---\n");
 }
+
+/// @brief Turns off the tracing functionality, preventing any additional traces from being recorded
+void TRACE_disable(void) { tracing_enabled = false; }

@@ -108,10 +108,11 @@ void vTraceMonitorTask(void *pvParameters) {
 
   // Sleep for the exact duration of your test
   vTaskDelay(pdMS_TO_TICKS(test_duration));
+  TRACE_disable();
 
   // The test is over. Freeze the scheduler so no more task switches occur.
   vTaskSuspendAll();
-  print_trace_buffer();
+  TRACE_print_buffer();
 
   // Spin forever. The test is done.
   while (1) {

@@ -91,7 +91,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
   update_priorities();
 
-  record_trace_event(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb);
+  TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb);
 
   taskEXIT_CRITICAL();
 }
@@ -396,7 +396,7 @@ static void set_highest_priority(const TMB_t *const task) {
 
   vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
 
-  record_trace_event(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
+  TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
 }
 
 /// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
@@ -406,7 +406,7 @@ static void deprioritize_task(const TMB_t *const task) {
 
   vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
 
-  record_trace_event(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
+  TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
 }
 
 /// @brief Resumes a task
@@ -414,7 +414,7 @@ static void release_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  record_trace_event(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task);
+  TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task);
 
   xTaskResumeFromISR(task->handle);
 }
@@ -443,7 +443,7 @@ void update_priorities() {
     return;
   }
 
-  record_trace_event(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
+  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
 
   TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
@@ -545,17 +545,17 @@ void task_switched_out(void) {
   }
 #else
   if (current_task == idle_task) {
-    record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_IDLE, NULL);
+    TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_IDLE, NULL);
     return;
   }
 
   const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
-    record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_SYSTEM, NULL);
+    TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_SYSTEM, NULL);
     return;
   }
 
-  record_trace_event(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_EITHER, current_task_tmb);
+  TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_EITHER, current_task_tmb);
 #endif
 }
 
@@ -582,24 +582,26 @@ void task_switched_in(void) {
   }
 #else
   if (current_task == idle_task) {
-    record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_IDLE, NULL);
+    TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_IDLE, NULL);
     return;
   }
 
   const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
     // This should never happen, but just in case
-    record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_SYSTEM, NULL);
+    TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_SYSTEM, NULL);
     return;
   }
 
-  record_trace_event(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_EITHER, current_task_tmb);
+  TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_EITHER, current_task_tmb);
 #endif
 }
 
 /// @brief Logic for whatever should happen when a deadline is missed
 void deadline_miss(const TMB_t *const task) {
-  record_trace_event(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
+  TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
+
+  TRACE_disable();
 
   printf( //
     "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
@@ -608,7 +610,7 @@ void deadline_miss(const TMB_t *const task) {
     task->absolute_deadline
   );
 
-  print_trace_buffer();
+  TRACE_print_buffer();
 
   configASSERT(false);
 }

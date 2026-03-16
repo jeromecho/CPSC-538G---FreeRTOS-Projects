@@ -62,15 +62,13 @@ typedef struct {
   TickType_t   deadline;       // Absolute deadline of the acting task (for EDF checks)
 } TraceRecord_t;
 
-extern TraceRecord_t trace_buffer[MAX_TRACE_RECORDS];
-extern size_t        trace_count;
-
-void record_trace_event( //
+void TRACE_record( //
   const TraceEvent_t event,
   TraceTaskType_t    task_type,
   const TMB_t *const task
 );
 
-void print_trace_buffer();
+void TRACE_print_buffer();
+void TRACE_disable();
 
 #endif // TRACER_H
