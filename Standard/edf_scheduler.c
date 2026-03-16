@@ -348,8 +348,10 @@ void reschedule_periodic_tasks() {
     const TickType_t current_tick = xTaskGetTickCountFromISR();
 
     if (task->is_done && current_tick >= task->periodic.next_period) {
-      task->absolute_deadline    = task->periodic.next_period + task->periodic.relative_deadline;
-      task->periodic.next_period = task->periodic.next_period + task->periodic.period;
+      task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
+      task->release_time      = task->periodic.next_period;
+      task->periodic.next_period += task->periodic.period;
+      task->is_done = false;
       xTaskResumeFromISR(task->handle);
     }
   }
