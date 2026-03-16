@@ -3,7 +3,7 @@
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "ProjectConfig.h"
-#include "edf_scheduler.h"
+#include "scheduler_internal.h"
 #include "task.h"
 
 #if USE_SRP

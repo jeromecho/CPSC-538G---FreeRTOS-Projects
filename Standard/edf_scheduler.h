@@ -2,52 +2,13 @@
 #define EDF_SCHEDULER_H
 
 #include "FreeRTOS.h" // IWYU pragma: keep
-#include "ProjectConfig.h"
-#include "task.h"
+#include "scheduler_internal.h"
 
 #define PRIORITY_RUNNING     (tskIDLE_PRIORITY + 2)
 #define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE        (tskIDLE_PRIORITY)
 
 #define errADMISSION_FAILED (-6)
-
-typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
-
-typedef struct TMB_t {
-  // --- FreeRTOS-specific data ---
-  TaskFunction_t task_function;
-  StaticTask_t   task_buffer;
-  StackType_t   *stack_buffer;
-
-  // --- Common Metadata ---
-  TaskType_t   type;
-  size_t       id; // Index in the corresponding TMB array, starting from 0
-  TaskHandle_t handle;
-  bool         is_done;
-
-  // --- Common Scheduling Data ---
-  TickType_t release_time;
-  TickType_t absolute_deadline;
-  TickType_t completion_time;
-
-  // --- SRP-specific Data ---
-#if USE_SRP
-  unsigned int preemption_level;
-  bool         has_started;
-#endif // USE_SRP
-
-  // --- Type-Specific Data ---
-  union {
-    struct {
-      TickType_t period;
-      TickType_t relative_deadline;
-      TickType_t next_period;
-    } periodic;
-
-    struct {
-    } aperiodic;
-  };
-} TMB_t;
 
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,

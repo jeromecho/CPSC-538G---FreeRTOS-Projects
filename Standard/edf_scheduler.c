@@ -1,5 +1,4 @@
 #include "edf_scheduler.h"
-#include "scheduler_internal.h"
 
 #include "ProjectConfig.h"
 #include "admission_control.h"
@@ -23,8 +22,9 @@ StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZ
 StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 #endif
 
-// === LOCAL FUNCTION DECLARATIONS ===
-// ===================================
+; // ===================================
+; // === LOCAL FUNCTION DECLARATIONS ===
+; // ===================================
 
 void          reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
@@ -34,15 +34,20 @@ static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
-void          vApplicationTickHook(void);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
-void          task_switched_out(void);
-void          task_switched_in(void);
 void          deadline_miss(const TMB_t *const task);
 
+; // ==================================
+; // === FUNCTION HOOK DECLARATIONS ===
+; // ==================================
 
-// === API FUNCTION DEFINITIONS ===
-// ================================
+void vApplicationTickHook(void);
+void task_switched_out(void);
+void task_switched_in(void);
+
+; // ================================
+; // === API FUNCTION DEFINITIONS ===
+; // ================================
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *EDF_produce_highest_priority_task() {
@@ -342,8 +347,9 @@ void EDF_scheduler_start() {
 }
 
 
-// === LOCAL FUNCTION DEFINITIONS ===
-// ==================================
+; // ==================================
+; // === LOCAL FUNCTION DEFINITIONS ===
+; // ==================================
 
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 void reschedule_periodic_tasks() {
@@ -506,16 +512,6 @@ void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t co
   }
 }
 
-/// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
-void vApplicationTickHook(void) {
-  reschedule_periodic_tasks();
-
-  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
-  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
-
-  update_priorities();
-}
-
 /// @brief Calculates release time for dropped task
 TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
   const TickType_t H = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
@@ -531,6 +527,41 @@ TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
   } else {
     return xNow + (H - remainder);
   }
+}
+
+/// @brief Logic for whatever should happen when a deadline is missed
+void deadline_miss(const TMB_t *const task) {
+  TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
+
+  TRACE_disable();
+
+  printf( //
+    "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
+    xTaskGetTickCountFromISR(),
+    task->id,
+    task->absolute_deadline
+  );
+
+  TRACE_print_buffer();
+
+  // Spin forever to continue to allow USB functionality
+  while (1) {
+    __asm volatile("wfi");
+  }
+}
+
+; // =================================
+; // === FUNCTION HOOK DEFINITIONS ===
+; // =================================
+
+/// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
+void vApplicationTickHook(void) {
+  reschedule_periodic_tasks();
+
+  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
+  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
+
+  update_priorities();
 }
 
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
@@ -607,30 +638,9 @@ void task_switched_in(void) {
 #endif
 }
 
-/// @brief Logic for whatever should happen when a deadline is missed
-void deadline_miss(const TMB_t *const task) {
-  TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
-
-  TRACE_disable();
-
-  printf( //
-    "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
-    xTaskGetTickCountFromISR(),
-    task->id,
-    task->absolute_deadline
-  );
-
-  TRACE_print_buffer();
-
-  // Spin forever to continue to allow USB functionality
-  while (1) {
-    __asm volatile("wfi");
-  }
-}
-
-
-// === FreeRTOS Static Allocation Callbacks ===
-// ============================================
+; // ============================================
+; // === FreeRTOS Static Allocation Callbacks ===
+; // ============================================
 
 // Since configSUPPORT_STATIC_ALLOCATION is set to 1, the application must provide an
 // implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
