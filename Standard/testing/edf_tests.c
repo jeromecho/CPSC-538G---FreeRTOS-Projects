@@ -2,10 +2,6 @@
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
-// TODO: Maybe update the scheduler so that a context switch will not occur between two tasks, if the two tasks have the
-// same deadline? This would reduce the number of context switches, while still maintaining EDF scheduling. This would
-// also make test #2 look like the provided example from the lectures.
-
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 

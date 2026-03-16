@@ -351,7 +351,6 @@ void reschedule_periodic_tasks() {
       task->release_time      = task->periodic.next_period;
       task->periodic.next_period += task->periodic.period;
       task->is_done = false;
-      xTaskResumeFromISR(task->handle);
     }
   }
 }
@@ -422,12 +421,18 @@ static void release_task(const TMB_t *const task) {
 /// @brief produce true if currently running task is different from the highest priority task
 bool should_update_priorities(const TMB_t *const highest_priority_task) {
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  TMB_t             *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
 
   if (highest_priority_task == NULL) {
     // No EDF tasks want to run.
     // We only need to update if an EDF task is currently running and needs to be stopped.
-    TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task_handle);
     return current_task_tmb != NULL;
+  }
+
+  // Prevent context switch between two tasks with the same deadline
+  const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
+  if (equal_deadlines && !current_task_tmb->is_done) {
+    return false;
   }
 
   // An EDF task wants to run. Only return true if it is not already running?
