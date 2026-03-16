@@ -204,7 +204,8 @@ TickType_t edf_test_8() {
 ; // ==========================================================
 
 // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
-//       good design
+//       good design. Should maybe create both tasks at the same time, and add a release time parameter so that the
+//       scheduler can be responsible for running the tests
 
 // TEST 9: Admissible Drop-in
 void vTestRunner9() {

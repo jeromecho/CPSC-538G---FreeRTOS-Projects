@@ -12,11 +12,6 @@
 static SRPState_t   srp_state;
 static unsigned int resource_ceilings[N_RESOURCES];
 
-// Statically allocated stack for O(1) state restoration
-// Max depth is bounded by N_RESOURCES because a task can only take each resource once
-static SRP_Stack_Element_t srp_stack[N_RESOURCES];
-static int                 srp_stack_pointer = -1;
-
 // Statically allocated stack for the stack sharing enabled by SRP
 #if ENABLE_STACK_SHARING
 StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
@@ -31,7 +26,7 @@ void SRP_initialize( //
   const size_t              num_tasks,
   const unsigned int *const user_ceilings_memory
 ) {
-  srp_state.global_priority_ceiling = 0; // Assuming 0 is the lowest preemption level
+  srp_state.priority_ceiling_index = 0;
 
   // Initialize all resources to available (1)
   for (int i = 0; i < N_RESOURCES; i++) {
@@ -54,31 +49,40 @@ void SRP_initialize( //
   srp_state.initialized = true;
 }
 
+void SRP_push_ceiling(unsigned int new_ceiling) {
+  taskENTER_CRITICAL();
+  configASSERT(srp_state.priority_ceiling_index < MAX_SRP_NESTING);
+
+  unsigned int current_ceiling   = srp_state.priority_ceiling_stack[srp_state.priority_ceiling_index];
+  unsigned int effective_ceiling = MAX(new_ceiling, current_ceiling);
+
+  // Always increment the pointer first. This keeps the first element of the array equal to 0, which is the base
+  // (lowest) system ceiling
+  srp_state.priority_ceiling_index++;
+  srp_state.priority_ceiling_stack[srp_state.priority_ceiling_index] = effective_ceiling;
+  taskEXIT_CRITICAL();
+}
+
+void SRP_pop_ceiling(void) {
+  taskENTER_CRITICAL();
+  configASSERT(srp_state.priority_ceiling_index > 0);
+
+  srp_state.priority_ceiling_index--;
+
+  taskEXIT_CRITICAL();
+}
+
 BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   taskENTER_CRITICAL();
-
   configASSERT(semaphoreIdx < N_RESOURCES);
 
   if (srp_state.resource_availability[semaphoreIdx] == 1) {
-    // Resource is available. Update availability.
     srp_state.resource_availability[semaphoreIdx] = 0;
 
-    // This is only for tracing/debugging purposes to show which task took which resource at what
-    // time. It is not needed for the actual SRP logic.
+    SRP_push_ceiling(resource_ceilings[semaphoreIdx]);
+
     const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
     const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-    configASSERT(current_task != NULL);
-
-    // Push current ceiling and semaphoreIdx onto the stack
-    srp_stack_pointer++;
-    srp_stack[srp_stack_pointer].previous_global_ceiling = srp_state.global_priority_ceiling;
-    srp_stack[srp_stack_pointer].semaphore_idx           = semaphoreIdx;
-
-    // Update global priority ceiling
-    unsigned int resource_ceiling = resource_ceilings[semaphoreIdx];
-    if (resource_ceiling > srp_state.global_priority_ceiling) {
-      srp_state.global_priority_ceiling = resource_ceiling;
-    }
     record_trace_event(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
     taskEXIT_CRITICAL();
@@ -100,34 +104,23 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   }
 }
 
-// TODO: Create push() and pop() function for SRP stack, which should return an error if the srp_stack_pointer exceeds
-// the upper/lower bounds
 void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
-  configASSERT(semaphoreIdx < N_RESOURCES);
-  configASSERT(srp_stack_pointer >= 0);
-
   taskENTER_CRITICAL();
+  configASSERT(semaphoreIdx < N_RESOURCES);
 
-  // Pop the state
-  SRP_Stack_Element_t popped_state = srp_stack[srp_stack_pointer];
-  srp_stack_pointer--;
+  srp_state.resource_availability[semaphoreIdx] = 1;
 
-  // Restore the old global ceiling and set resource to available
-  srp_state.global_priority_ceiling                           = popped_state.previous_global_ceiling;
-  srp_state.resource_availability[popped_state.semaphore_idx] = 1;
+  SRP_pop_ceiling();
 
-  // This is only for tracing/debugging purposes to show which task took which resource at what
-  // time. It is not needed for the actual SRP logic.
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-  configASSERT(current_task != NULL);
   record_trace_event(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();
 
-  // TODO: Look up the preemption level of 'highest_task'?
-  // If the highest task's preemption level > srp_state.global_priority_ceiling:
+  // TODO: Allow preemption immediately after semaphore release?
+  // If the highest task's preemption level > SRP_get_system_ceiling():
   //     vTaskResume(highest_task);
 
   taskEXIT_CRITICAL();
@@ -135,7 +128,10 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
 
 /// @brief Getter for the current system ceiling, which is used in the EDF scheduler to determine if
 /// a task can preempt or not
-unsigned int SRP_get_system_ceiling(void) { return srp_state.global_priority_ceiling; }
+unsigned int SRP_get_system_ceiling(void) {
+  unsigned int current_ceiling = srp_state.priority_ceiling_stack[srp_state.priority_ceiling_index];
+  return current_ceiling;
+}
 
 bool SRP_initialized() { return srp_state.initialized; }
 
@@ -223,35 +219,9 @@ BaseType_t SRP_create_aperiodic_task(
   return result;
 }
 
-// TODO: This should be made faster, probably using a LIFO queue for the system ceilings
-/// @brief Helper to calculate the true SRP System Ceiling
-unsigned int SRP_calculate_effective_system_ceiling() {
-  configASSERT(SRP_initialized());
 
-  unsigned int ceiling = SRP_get_system_ceiling(); // Semaphores
-
-  // Add preemption levels of all actively occupying tasks
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    if (periodic_tasks[i].has_started) {
-      if (periodic_tasks[i].preemption_level > ceiling) {
-        ceiling = periodic_tasks[i].preemption_level;
-      }
-    }
-  }
-  for (size_t i = 0; i < aperiodic_task_count; i++) {
-    if (aperiodic_tasks[i].has_started) {
-      if (aperiodic_tasks[i].preemption_level > ceiling) {
-        ceiling = aperiodic_tasks[i].preemption_level;
-      }
-    }
-  }
-
-  return ceiling;
-}
-
-
-// Scheduler internal definitions
-// ==============================
+// === Scheduler internal definitions ===
+// ======================================
 
 /// @brief Resets a FreeRTOS task's TCB, so that it can safely use shared stack memory even if it has used it
 /// previously. Without this, the task would attempt to pop the registers from the stack in order to resume its previous

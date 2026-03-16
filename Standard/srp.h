@@ -8,6 +8,8 @@
 
 #if USE_SRP
 
+#define MAX_SRP_NESTING (N_PREEMPTION_LEVELS + N_RESOURCES)
+
 // TMF structure as defined in design document
 typedef struct {
   unsigned int           preemption_level;
@@ -17,16 +19,13 @@ typedef struct {
 
 // SRP State structure
 typedef struct {
-  bool         initialized;
-  unsigned int global_priority_ceiling;
-  unsigned int resource_availability[N_RESOURCES];
-} SRPState_t;
+  bool initialized;
 
-// Stack element to keep track of previous states
-typedef struct {
-  unsigned int previous_global_ceiling;
-  unsigned int semaphore_idx;
-} SRP_Stack_Element_t;
+  unsigned int resource_availability[N_RESOURCES];
+
+  unsigned int priority_ceiling_stack[MAX_SRP_NESTING];
+  size_t       priority_ceiling_index;
+} SRPState_t;
 
 // API Declarations
 void SRP_initialize(TMF_t *const task_matrix, const size_t num_tasks, const unsigned int *const user_ceilings_memory);
@@ -34,6 +33,9 @@ BaseType_t   SRP_take_binary_semaphore(const unsigned int semaphoreIdx);
 void         SRP_give_binary_semaphore(const unsigned int semaphoreIdx);
 unsigned int SRP_get_system_ceiling();
 bool         SRP_initialized();
+
+void SRP_push_ceiling(unsigned int level);
+void SRP_pop_ceiling(void);
 
 BaseType_t SRP_create_periodic_task(
   TaskFunction_t    task_function,
@@ -55,9 +57,6 @@ BaseType_t SRP_create_aperiodic_task(
 );
 
 void reset_task_stack(const TMB_t *const task);
-
-// === Helper to calculate the true SRP System Ceiling ===
-unsigned int SRP_calculate_effective_system_ceiling();
 
 #endif // USE_SRP
 

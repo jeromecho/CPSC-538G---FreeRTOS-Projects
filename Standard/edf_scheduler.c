@@ -60,27 +60,6 @@ TMB_t *EDF_produce_highest_priority_task() {
     (aperiodic_candidate != NULL) ? aperiodic_candidate->absolute_deadline : portMAX_DELAY;
   TMB_t *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
 
-// --- SRP PREEMPTION CHECK ---
-#if USE_SRP
-  configASSERT(SRP_initialized());
-  const unsigned int current_system_ceiling = SRP_get_system_ceiling();
-
-  const TaskHandle_t current_task     = xTaskGetCurrentTaskHandle();
-  TMB_t             *current_task_tmb = EDF_get_task_by_handle(current_task);
-
-  // Find the active task's preemption level (if it isn't done yet)
-  unsigned int active_task_level = 0;
-  if (current_task_tmb != NULL && !current_task_tmb->is_done && current_task_tmb->has_started) {
-    active_task_level = current_task_tmb->preemption_level;
-  }
-  unsigned int effective_ceiling = MAX(current_system_ceiling, active_task_level);
-
-  // To preempt, the candidate musb have a preemption level strictly greater than the effective ceiling
-  if (candidate->preemption_level <= effective_ceiling) {
-    return current_task_tmb;
-  }
-#endif
-
   return candidate;
 }
 
@@ -102,9 +81,11 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
 #if USE_SRP
   task_tmb->has_started = false;
+  SRP_pop_ceiling();
 #endif // USE_SRP
 
   if (xTaskGetTickCount() > task_tmb->absolute_deadline) {
+    taskEXIT_CRITICAL();
     deadline_miss(task_tmb);
   }
 
@@ -390,9 +371,9 @@ static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
 
 #if USE_SRP
     // If a task hasn't started yet, its preemption level must be
-    // strictly greater than the effective system ceiling to be eligible.
-    const unsigned int effective_ceiling = SRP_calculate_effective_system_ceiling();
-    if (!task->has_started && task->preemption_level <= effective_ceiling) {
+    // strictly greater than the system ceiling to be eligible.
+    const unsigned int global_priority_ceiling = SRP_get_system_ceiling();
+    if (!task->has_started && task->preemption_level <= global_priority_ceiling) {
       continue;
     }
 #endif // USE_SRP
@@ -484,6 +465,7 @@ void update_priorities() {
       reset_task_stack(highest_priority_task);
 #endif                   // ENABLE_STACK_SHARING
       highest_priority_task->has_started = true;
+      SRP_push_ceiling(highest_priority_task->preemption_level);
     }
 #endif // USE_SRP
     set_highest_priority(highest_priority_task);
@@ -615,7 +597,6 @@ void task_switched_in(void) {
 }
 
 /// @brief Logic for whatever should happen when a deadline is missed
-// TODO: This needs to be re-implemented
 void deadline_miss(const TMB_t *const task) {
   record_trace_event(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
 

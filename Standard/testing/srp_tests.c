@@ -296,7 +296,8 @@ TickType_t srp_test_5() {
   unsigned int user_ceilings_memory[1] = {0};
 
   // Initialize the TMF matrix for all the tasks
-  // We use static to avoid blowing up the Pico's boot stack TODO: is this true?
+  // TODO: is this true? Test the boot stack usage with and without static.
+  // We use static to avoid blowing up the Pico's boot stack
   TMF_t test_tmf[NUM_TASKS];
   for (int i = 0; i < NUM_TASKS; i++) {
     test_tmf[i].preemption_level       = (i % N_PREEMPTION_LEVELS) + 1;
@@ -373,3 +374,5 @@ TickType_t srp_test_6() { return srp_test_5(); }
 // TODO: Maybe one test showing the stack sharing in combination with the semaphores?
 
 // TODO: Admission control
+
+// TODO: Many weird system traces (switch in, switch out and update priorities) after end of test
