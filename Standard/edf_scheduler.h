@@ -16,7 +16,6 @@ typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
 typedef struct TMB_t {
   // --- FreeRTOS-specific data ---
   TaskFunction_t task_function;
-  const char    *task_name;
   StaticTask_t   task_buffer;
   StackType_t   *stack_buffer;
 

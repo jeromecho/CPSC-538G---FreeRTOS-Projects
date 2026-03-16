@@ -32,8 +32,6 @@ BaseType_t _create_periodic_task_internal(
   TMB_t **const     TMB_handle
 );
 
-BaseType_t _recreate_task_internal(TMB_t *const task);
-
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
 

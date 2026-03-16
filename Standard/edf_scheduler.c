@@ -122,7 +122,6 @@ BaseType_t _create_task_internal(
   vTaskSuspend(task_handle);
   new_task->handle        = task_handle;
   new_task->task_function = task_function;
-  new_task->task_name     = task_name;
   new_task->stack_buffer  = stack_buffer;
 
   new_task->type = type;
@@ -646,39 +645,4 @@ void vApplicationGetTimerTaskMemory(
   *ppxTimerTaskTCBBuffer   = &xTimerTaskTCB;
   *ppxTimerTaskStackBuffer = uxTimerTaskStack;
   *pulTimerTaskStackSize   = configTIMER_TASK_STACK_DEPTH;
-}
-
-
-// Scheduler internal definitions
-// ==============================
-
-/// @brief Recreates a periodic task
-BaseType_t _recreate_task_internal(TMB_t *const task) {
-  configASSERT(task != NULL);
-  configASSERT(task->stack_buffer != NULL);
-  configASSERT(task->task_function != NULL);
-
-  TaskHandle_t task_handle = xTaskCreateStatic(
-    task->task_function,
-    task->task_name,
-    SHARED_STACK_SIZE,
-    (void *)task->completion_time,
-    PRIORITY_NOT_RUNNING,
-    task->stack_buffer,
-    &task->task_buffer
-  );
-  if (task_handle == NULL) {
-    return pdFAIL;
-  }
-  vTaskSuspend(task_handle);
-
-  // Update the TMB
-  task->handle  = task_handle;
-  task->is_done = false;
-
-#if USE_SRP
-  task->has_started = false;
-#endif
-
-  return pdPASS;
 }

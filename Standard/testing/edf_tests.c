@@ -2,6 +2,10 @@
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
+// TODO: Maybe update the scheduler so that a context switch will not occur between two tasks, if the two tasks have the
+// same deadline? This would reduce the number of context switches, while still maintaining EDF scheduling. This would
+// also make test #2 look like the provided example from the lectures.
+
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 
@@ -69,6 +73,8 @@ TickType_t edf_test_2() {
 ; // === Admission Control Tests ===
 ; // ===============================
 
+// Note: in order to check the size of the created binary, run:
+// arm-none-eabi-size build/Standard/main_blinky.elf
 // TEST3: 100 Tasks NON-ADMISSIBLE
 TickType_t edf_test_3() {
   for (int i = 0; i < 100; i++) {
