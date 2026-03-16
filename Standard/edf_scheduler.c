@@ -421,17 +421,17 @@ static void release_task(const TMB_t *const task) {
 
 /// @brief produce true if currently running task is different from the highest priority task
 bool should_update_priorities(const TMB_t *const highest_priority_task) {
-  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
 
-  // If there are no schedulable tasks, then we should be running the idle task. In that case, we only want to update
-  // priorities if we're not already running the idle task (i.e. if current_task is not the idle task handle).
-  // Also note that we are not allowed to call xTaskGetIdleTaskHandle before the scheduler has started.
-  const bool scheduler_started = xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED;
-  if (scheduler_started && highest_priority_task == NULL) {
-    return current_task != xTaskGetIdleTaskHandle();
+  if (highest_priority_task == NULL) {
+    // No EDF tasks want to run.
+    // We only need to update if an EDF task is currently running and needs to be stopped.
+    TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task_handle);
+    return current_task_tmb != NULL;
   }
 
-  return highest_priority_task->handle != current_task;
+  // An EDF task wants to run. Only return true if it is not already running?
+  return highest_priority_task->handle != current_task_handle;
 }
 
 /// @brief Updates priorities of the (potentially) currently running task, as well as the (potentially) new highest
