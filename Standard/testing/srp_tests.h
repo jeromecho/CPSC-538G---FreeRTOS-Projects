@@ -12,6 +12,8 @@ TickType_t srp_test_3();
 TickType_t srp_test_4();
 TickType_t srp_test_5();
 TickType_t srp_test_6();
+TickType_t srp_test_7();
+TickType_t srp_test_8();
 
 #endif // USE_SRP
 

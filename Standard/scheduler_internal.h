@@ -28,6 +28,7 @@ typedef struct TMB_t {
 #if USE_SRP
   unsigned int preemption_level;
   bool         has_started;
+  TickType_t   resource_hold_times[N_RESOURCES];
 #endif // USE_SRP
 
   // --- Type-Specific Data ---

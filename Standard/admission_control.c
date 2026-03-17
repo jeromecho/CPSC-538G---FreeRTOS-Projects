@@ -106,7 +106,7 @@ bool check_deadlines( //
 // NOTE: Admission control test might be conservative as it currently
 //       auto-rejects for U = 1 case
 // TODO: This fails for U=1.0 in some cases because of floating point imprecision
-bool can_admit_periodic_task( //
+bool EDF_can_admit_periodic_task( //
   const TickType_t C_new,
   const TickType_t T_new,
   const TickType_t D_new

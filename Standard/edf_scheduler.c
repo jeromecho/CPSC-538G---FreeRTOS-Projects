@@ -151,19 +151,6 @@ BaseType_t _create_periodic_task_internal(
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
-
-#if PERFORM_ADMISSION_CONTROL
-  if (!can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    printf("%s - Admission failed for: %s\n", __func__, task_name);
-    vTaskSuspendAll();
-
-    // Spin forever to continue to allow USB functionality
-    while (1) {
-      __asm volatile("wfi");
-    }
-  }
-#endif // PERFORM_ADMISSION_CONTROL
-
   configASSERT(relative_deadline <= period);
 
   TMB_t *const new_task = &periodic_tasks[periodic_task_count];
@@ -261,7 +248,13 @@ BaseType_t EDF_create_periodic_task(
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
-  return _create_periodic_task_internal( //
+#if PERFORM_ADMISSION_CONTROL
+  if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
+    crash_without_trace("%s - Admission failed for: %s\n", __func__, task_name);
+  }
+#endif // PERFORM_ADMISSION_CONTROL
+
+  return _create_periodic_task_internal(
     task_function,
     task_name,
     edf_private_stacks_periodic[periodic_task_count],
@@ -479,7 +472,7 @@ void update_priorities() {
 #if USE_SRP
     if (!highest_priority_task->has_started) {
 #if ENABLE_STACK_SHARING // Only do the memory wipe if stack sharing is enabled
-      reset_task_stack(highest_priority_task);
+      SRP_reset_TCB(highest_priority_task);
 #endif                   // ENABLE_STACK_SHARING
       highest_priority_task->has_started = true;
       SRP_push_ceiling(highest_priority_task->preemption_level);
@@ -532,22 +525,14 @@ TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
 /// @brief Logic for whatever should happen when a deadline is missed
 void deadline_miss(const TMB_t *const task) {
   TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
-
   TRACE_disable();
 
-  printf( //
+  crash_with_trace( //
     "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
     xTaskGetTickCountFromISR(),
     task->id,
     task->absolute_deadline
   );
-
-  TRACE_print_buffer();
-
-  // Spin forever to continue to allow USB functionality
-  while (1) {
-    __asm volatile("wfi");
-  }
 }
 
 ; // =================================

@@ -334,18 +334,32 @@ TEST_CASES = {
             ],
         },
     },
+    # Test 5 and 6 should be 25 tasks running sequentially. Haven't bothered defining the results here, as long as they compile they shoud be fine. They really aren't very different from tests 3 and 4
     "SRP5": {
-        "name": "Stack usage with Stack Sharing disabled",
+        "name": "Stack Sharing - Disabled",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 5},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP6": {
-        "name": "Stack usage with Stack Sharing enabled",
+        "name": "Stack Sharing - Enabled",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 6},
         "expected_admission_failure": None,
         "ignore_traces": True,
+        "expected_events": {},
+    },
+    "SRP7": {
+        "name": "Admission Control - Pass (Implicit Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 7},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "SRP8": {
+        "name": "Admission Control - Fail (Implicit Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 8},
+        "expected_admission_failure": "Admission failed for: SRP Test 8, Task 3",
         "expected_events": {},
     },
 }
@@ -354,7 +368,8 @@ TEST_CASES = {
 # Leave empty [] to run ALL tests. Example: [1, 3] runs Test 1 and Test 3.
 TESTS_TO_RUN: list[str] = [  #
     # "SRP3",
-    # "SRP4",
+    # "SRP7",
+    # "SRP8",
 ]
 
 # --- HELPER FUNCTIONS ---

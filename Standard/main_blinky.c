@@ -74,6 +74,7 @@
 
 // Custom scheduler includes
 #include "edf_scheduler.h"
+#include "helpers.h"
 #include "tracer.h"
 
 #if !USE_SRP
@@ -108,17 +109,10 @@ void vTraceMonitorTask(void *pvParameters) {
 
   // Sleep for the exact duration of your test
   vTaskDelay(pdMS_TO_TICKS(test_duration));
-  TRACE_disable();
 
   // The test is over. Freeze the scheduler so no more task switches occur.
-  vTaskSuspendAll();
-  TRACE_print_buffer();
-
-  // Spin forever. The test is done.
-  while (1) {
-    // Hardware specific wait-for-interrupt to save power, or just empty loop
-    __asm volatile("wfi");
-  }
+  TRACE_disable();
+  crash_with_trace("");
 }
 
 void main_blinky(void) {

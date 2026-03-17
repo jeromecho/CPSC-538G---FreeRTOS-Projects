@@ -5,7 +5,7 @@
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 1
-#define TEST_NR 2
+#define TEST_NR 8
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         300
@@ -52,6 +52,18 @@
       #define MAXIMUM_APERIODIC_TASKS 25
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     5
+      #define ENABLE_STACK_SHARING    1
+    #elif TEST_NR == 7
+      #define MAXIMUM_PERIODIC_TASKS  3
+      #define MAXIMUM_APERIODIC_TASKS 0
+      #define N_RESOURCES             1
+      #define N_PREEMPTION_LEVELS     3
+      #define ENABLE_STACK_SHARING    1
+    #elif TEST_NR == 8
+      #define MAXIMUM_PERIODIC_TASKS  3
+      #define MAXIMUM_APERIODIC_TASKS 0
+      #define N_RESOURCES             1
+      #define N_PREEMPTION_LEVELS     3
       #define ENABLE_STACK_SHARING    1
 
     #else
