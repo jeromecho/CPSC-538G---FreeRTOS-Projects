@@ -352,6 +352,7 @@ TEST_CASES = {
                 (100, TraceEvent.TRACE_SWITCH_OUT),
             ],
         },
+        "expected_less_bss_than": "SRP3",
     },
     # Test 5 and 6 should be 25 tasks running sequentially.
     # Haven't bothered defining the results here, as long as they compile they shoud be fine.
@@ -369,6 +370,7 @@ TEST_CASES = {
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
+        "expected_less_bss_than": "SRP5",
     },
     "SRP7": {
         "name": "Admission Control - Pass (Implicit Deadlines)",
@@ -775,6 +777,32 @@ if __name__ == "__main__":
             )
 
             test_passed, mem_usage = run_test(test_id, test_data)
+
+            if test_passed and mem_usage:
+                rel_check_id = test_data.get("expected_less_bss_than")
+                if rel_check_id:
+                    # Search the previously run tests for the reference ID
+                    ref_mem = None
+                    for past_t_id, _, _, past_mem in test_results:
+                        if past_t_id == rel_check_id:
+                            ref_mem = past_mem
+                            break
+
+                    if ref_mem:
+                        if mem_usage["bss"] < ref_mem["bss"]:
+                            diff = ref_mem["bss"] - mem_usage["bss"]
+                            print(
+                                f"    {C_GREEN}✓ MEMORY CHECK: Saved {diff:,} Bytes compared to {rel_check_id}.{C_RESET}"
+                            )
+                        else:
+                            print(
+                                f"    {C_RED}❌ MEMORY FAIL: .BSS ({mem_usage['bss']:,} B) is NOT less than {rel_check_id} ({ref_mem['bss']:,} B).{C_RESET}"
+                            )
+                            test_passed = False
+                    else:
+                        print(
+                            f"    {C_YELLOW}⚠ Skipped memory check: Reference test '{rel_check_id}' was not run in this session.{C_RESET}"
+                        )
 
             if test_passed:
                 passed_count += 1
