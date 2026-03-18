@@ -1,0 +1,357 @@
+from enum import IntEnum
+
+
+class TraceEvent(IntEnum):
+    TRACE_RELEASE = 0
+    TRACE_SWITCH_IN = 1
+    TRACE_SWITCH_OUT = 2
+    TRACE_DONE = 3
+    TRACE_RESCHEDULED = 4
+    TRACE_UPDATING_PRIORITIES = 5
+    TRACE_DEPRIORITIZED = 6
+    TRACE_PRIORITY_SET = 7
+    TRACE_DEADLINE_MISS = 8
+    TRACE_SRP_BLOCK = 9
+    TRACE_SEMAPHORE_TAKE = 10
+    TRACE_SEMAPHORE_GIVE = 11
+
+
+TASK_TYPES = {
+    0: "Idle Task",
+    1: "Periodic",
+    2: "Aperiodic",
+    3: "System Task",
+}
+
+# --- TEST DEFINITIONS ---
+TEST_CASES = {
+    # EDF TESTS
+    "EDF1": {
+        "name": "Smoke Test for Periodic Tasks",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 1},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (1, TraceEvent.TRACE_SWITCH_IN),
+                (2, TraceEvent.TRACE_SWITCH_OUT),
+                (3, TraceEvent.TRACE_SWITCH_IN),
+                (4, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (6, TraceEvent.TRACE_RELEASE),
+                (7, TraceEvent.TRACE_SWITCH_IN),
+                (8, TraceEvent.TRACE_SWITCH_OUT),
+                (9, TraceEvent.TRACE_SWITCH_IN),
+                (10, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 02": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (1, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (2, TraceEvent.TRACE_RELEASE),
+                (2, TraceEvent.TRACE_SWITCH_IN),
+                (3, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (4, TraceEvent.TRACE_RELEASE),
+                (4, TraceEvent.TRACE_SWITCH_IN),
+                (5, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (6, TraceEvent.TRACE_RELEASE),
+                (6, TraceEvent.TRACE_SWITCH_IN),
+                (7, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (8, TraceEvent.TRACE_RELEASE),
+                (8, TraceEvent.TRACE_SWITCH_IN),
+                (9, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (10, TraceEvent.TRACE_RELEASE),
+                (10, TraceEvent.TRACE_SWITCH_IN),
+                (11, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "EDF2": {
+        "name": "Mark's Proposed EDF Smoke Test",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 2},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (2, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (6, TraceEvent.TRACE_RELEASE),
+                (7, TraceEvent.TRACE_SWITCH_IN),
+                (9, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (12, TraceEvent.TRACE_RELEASE),
+                (14, TraceEvent.TRACE_SWITCH_IN),
+                (16, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (18, TraceEvent.TRACE_RELEASE),
+                (18, TraceEvent.TRACE_SWITCH_IN),
+                (20, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 02": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (2, TraceEvent.TRACE_SWITCH_IN),
+                (4, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (8, TraceEvent.TRACE_RELEASE),
+                (9, TraceEvent.TRACE_SWITCH_IN),
+                (11, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (16, TraceEvent.TRACE_RELEASE),
+                (16, TraceEvent.TRACE_SWITCH_IN),
+                (18, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 03": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (4, TraceEvent.TRACE_SWITCH_IN),
+                (7, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (9, TraceEvent.TRACE_RELEASE),
+                (11, TraceEvent.TRACE_SWITCH_IN),
+                (14, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (18, TraceEvent.TRACE_RELEASE),
+                (20, TraceEvent.TRACE_SWITCH_IN),
+                (23, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "EDF3": {
+        "name": "100 Tasks NON-ADMISSIBLE",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 3},
+        "expected_admission_failure": "Admission failed for: EDF Test 3, Task 34",
+        "expected_events": {},
+    },
+    "EDF4": {
+        "name": "100 Tasks ADMISSIBLE",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 4},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "EDF5": {
+        "name": "Admissible by utilization",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 5},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "EDF6": {
+        "name": "Non-admissible by utilization",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 6},
+        "expected_admission_failure": "Admission failed for: EDF Test 6, Task 10",
+        "expected_events": {},
+    },
+    "EDF7": {
+        "name": "Admissible by processor demand",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 7},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "EDF8": {
+        "name": "Non-admissible by processor demand",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 8},
+        "expected_admission_failure": "Admission failed for: EDF Test 8, Task 2",
+        "expected_events": {},
+    },
+    "EDF9": {
+        "name": "Admissible drop-in",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 9},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (160, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (800, TraceEvent.TRACE_RELEASE),
+                (800, TraceEvent.TRACE_SWITCH_IN),
+                (960, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 02": [
+                (800, TraceEvent.TRACE_RELEASE),
+                (960, TraceEvent.TRACE_SWITCH_IN),
+                (1200, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "EDF10": {
+        "name": "Inadmissible drop-in",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 10},
+        "expected_admission_failure": "Admission failed for: EDF Test 10, Task 2",
+        "expected_events": {},
+    },
+    "EDF11": {
+        "name": "Missed deadline",
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 11},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (50, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (120, TraceEvent.TRACE_RELEASE),
+                (120, TraceEvent.TRACE_SWITCH_IN),
+                (170, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 02": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (50, TraceEvent.TRACE_SWITCH_IN),
+                (120, TraceEvent.TRACE_SWITCH_OUT),
+                (170, TraceEvent.TRACE_SWITCH_IN),
+                (201, TraceEvent.TRACE_DEADLINE_MISS),
+            ],
+        },
+    },
+    # SRP TESTS
+    "SRP1": {
+        "name": "Simple Single-Resource SRP Validation",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 1},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Aperiodic 01": [
+                (40, TraceEvent.TRACE_RELEASE),
+                (101, TraceEvent.TRACE_SWITCH_IN),
+                (131, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 02": [
+                (20, TraceEvent.TRACE_RELEASE),
+                (131, TraceEvent.TRACE_SWITCH_IN),
+                (181, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 03": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (101, TraceEvent.TRACE_SWITCH_OUT),
+                (181, TraceEvent.TRACE_SWITCH_IN),
+                (200, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "SRP2": {
+        "name": "Complex Multi-Resource SRP Validation",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 2},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Aperiodic 01": [
+                (400, TraceEvent.TRACE_RELEASE),
+                (482, TraceEvent.TRACE_SWITCH_IN),
+                (845, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 02": [
+                (279, TraceEvent.TRACE_RELEASE),
+                (279, TraceEvent.TRACE_SWITCH_IN),
+                (482, TraceEvent.TRACE_SWITCH_OUT),
+                (845, TraceEvent.TRACE_SWITCH_IN),
+                (937, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 03": [
+                (150, TraceEvent.TRACE_RELEASE),
+                (251, TraceEvent.TRACE_SWITCH_IN),
+                (279, TraceEvent.TRACE_SWITCH_OUT),
+                (937, TraceEvent.TRACE_SWITCH_IN),
+                (1201, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 04": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (251, TraceEvent.TRACE_SWITCH_OUT),
+                (1201, TraceEvent.TRACE_SWITCH_IN),
+                (1293, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "SRP3": {
+        "name": "Stack Sharing Disabled - Simple Execution",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 3},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Aperiodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (50, TraceEvent.TRACE_SWITCH_OUT),
+                (100, TraceEvent.TRACE_SWITCH_IN),
+                (150, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 02": [
+                (20, TraceEvent.TRACE_RELEASE),
+                (150, TraceEvent.TRACE_SWITCH_IN),
+                (250, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 03": [
+                (50, TraceEvent.TRACE_RELEASE),
+                (50, TraceEvent.TRACE_SWITCH_IN),
+                (100, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
+    "SRP4": {
+        "name": "Stack Sharing Enabled - Simple Execution",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 4},
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Aperiodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (50, TraceEvent.TRACE_SWITCH_OUT),
+                (100, TraceEvent.TRACE_SWITCH_IN),
+                (150, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 02": [
+                (20, TraceEvent.TRACE_RELEASE),
+                (150, TraceEvent.TRACE_SWITCH_IN),
+                (250, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Aperiodic 03": [
+                (50, TraceEvent.TRACE_RELEASE),
+                (50, TraceEvent.TRACE_SWITCH_IN),
+                (100, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+        "expected_less_bss_than": "SRP3",
+    },
+    # Test 5 and 6 should be 25 tasks running sequentially.
+    # Haven't bothered defining the results here, as long as they compile they shoud be fine.
+    # They really aren't very different from tests 3 and 4
+    "SRP5": {
+        "name": "Stack Sharing Disabled - 25 Tasks w/ 5 Preemption Levels",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 5},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "SRP6": {
+        "name": "Stack Sharing Enabled - 25 Tasks w/ 5 Preemption Levels",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 6},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+        "expected_less_bss_than": "SRP5",
+    },
+    "SRP7": {
+        "name": "Admission Control - Pass (Implicit Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 7},
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "SRP8": {
+        "name": "Admission Control - Fail (Implicit Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 8},
+        "expected_admission_failure": "Admission failed for: SRP Test 8, Task 3",
+        "expected_events": {},
+    },
+    "SRP9": {
+        "name": "Admission Control - Fail (Constrained Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 9},
+        "expected_admission_failure": "Admission failed for: SRP Test 9, Task 3",
+        "expected_events": {},
+    },
+}
