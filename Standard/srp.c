@@ -2,6 +2,7 @@
 
 #if USE_SRP
 
+#include "admission_control.h"
 #include "edf_scheduler.h"
 #include "helpers.h"
 #include "scheduler_internal.h"
@@ -28,11 +29,6 @@ StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
 ; // === LOCAL FUNCTION DECLARATIONS ===
 ; // ===================================
 
-void update_resource_ceilings(
-  const unsigned int preemption_level,
-  const TickType_t   resource_hold_times[N_RESOURCES],
-  unsigned int      *resource_ceilings
-);
 void srp_specific_initialization(
   TMB_t *task, const unsigned int preemption_level, const TickType_t resource_hold_times[N_RESOURCES]
 );
@@ -234,130 +230,18 @@ void SRP_reset_TCB(const TMB_t *const task) {
   *((StackType_t **)task->handle) = new_top_of_stack;
 }
 
-/// @brief Calculates the maximum blocking time B_k for a task at a given preemption level.
-static TickType_t calculate_blocking_time(
-  const unsigned int  target_preemption_level,
-  const unsigned int *simulated_ceilings,
-  const unsigned int  new_task_preemption_level,
-  const TickType_t   *new_task_resource_holds
-) {
-  TickType_t max_blocking = 0;
-
-  // Check existing tasks to see if they can block a task at the target level
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    // A task can only block us if it has a STRICTLY LOWER preemption level
-    if (periodic_tasks[i].preemption_level < target_preemption_level) {
-      for (int r = 0; r < N_RESOURCES; r++) {
-        // If the lower-level task uses this resource, AND the resource's ceiling
-        // is high enough to block our target level...
-        if (periodic_tasks[i].resource_hold_times[r] > 0 && simulated_ceilings[r] >= target_preemption_level) {
-          max_blocking = MAX(max_blocking, periodic_tasks[i].resource_hold_times[r]);
-        }
-      }
-    }
-  }
-
-  // Check the new task (since it isn't in the periodic_tasks array yet)
-  if (new_task_preemption_level < target_preemption_level) {
-    for (int r = 0; r < N_RESOURCES; r++) {
-      if (new_task_resource_holds[r] > 0 && simulated_ceilings[r] >= target_preemption_level) {
-        max_blocking = MAX(max_blocking, new_task_resource_holds[r]);
-      }
-    }
-  }
-
-  return max_blocking;
-}
-
-/// @brief Checks if it is possible to admit another task with the provided parameters to the system.
-bool SRP_can_admit_periodic_task( //
-  const TickType_t   completion_time,
-  const TickType_t   period,
-  const TickType_t   relative_deadline,
-  const unsigned int preemption_level,
-  const TickType_t   resource_hold_times[N_RESOURCES]
-) {
-  // printf("Admission check when creating task with C=%d\n", completion_time);
-  // Create an array of simulated ceilings for the admission test to run on
-  unsigned int simulated_ceilings[N_RESOURCES];
-  memcpy(simulated_ceilings, resource_ceilings, sizeof(simulated_ceilings));
-  update_resource_ceilings(preemption_level, resource_hold_times, simulated_ceilings);
-
-  // Utilization. Checks if the existing tasks survive the introduction of the new task
-  for (size_t k = 0; k < periodic_task_count; k++) {
-    const TickType_t   D_k                = periodic_tasks[k].periodic.relative_deadline;
-    const TickType_t   T_k                = periodic_tasks[k].periodic.period;
-    const unsigned int preemption_level_k = periodic_tasks[k].preemption_level;
-
-    double sum_U = 0.0;
-
-    // Sum utilization of all existing tasks with D_i <= D_k
-    for (size_t i = 0; i < periodic_task_count; i++) {
-      if (periodic_tasks[i].periodic.relative_deadline <= D_k) {
-        sum_U += (double)periodic_tasks[i].completion_time / periodic_tasks[i].periodic.period;
-      }
-    }
-
-    // Include the new task's utilization if its deadline is <= D_k
-    if (relative_deadline <= D_k) {
-      sum_U += (double)completion_time / period;
-    }
-
-    // Calculate maximum blocking time for task k using the simulated ceilings
-    const TickType_t B_k = calculate_blocking_time( //
-      preemption_level_k,
-      simulated_ceilings,
-      preemption_level,
-      resource_hold_times
-    );
-
-    // Evaluate Baker's Condition for task k
-    const double condition = sum_U + ((double)B_k / T_k);
-    // printf(
-    //   "Task %d (C=%d) - U: %f, B: %d, Cond: %f\n", k + 1, periodic_tasks[k].completion_time, sum_U, B_k, condition
-    // );
-    if (condition > 1.0) {
-      return false; // Admission failed: Task k is not schedulable
-    }
-  }
-
-  // Check if the new task can run alongside the existing tasks
-  // Sum utilization of all existing tasks with D_i <= D_new
-  double sum_U_new = 0.0;
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    if (periodic_tasks[i].periodic.relative_deadline <= relative_deadline) {
-      sum_U_new += (double)periodic_tasks[i].completion_time / periodic_tasks[i].periodic.period;
-    }
-  }
-  sum_U_new += (double)completion_time / period; // Add the new task's own utilization
-
-  // Calculate blocking time for the new task
-  const TickType_t B_new = calculate_blocking_time( //
-    preemption_level,
-    simulated_ceilings,
-    preemption_level,
-    resource_hold_times
-  );
-
-  // Evaluate Baker's Condition for the new task
-  const double condition = sum_U_new + ((double)B_new / period);
-  // printf("New Task (C=%d) - U: %f, B: %d, Cond: %f\n", completion_time, sum_U_new, B_new, condition);
-  if (condition > 1.0) {
-    return false; // Admission failed: The new task is not schedulable
-  }
-
-  return true;
-}
-
 ; // ==================================
 ; // === LOCAL FUNCTION DEFINITIONS ===
 ; // ==================================
 
+/// @brief Get the current resource ceilings in the system
+const unsigned int *SRP_get_resource_ceilings() { return resource_ceilings; }
+
 /// @brief Update the resource ceilings in the array passed as the last parameter.
-void update_resource_ceilings(
+void SRP_update_resource_ceilings(
   const unsigned int preemption_level,
   const TickType_t   resource_hold_times[N_RESOURCES],
-  unsigned int      *resource_ceilings
+  unsigned int       resource_ceilings[N_RESOURCES]
 ) {
   for (int r = 0; r < N_RESOURCES; r++) {
     if (resource_hold_times[r] > 0 && preemption_level > resource_ceilings[r]) {
@@ -373,7 +257,7 @@ void srp_specific_initialization(
   task->preemption_level = preemption_level;
   task->has_started      = false;
   memcpy(task->resource_hold_times, resource_hold_times, N_RESOURCES);
-  update_resource_ceilings(preemption_level, resource_hold_times, resource_ceilings);
+  SRP_update_resource_ceilings(preemption_level, resource_hold_times, resource_ceilings);
 }
 
 #endif // USE_SRP

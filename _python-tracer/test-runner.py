@@ -362,14 +362,21 @@ TEST_CASES = {
         "expected_admission_failure": "Admission failed for: SRP Test 8, Task 3",
         "expected_events": {},
     },
+    "SRP9": {
+        "name": "Admission Control - Fail (Constrained Deadlines)",
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 9},
+        "expected_admission_failure": "Admission failed for: SRP Test 9, Task 3",
+        "expected_events": {},
+    },
 }
 
 # Define which tests to run (1-indexed based on their order in TEST_CASES).
 # Leave empty [] to run ALL tests. Example: [1, 3] runs Test 1 and Test 3.
 TESTS_TO_RUN: list[str] = [  #
-    # "SRP3",
+    "SRP2",
     # "SRP7",
     # "SRP8",
+    # "SRP9",
 ]
 
 # --- HELPER FUNCTIONS ---

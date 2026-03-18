@@ -47,12 +47,11 @@ BaseType_t SRP_create_aperiodic_task(
   const TickType_t  resource_hold_times[N_RESOURCES]
 );
 
-bool SRP_can_admit_periodic_task( //
-  const TickType_t   completion_time,
-  const TickType_t   period,
-  const TickType_t   relative_deadline,
+const unsigned int *SRP_get_resource_ceilings();
+void                SRP_update_resource_ceilings( //
   const unsigned int preemption_level,
-  const TickType_t   resource_hold_times[N_RESOURCES]
+  const TickType_t   resource_hold_times[N_RESOURCES],
+  unsigned int       resource_ceilings[N_RESOURCES]
 );
 
 void SRP_reset_TCB(const TMB_t *const task);

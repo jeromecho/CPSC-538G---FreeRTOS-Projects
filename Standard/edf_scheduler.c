@@ -75,9 +75,13 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   // This call to ENTER_CRITICAL is necessary both to prevent race conditions, where a task might get preempted in the
   // middle of calling this function, but also because of the calls to vTaskSuspend and vTaskPrioritySet in the middle
   // of it, which would otherwise cause the scheduler to perform a context switch immediately
+  if (task_handle == NULL) {
+    task_handle = xTaskGetCurrentTaskHandle();
+  }
+  configASSERT(task_handle != NULL);
+
   taskENTER_CRITICAL();
 
-  configASSERT(task_handle != NULL);
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
@@ -296,7 +300,7 @@ void EDF_periodic_task(void *pvParameters) {
 
   for (;;) {
     execute_for_ticks(xCompletionTime);
-    EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+    EDF_mark_task_done(NULL);
   }
 }
 
@@ -306,7 +310,7 @@ void EDF_periodic_task(void *pvParameters) {
 void EDF_aperiodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
   execute_for_ticks(xCompletionTime);
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+  EDF_mark_task_done(NULL);
 }
 
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only

@@ -6,6 +6,24 @@
 
 #if USE_SRP
 
+typedef struct {
+  TaskFunction_t func;                   // Function pointer
+  TickType_t     C;                      // Completion time
+  TickType_t     T;                      // Period
+  TickType_t     D;                      // Relative deadline
+  UBaseType_t    plvl;                   // Preemption Level
+  TickType_t     resources[N_RESOURCES]; // Hold times for different resources
+} PeriodicTaskParams_t;
+
+typedef struct {
+  TaskFunction_t func;                   // Function pointer
+  TickType_t     C;                      // Completion time
+  TickType_t     r;                      // Release time
+  TickType_t     D;                      // Relative deadline
+  UBaseType_t    plvl;                   // Preemption Level
+  TickType_t     resources[N_RESOURCES]; // Hold times for different resources
+} AperiodicTaskParams_t;
+
 TickType_t srp_test_1();
 TickType_t srp_test_2();
 TickType_t srp_test_3();
@@ -14,6 +32,7 @@ TickType_t srp_test_5();
 TickType_t srp_test_6();
 TickType_t srp_test_7();
 TickType_t srp_test_8();
+TickType_t srp_test_9();
 
 #endif // USE_SRP
 

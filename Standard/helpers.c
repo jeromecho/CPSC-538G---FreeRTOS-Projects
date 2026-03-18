@@ -16,7 +16,8 @@ TickType_t gcd(TickType_t a, TickType_t b) {
 
 TickType_t lcm(const TickType_t a, const TickType_t b) { return (a / gcd(a, b)) * b; }
 
-/// @brief Computes hyperperiod between existing periods and period of newly added task
+/// @brief Computes hyperperiod between existing periods and period of newly added task.
+/// Defined in the book Hard Real-Time Computing Systems, Fourth Edition, on page 71 (Section 4.1 - Introduction)
 TickType_t compute_hyperperiod(const TickType_t new_period, const TMB_t *tasks_array, const size_t array_size) {
   TickType_t H = new_period;
 
