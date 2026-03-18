@@ -5,6 +5,8 @@
 #include "ProjectConfig.h"
 #include "task.h"
 
+#if USE_EDF
+
 #define PRIORITY_RUNNING     (tskIDLE_PRIORITY + 2)
 #define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE        (tskIDLE_PRIORITY)
@@ -74,5 +76,7 @@ TMB_t *EDF_produce_highest_priority_task();
 TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
 void   EDF_scheduler_start();
+
+#endif // USE_EDF
 
 #endif // EDF_SCHEDULER_H

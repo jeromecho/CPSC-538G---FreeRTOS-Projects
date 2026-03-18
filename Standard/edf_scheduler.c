@@ -6,6 +6,8 @@
 #include "helpers.h"
 #include "tracer.h"
 
+#if USE_EDF
+
 #if USE_SRP
 #include "srp.h"
 #endif
@@ -653,3 +655,5 @@ void vApplicationGetTimerTaskMemory(
   *ppxTimerTaskStackBuffer = uxTimerTaskStack;
   *pulTimerTaskStackSize   = configTIMER_TASK_STACK_DEPTH;
 }
+
+#endif // USE_EDF
