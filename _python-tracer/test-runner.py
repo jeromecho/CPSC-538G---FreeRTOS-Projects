@@ -394,10 +394,12 @@ TEST_CASES = {
 # Define which tests to run (1-indexed based on their order in TEST_CASES).
 # Leave empty [] to run ALL tests. Example: [1, 3] runs Test 1 and Test 3.
 TESTS_TO_RUN: list[str] = [  #
-    "EDF6",
-    # "SRP7",
-    # "SRP8",
-    # "SRP9",
+    # "SRP1",
+    # "SRP2",
+    "SRP3",
+    "SRP4",
+    "SRP5",
+    "SRP6",
 ]
 
 # --- HELPER FUNCTIONS ---
@@ -543,10 +545,43 @@ def compile_and_flash():
     return True
 
 
+def get_binary_memory_usage():
+    """Runs arm-none-eabi-size and parses the output."""
+    elf_path = "build/Standard/main_blinky.elf"
+
+    if not os.path.exists(elf_path):
+        return None
+
+    try:
+        # arm-none-eabi-size outputs a table like this:
+        #    text	   data	    bss	    dec	    hex	filename
+        #   45028	    248	  12536	  57812	   e1d4	build/...
+        result = subprocess.run(
+            ["arm-none-eabi-size", elf_path], capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            lines = result.stdout.strip().split("\n")
+            if len(lines) >= 2:
+                parts = lines[1].split()
+                return {
+                    "text": int(parts[0]),  # Flash usage
+                    "data": int(parts[1]),  # RAM (Initialized)
+                    "bss": int(parts[2]),  # RAM (Uninitialized / Static Stacks)
+                }
+    except FileNotFoundError:
+        print(
+            f"\n{C_YELLOW}⚠ Warning: 'arm-none-eabi-size' not found in PATH. Memory tracking disabled.{C_RESET}"
+        )
+
+    return None
+
+
 def run_test(test_id, test_case):
     patch_config_file(test_case["flags"])
     if not compile_and_flash():
-        return False
+        return False, None
+
+    mem_usage = get_binary_memory_usage()
 
     port = auto_detect_port()
     if not port:
@@ -556,7 +591,7 @@ def run_test(test_id, test_case):
         if not port:
             clear_status()
             print(f"{C_RED}❌ Could not detect Pico serial port.{C_RESET}")
-            return False
+            return False, mem_usage
 
     parsed_logs = []
     output_log_raw = ""
@@ -597,12 +632,12 @@ def run_test(test_id, test_case):
                             print(
                                 f"    {C_YELLOW}⚠ Missed boot name, but caught expected failure.{C_RESET}"
                             )
-                        return True
+                        return True, mem_usage
 
                 if "Assertion" in line or "failed" in line:
                     clear_status()
                     print(f"    {C_RED}❌ [CRITICAL ASSERTION] {line}{C_RESET}")
-                    return False
+                    return False, mem_usage
 
                 if "TIMESTAMP" in line:
                     capturing = True
@@ -629,7 +664,7 @@ def run_test(test_id, test_case):
     except serial.SerialException as e:
         clear_status()
         print(f"{C_RED}❌ Serial Error: {e}{C_RESET}")
-        return False
+        return False, mem_usage
 
     clear_status()  # Clean up the status line once capturing is complete
 
@@ -637,16 +672,16 @@ def run_test(test_id, test_case):
         print(
             f"{C_RED}❌ FAILED: Did not detect '{expected_boot_name}' on boot.{C_RESET}"
         )
-        return False
+        return False, mem_usage
 
     if test_case.get("expected_admission_failure"):
         print(
             f"{C_RED}❌ FAILED: Expected an admission failure, but it did not occur.{C_RESET}"
         )
-        return False
+        return False, mem_usage
 
     if test_case.get("ignore_traces", False):
-        return True
+        return True, mem_usage
 
     expected_set = set()
     for exp_task, events in test_case.get("expected_events", {}).items():
@@ -687,7 +722,7 @@ def run_test(test_id, test_case):
                 )
                 all_passed = False
 
-    return all_passed
+    return all_passed, mem_usage
 
 
 # --- MAIN RUNNER ---
@@ -739,7 +774,7 @@ if __name__ == "__main__":
                 f"\n{C_YELLOW}▶ Running [{test_id}] {test_data['name']} ({i + 1}/{len(tests_to_execute)}){C_RESET}"
             )
 
-            test_passed = run_test(test_id, test_data)
+            test_passed, mem_usage = run_test(test_id, test_data)
 
             if test_passed:
                 passed_count += 1
@@ -747,18 +782,32 @@ if __name__ == "__main__":
             else:
                 print(f"{C_RED}❌ [{test_id}] FAILED{C_RESET}")
 
-            test_results.append((test_id, test_data["name"], test_passed))
+            test_results.append((test_id, test_data["name"], test_passed, mem_usage))
 
-        # --- TEST OVERVIEW ---
-        print("\n" + "=" * 50)
+        # --- TEST OVERVIEW WITH MEMORY TRACKING ---
+        print("\n" + "=" * 95)
         print(f"  TEST SUITE OVERVIEW: {passed_count}/{len(tests_to_execute)} PASSED")
-        print("=" * 50)
+        print("=" * 95)
 
-        for t_id, t_name, passed in test_results:
-            status = f"{C_GREEN}PASS{C_RESET}" if passed else f"{C_RED}FAIL{C_RESET}"
-            print(f"[{status}] {t_id.ljust(6)} - {t_name}")
+        print(
+            f"{'STATUS':<8} | {'ID':<6} | {'.TEXT':<10} | {'.DATA':<10} | {'.BSS':<10} | {'TEST NAME'}"
+        )
+        print("-" * 95)
 
-        print("=" * 50 + "\n")
+        for t_id, t_name, passed, mem in test_results:
+            status = (
+                f"{C_GREEN}[PASS]{C_RESET}" if passed else f"{C_RED}[FAIL]{C_RESET}"
+            )
+
+            text_str = f"{mem['text']:,} B" if mem else "N/A"
+            data_str = f"{mem['data']:,} B" if mem else "N/A"
+            bss_str = f"{mem['bss']:,} B" if mem else "N/A"
+
+            print(
+                f"{status:<17} | {t_id:<6} | {text_str:<10} | {data_str:<10} | {bss_str:<10} | {t_name}"
+            )
+
+        print("=" * 95 + "\n")
 
     except (KeyboardInterrupt, EOFError):
         clear_status()  # Clean up status line if user aborts midway
