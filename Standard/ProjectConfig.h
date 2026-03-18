@@ -5,6 +5,7 @@
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 0
+#define USE_CBS
 #define TEST_NR 2
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
