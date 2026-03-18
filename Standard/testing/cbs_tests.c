@@ -30,7 +30,8 @@ BaseType_t platform_create_periodic_task(
 ; // ====================================
 
 void vTestRunner1() {
-  create_cbs_server(pdMS_TO_TICKS(300), pdMS_TO_TICKS(800), 1);
+  const int CBS_SERVER_ID = 1;
+  create_cbs_server(pdMS_TO_TICKS(300), pdMS_TO_TICKS(800), CBS_SERVER_ID);
   platform_create_periodic_task( //
     EDF_periodic_task,
     "Task P1",
@@ -47,7 +48,8 @@ void vTestRunner1() {
     "Task A1",
     configMINIMAL_STACK_SIZE, // TODO: might not actually need this argument
     pdMS_TO_TICKS(400),       // completion time
-    NULL                      // Task Handle
+    NULL,                     // Task Handle
+    CBS_SERVER_ID
   );
   vTaskDelay(pdMS_TO_TICKS(1000));
 
@@ -56,7 +58,8 @@ void vTestRunner1() {
     "Task A1",
     configMINIMAL_STACK_SIZE, // TODO: might not actually need this argument
     pdMS_TO_TICKS(300),       // completion time
-    NULL                      // Task Handle
+    NULL,                     // Task Handle
+    CBS_SERVER_ID
   );
 
   vTaskDelay(1100);
