@@ -7,6 +7,8 @@
 
 #if USE_CBS
 
+typedef BaseType_t (*AperiodicTaskFunc_t)(void);
+
 typedef struct {
   TickType_t dsk;
   TickType_t Qs;
