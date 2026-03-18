@@ -84,6 +84,10 @@
 #include "testing/srp_tests.h" // IWYU pragma: keep
 #endif                         // USE_SRP
 
+#if USE_CBS
+#include "testing/cbs_tests.h"
+#endif
+
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
 
@@ -174,13 +178,14 @@ void initialize_gpio_pins(void) {
 TickType_t run_test() {
   // clang-format off
 #if USE_EDF
-  #if USE_SRP
-    // If TEST_NR is 1, this becomes: return srp_test_1();
-    return PASTE_EXPAND(srp_test_, TEST_NR)();
-    
-  #else
+  #if USE_EDF 
     // If TEST_NR is 3, this becomes: edf_test_3();
     return PASTE_EXPAND(edf_test_, TEST_NR)();
+  #elif USE_SRP
+    // If TEST_NR is 1, this becomes: return srp_test_1();
+    return PASTE_EXPAND(srp_test_, TEST_NR)();
+  #else
+    return PASTE_EXPAND(cbs_test_, TEST_NR)();
   #endif
 #endif
   // clang-format on
