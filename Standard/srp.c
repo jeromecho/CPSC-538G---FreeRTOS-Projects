@@ -131,6 +131,7 @@ BaseType_t SRP_create_periodic_task(
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
+  configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
 #if PERFORM_ADMISSION_CONTROL
   // TODO: Should admission control be extended to aperiodic tasks?
@@ -180,6 +181,7 @@ BaseType_t SRP_create_aperiodic_task(
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
+  configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
 #if USE_SRP && ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];

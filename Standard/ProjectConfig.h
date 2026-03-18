@@ -21,25 +21,25 @@
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 3
       #define N_RESOURCES             1
-      #define N_PREEMPTION_LEVELS     4
+      #define N_PREEMPTION_LEVELS     3
       #define ENABLE_STACK_SHARING    0
     #elif TEST_NR == 2
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 4
       #define N_RESOURCES             3
-      #define N_PREEMPTION_LEVELS     5
-      #define ENABLE_STACK_SHARING    1
+      #define N_PREEMPTION_LEVELS     4
+      #define ENABLE_STACK_SHARING    0
     #elif TEST_NR == 3
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 3
       #define N_RESOURCES             0
-      #define N_PREEMPTION_LEVELS     3
+      #define N_PREEMPTION_LEVELS     2
       #define ENABLE_STACK_SHARING    0
     #elif TEST_NR == 4
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 3
       #define N_RESOURCES             0
-      #define N_PREEMPTION_LEVELS     3
+      #define N_PREEMPTION_LEVELS     2
       #define ENABLE_STACK_SHARING    1
     #elif TEST_NR == 5
       #define MAXIMUM_PERIODIC_TASKS  0
