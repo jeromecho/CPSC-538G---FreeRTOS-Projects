@@ -1,0 +1,47 @@
+#include "queue.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
+void q_init(Queue_t *q, uint8_t *storage, size_t element_size, uint16_t max_elements) {
+  q->buffer       = storage;
+  q->element_size = element_size;
+  q->max_elements = max_elements;
+  q->head         = 0;
+  q->tail         = 0;
+  q->count        = 0;
+}
+
+bool q_enqueue(Queue_t *q, const void *item) {
+  bool success = false;
+  taskENTER_CRITICAL();
+  if (q->count < q->max_elements) {
+    // Calculate destination address and copy bytes
+    uint8_t *dest = q->buffer + (q->tail * q->element_size);
+    memcpy(dest, item, q->element_size);
+
+    q->tail = (q->tail + 1) % q->max_elements;
+    q->count++;
+    success = true;
+  }
+  taskEXIT_CRITICAL();
+  return success;
+}
+
+bool q_dequeue(Queue_t *q, void *out_item) {
+  bool success = false;
+  taskENTER_CRITICAL();
+  if (q->count > 0) {
+    // Calculate source address and copy bytes
+    uint8_t *src = q->buffer + (q->head * q->element_size);
+    memcpy(out_item, src, q->element_size);
+
+    q->head = (q->head + 1) % q->max_elements;
+    q->count--;
+    success = true;
+  }
+  taskEXIT_CRITICAL();
+  return success;
+}
