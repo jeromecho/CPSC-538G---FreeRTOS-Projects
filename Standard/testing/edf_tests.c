@@ -7,7 +7,14 @@
 
 #include <stdio.h>
 
-static const TickType_t TEST_DURATION_DEFAULT = 1500;
+; // ===================================
+; // === Local function declarations ===
+; // ===================================
+
+static void       build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config);
+static TickType_t build_periodic_test(
+  const char *test_name, const EDF_PeriodicTaskParams_t *config, size_t num_tasks, TickType_t duration
+);
 
 ; // ====================================
 ; // === Tests for Base Functionality ===
@@ -15,56 +22,31 @@ static const TickType_t TEST_DURATION_DEFAULT = 1500;
 
 // Smoke Test for Periodic Tasks (relative deadline == period)
 TickType_t edf_test_1() {
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 1, Task 1",
-    pdMS_TO_TICKS(2),
-    pdMS_TO_TICKS(6),
-    pdMS_TO_TICKS(6),
-    NULL
+  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 2, 6, 6},
+    {EDF_periodic_task, 1, 2, 2},
+  };
+  return build_periodic_test( //
+    "EDF Test 1",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    11
   );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 1, Task 2",
-    pdMS_TO_TICKS(1),
-    pdMS_TO_TICKS(2),
-    pdMS_TO_TICKS(2),
-    NULL
-  );
-
-  const TickType_t TEST_DURATION = 11;
-  return TEST_DURATION;
 }
 
 // Test 2: Mark's Deadline DNE Period Smoke Test
 TickType_t edf_test_2() {
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 2, Task 1",
-    pdMS_TO_TICKS(2),
-    pdMS_TO_TICKS(6),
-    pdMS_TO_TICKS(4),
-    NULL
+  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 2, 6, 4},
+    {EDF_periodic_task, 2, 8, 5},
+    {EDF_periodic_task, 3, 9, 7},
+  };
+  return build_periodic_test( //
+    "EDF Test 2",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    23
   );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 2, Task 2",
-    pdMS_TO_TICKS(2),
-    pdMS_TO_TICKS(8),
-    pdMS_TO_TICKS(5),
-    NULL
-  );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 2, Task 3",
-    pdMS_TO_TICKS(3),
-    pdMS_TO_TICKS(9),
-    pdMS_TO_TICKS(7),
-    NULL
-  );
-
-  const TickType_t TEST_DURATION = 23;
-  return TEST_DURATION;
 }
 
 ; // ===============================
@@ -75,127 +57,100 @@ TickType_t edf_test_2() {
 // arm-none-eabi-size build/Standard/main_blinky.elf
 // TEST3: 100 Tasks NON-ADMISSIBLE
 TickType_t edf_test_3() {
-  for (int i = 0; i < 100; i++) {
-    char taskName[19];
-    sprintf(taskName, "EDF Test 3, Task %d", i);
-    EDF_create_periodic_task( //
-      EDF_periodic_task,
-      taskName,
-      pdMS_TO_TICKS(15),
-      pdMS_TO_TICKS(1000),
-      pdMS_TO_TICKS(500),
-      NULL
-    );
+  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
+    test_config[i].func = EDF_periodic_task;
+    test_config[i].C    = 15;
+    test_config[i].T    = 1000;
+    test_config[i].D    = 500;
   }
-
-  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
-  return TEST_DURATION;
+  return build_periodic_test( //
+    "EDF Test 3",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    1500
+  );
 }
 
 // TEST4: 100 Tasks ADMISSIBLE
 TickType_t edf_test_4() {
-  for (int i = 0; i < 100; i++) {
-    // NB: This breaks without downstream copying of task
-    char taskName[19];
-    sprintf(taskName, "EDF Test 4, Task %d", i);
-    EDF_create_periodic_task( //
-      EDF_periodic_task,
-      taskName,
-      pdMS_TO_TICKS(8),
-      pdMS_TO_TICKS(1000),
-      pdMS_TO_TICKS(1000),
-      NULL
-    );
+  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
+    test_config[i].func = EDF_periodic_task;
+    test_config[i].C    = 8;
+    test_config[i].T    = 1000;
+    test_config[i].D    = 1000;
   }
-
-  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
-  return TEST_DURATION;
+  return build_periodic_test( //
+    "EDF Test 4",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    1500
+  );
 }
 
 // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
 // Total Utilization = 1.0 (100%)
 TickType_t edf_test_5() {
-  for (int i = 0; i < 10; i++) {
-    char taskName[19];
-    sprintf(taskName, "EDF Test 5, Task %d", i);
-    EDF_create_periodic_task( //
-      EDF_periodic_task,
-      taskName,
-      pdMS_TO_TICKS(10),
-      pdMS_TO_TICKS(100),
-      pdMS_TO_TICKS(100),
-      NULL
-    );
+  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
+    test_config[i].func = EDF_periodic_task;
+    test_config[i].C    = 10;
+    test_config[i].T    = 100;
+    test_config[i].D    = 100;
   }
-
-  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
-  return TEST_DURATION;
+  return build_periodic_test( //
+    "EDF Test 5",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    1500
+  );
 }
 
 // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
 // Total Utilization = 1.1 (110%)
 TickType_t edf_test_6() {
-  for (int i = 0; i < 10; i++) {
-    char taskName[19];
-    sprintf(taskName, "EDF Test 6, Task %d", i);
-    EDF_create_periodic_task( //
-      EDF_periodic_task,
-      taskName,
-      pdMS_TO_TICKS(11),
-      pdMS_TO_TICKS(100),
-      pdMS_TO_TICKS(100),
-      NULL
-    );
+  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
+    test_config[i].func = EDF_periodic_task;
+    test_config[i].C    = 11;
+    test_config[i].T    = 100;
+    test_config[i].D    = 100;
   }
-
-  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
-  return TEST_DURATION;
+  return build_periodic_test( //
+    "EDF Test 6",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    1500
+  );
 }
 
 // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
 TickType_t edf_test_7() {
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 7, Task 1",
-    pdMS_TO_TICKS(10),
-    pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(50),
-    NULL
+  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 10, 50,  50},
+    {EDF_periodic_task, 40, 200, 50},
+  };
+  return build_periodic_test( //
+    "EDF Test 7",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    400
   );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 7, Task 2",
-    pdMS_TO_TICKS(40),
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(50),
-    NULL
-  );
-
-  const TickType_t TEST_DURATION = 400;
-  return TEST_DURATION;
 }
 
 // --- TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50) ---
 TickType_t edf_test_8() {
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 8, Task 1",
-    pdMS_TO_TICKS(11),
-    pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(50),
-    NULL
+  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 11, 50,  50},
+    {EDF_periodic_task, 40, 200, 50},
+  };
+  return build_periodic_test( //
+    "EDF Test 8",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    1500
   );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 8, Task 2",
-    pdMS_TO_TICKS(40),
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(50),
-    NULL
-  );
-
-  const TickType_t TEST_DURATION = TEST_DURATION_DEFAULT;
-  return TEST_DURATION;
 }
 
 ; // ==========================================================
@@ -208,33 +163,20 @@ TickType_t edf_test_8() {
 
 // TEST 9: Admissible Drop-in
 void vTestRunner9() {
-  // --- TEST A: Admissible Drop-in ---
   // Wait 5 cycles (500ms) to show stable execution
   vTaskDelay(pdMS_TO_TICKS(500));
 
   // Drop-in Task: 400ms work, 800ms period.
   // Total Demand: 560ms < 800ms. Should pass PDC.
   // TODO: show why total demand is not exceeded
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 9, Task 2",
-    pdMS_TO_TICKS(8 * 50),
-    pdMS_TO_TICKS(8 * 100),
-    pdMS_TO_TICKS(8 * 100),
-    NULL
-  );
+  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 400, 800, 800};
+  build_periodic_task("EDF Test 9, Task 2", &task_config);
+
   vTaskDelete(NULL);
 }
 TickType_t edf_test_9() {
-  // Base Task: 160ms work, 800ms period
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 9, Task 1",
-    pdMS_TO_TICKS(8 * 20),
-    pdMS_TO_TICKS(8 * 100),
-    pdMS_TO_TICKS(8 * 100),
-    NULL
-  );
+  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 160, 800, 800};
+  build_periodic_task("EDF Test 9, Task 1", &task_config);
 
   xTaskCreate( //
     vTestRunner9,
@@ -256,26 +198,14 @@ void vTestRunner10() {
 
   // Drop-in Task: 90ms work, 200ms period (U=0.45)
   // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
-  BaseType_t result = EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 10, Task 2",
-    pdMS_TO_TICKS(90),
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(100),
-    NULL
-  );
+  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 90, 200, 100};
+  build_periodic_task("EDF Test 10, Task 2", &task_config);
+
   vTaskDelete(NULL);
 }
 TickType_t edf_test_10() {
-  // Base Task: 20ms work, 100ms period (U=0.2)
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 10, Task 1",
-    20,
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(100),
-    NULL
-  );
+  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 20, 100, 100};
+  build_periodic_task("EDF Test 10, Task 1", &task_config);
 
   xTaskCreate( //
     vTestRunner10,
@@ -296,23 +226,49 @@ TickType_t edf_test_10() {
 
 // TEST 11: Missed Deadline (Total Utilization: 105%)
 TickType_t edf_test_11() {
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 11, Task 1",
-    pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(120),
-    pdMS_TO_TICKS(50),
-    NULL
+  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 50,  120, 50 },
+    {EDF_periodic_task, 130, 200, 200},
+  };
+  return build_periodic_test( //
+    "EDF Test 11",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    250
   );
-  EDF_create_periodic_task( //
-    EDF_periodic_task,
-    "EDF Test 11, Task 2",
-    pdMS_TO_TICKS(130),
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(200),
-    NULL
-  );
+}
 
-  const TickType_t TEST_DURATION = 250;
-  return TEST_DURATION;
+
+; // ==================================
+; // === Local function definitions ===
+; // ==================================
+
+/// @brief Creates a periodic task from a provided task configuration
+static void build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config) {
+  EDF_create_periodic_task( //
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->T),
+    pdMS_TO_TICKS(config->D),
+    NULL
+  );
+}
+
+/// @brief Creates all tasks from the provided test configuration for periodic tasks
+static TickType_t build_periodic_test( //
+  const char                     *test_name,
+  const EDF_PeriodicTaskParams_t *config,
+  size_t                          num_tasks,
+  TickType_t                      duration
+) {
+  configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
+
+  for (size_t i = 0; i < num_tasks; i++) {
+    char task_name[22]; // Exactly enough for "EDF Test XX, Task YYY", plus a null terminator byte
+    snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
+    build_periodic_task(task_name, &config[i]);
+  }
+
+  return duration;
 }

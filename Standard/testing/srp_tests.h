@@ -13,7 +13,7 @@ typedef struct {
   TickType_t     D;                      // Relative deadline
   UBaseType_t    plvl;                   // Preemption Level
   TickType_t     resources[N_RESOURCES]; // Hold times for different resources
-} PeriodicTaskParams_t;
+} SRP_PeriodicTaskParams_t;
 
 typedef struct {
   TaskFunction_t func;                   // Function pointer
@@ -22,7 +22,13 @@ typedef struct {
   TickType_t     D;                      // Relative deadline
   UBaseType_t    plvl;                   // Preemption Level
   TickType_t     resources[N_RESOURCES]; // Hold times for different resources
-} AperiodicTaskParams_t;
+} SRP_AperiodicTaskParams_t;
+
+typedef enum { TASK_TAKE_SEMAPHORE, TASK_GIVE_SEMAPHORE, TASK_EXECUTE } TaskAction_t;
+typedef struct {
+  TaskAction_t action;
+  int          value;
+} TaskStep_t;
 
 TickType_t srp_test_1();
 TickType_t srp_test_2();
