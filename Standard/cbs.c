@@ -15,6 +15,11 @@ static void CBS_master_task(void *pvParameters) {
     q_dequeue(pxServer->aperiodic_tasks, NULL);
   }
 }
+// NB: if we ever want to add support for seeing which specific soft real-time aperiodic task the CBS
+// master task if running, we could create a shared mapping between function pointers (corresponding to
+// aperiodic tasks and integers). Then we can use the integer to decide which GPIO pin to flicker on and flicker off
+// as the MASTER TASK gets prioritized and deprioritized. This logic could be kept in CBS manager
+// (e.g., as a field "current_gpio_pin")
 
 BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
@@ -35,14 +40,15 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   );
 };
 
-BaseType_t CBS_create_aperiodic_task(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  const TickType_t  completion_time,
-  const TickType_t  release_time,
-  const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  int               cbs_server_id
-);
+BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_server_id) {
+  q_enqueue([cbs_server_id].aperiodic_tasks, (void *)task_function);
+};
+
+// NB: current design - soft real-time aperiodic tasks are very bare-bones, and are only a function pointer
+// (no extra book-kept fields like `release_time`, `completion_time`, and `deadline` like "real"
+// EDF tasks)
+// NB: enqueueing structs "wrapping around" task_function could be one way to potentially
+// integrate tracing into the data structures we enqueue themselves (e.g., add a field called
+// `gpio_pin` to determine which GPIO pin to turn on for a particular soft real-time aperiodic task)
 
 #endif // USE_CBS

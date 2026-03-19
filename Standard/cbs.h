@@ -41,15 +41,7 @@ CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
  */
 BaseType_T create_cbs_server(int Qs, int Ts, int cbs_id);
 
-BaseType_t CBS_create_aperiodic_task(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  const TickType_t  completion_time,
-  const TickType_t  release_time,
-  const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  int               cbs_server_id
-);
+BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_server_id);
 
 #endif // USE_CBS
 
