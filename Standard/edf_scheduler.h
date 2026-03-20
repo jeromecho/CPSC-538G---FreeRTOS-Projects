@@ -48,6 +48,7 @@ typedef struct TMB_t {
 
     struct {
     } aperiodic {
+      // TODO - below field might need to be locked for concurrent scenarios
       bool is_runnable;
     };
   };

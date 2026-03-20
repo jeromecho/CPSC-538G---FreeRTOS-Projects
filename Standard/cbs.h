@@ -47,6 +47,9 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 // TOOD: not sure if "TMB_t" is generic enough to warrant as a type passed into
 // a public method of `CBS` - although if all schedulers use this generic
 // `TMB_t`, then the logic below could make sense
+/**
+ * @brief return pdTrue if budget was exhausted, false otherwise
+ */
 BaseType_T CBS_update_budget(TMB_t current_highest_priority_task);
 
 #endif // USE_CBS
