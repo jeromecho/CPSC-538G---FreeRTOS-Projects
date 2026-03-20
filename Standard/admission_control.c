@@ -5,6 +5,8 @@
 // TODO: is there potential overheaded introduced by import of math.h?
 #include "math.h"
 
+#define EPSILON 1e-9
+
 /// @brief demand bound function - assumes task set is synchronnized
 static double dbf( //
   const TickType_t L,
@@ -119,7 +121,7 @@ bool can_admit_periodic_task( //
     U += Ci / Ti;
   }
 
-  if (U >= 1.0) {
+  if (U >= 1.0 + EPSILON) {
     return false;
   }
 
