@@ -30,6 +30,16 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   q_init(
     &pxServer->aperiodic_tasks, pxServer->aperiodic_tasks_storage, sizeof(AperiodicTaskFunc_t), CBS_QUEUE_CAPACITY
   );
+
+  // !!!
+  // TODO: - below is not correct, it might be beneficial to have a separate array of tasks (called CBS_master_tasks)
+  // that the EDF scheduler iterates over depending on whether the USE_CBS flag is enabled or not
+
+  // NB: It might be beneficial to use feature flags to turn on and off CBS server creation functions inside of
+  // `edf_scheduler.c`
+  // Q: Right now, the field for server's current deadline lives inside of `cbs` - but the EDF scheduler will need this
+  // field (as well as the "fullness" of the server's current queue to decide the priority of tasks)
+  //   - How should this information be reported between CBS and EDF without coupling?
   CBS_create_master_task(
     CBS_master_task,
     sprintf("CBS Server %d", cbs_id),
@@ -50,5 +60,8 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 // NB: enqueueing structs "wrapping around" task_function could be one way to potentially
 // integrate tracing into the data structures we enqueue themselves (e.g., add a field called
 // `gpio_pin` to determine which GPIO pin to turn on for a particular soft real-time aperiodic task)
+BaseType_T CBS_update_budget(TMB_t current_highest_priority_task) {
+
+};
 
 #endif // USE_CBS

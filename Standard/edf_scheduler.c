@@ -11,6 +11,9 @@
 #if USE_SRP
 #include "srp.h"
 #endif
+#if USE_CBS
+#include "cbs.h"
+#endif
 
 #include <stdio.h>
 
@@ -476,6 +479,11 @@ void update_priorities() {
       SRP_push_ceiling(highest_priority_task->preemption_level);
     }
 #endif // USE_SRP
+
+#if USE_CBS
+    CBS_update_budget(highest_priority_task);
+#endif // USE_CBS
+
     set_highest_priority(highest_priority_task);
   }
 }
