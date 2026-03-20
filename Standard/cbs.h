@@ -31,6 +31,7 @@ typedef struct {
   Queue_t             aperiodic_tasks;
   AperiodicTaskFunc_t aperiodic_tasks_storage[CBS_QUEUE_CAPACITY];
   bool                is_idle;
+  TMB_t              *tmb_handle;
 } CBS_MB_t;
 
 CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
@@ -43,8 +44,8 @@ BaseType_T create_cbs_server(int Qs, int Ts, int cbs_id);
 
 BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_server_id);
 
-// TOOD: not sure if "TMB_t" is generic enough to warrant as a type passed into 
-// a public method of `CBS` - although if all schedulers use this generic 
+// TOOD: not sure if "TMB_t" is generic enough to warrant as a type passed into
+// a public method of `CBS` - although if all schedulers use this generic
 // `TMB_t`, then the logic below could make sense
 BaseType_T CBS_update_budget(TMB_t current_highest_priority_task);
 
