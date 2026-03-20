@@ -103,20 +103,19 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
 /// @brief Creates an actual FreeRTOS task using the provided parameters, and sets common fields in the TMB afterwards.
 BaseType_t _create_task_internal(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  const TaskType_t  type,
-  const size_t      id,
-  TMB_t *const      new_task,
-  const TickType_t  completion_time,
-  StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  TaskFunction_t             task_function,
+  const char *const          task_name,
+  const TaskType_t           type,
+  const size_t               id,
+  TMB_t *const               new_task,
+  struct SchedulerParameters parameters;
+  StackType_t * stack_buffer, StaticTask_t *task_buffer
 ) {
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
     task_name,
     SHARED_STACK_SIZE,
-    (void *)completion_time,
+    (void *)parameters,
     PRIORITY_NOT_RUNNING,
     stack_buffer,
     task_buffer
@@ -163,13 +162,17 @@ BaseType_t _create_periodic_task_internal(
 
   TMB_t *const new_task = &periodic_tasks[periodic_task_count];
 
+  SchedulerParameters_t parameters;
+  parameters.completion_time      = completion_time;
+  parameters.parameters_remaining = NULL;
+
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
     TASK_PERIODIC,
     periodic_task_count,
     new_task,
-    completion_time,
+    parameters,
     stack_buffer,
     &new_task->task_buffer
   );
@@ -211,7 +214,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -219,13 +223,17 @@ BaseType_t _create_aperiodic_task_internal(
 
   TMB_t *const new_task = &aperiodic_tasks[aperiodic_task_count];
 
+  SchedulerParameters_t parameters;
+  parameters.completion_time      = completion_time;
+  parameters.parameters_remaining = parameters_remaining;
+
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
     TASK_APERIODIC,
     aperiodic_task_count,
     new_task,
-    completion_time,
+    parameters,
     stack_buffer,
     &new_task->task_buffer
   );
@@ -276,7 +284,8 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining,
 ) {
   return _create_aperiodic_task_internal( //
     task_function,
@@ -285,7 +294,8 @@ BaseType_t EDF_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
-    TMB_handle
+    TMB_handle, 
+    parameters_remaining
   );
 }
 #endif // !USE_SRP

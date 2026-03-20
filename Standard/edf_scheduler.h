@@ -47,9 +47,16 @@ typedef struct TMB_t {
     } periodic;
 
     struct {
-    } aperiodic;
+    } aperiodic {
+      bool is_runnable;
+    };
   };
 } TMB_t;
+
+typedef struct SchedulerParameters {
+  TickType_t completion_time;
+  void      *parameters_remaining;
+} SchedulerParameters_t;
 
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
