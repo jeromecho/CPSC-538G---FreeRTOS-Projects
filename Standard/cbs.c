@@ -81,7 +81,8 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
     pxServer->tmb_handle->aperiodic.is_runnable = true;
     // TODO: might need to be wary about doing arithmethic with TickType_t
     TickType_t current_timestamp = xTaskGetTickCount();
-    if (pxServer->cs >= (pxServer->dsk - current_timestamp) * (pxServer->Qs / pxServer->Ts)) {
+    if ((double)pxServer->cs >=
+        ((double)pxServer->dsk - (double)current_timestamp) * ((double)pxServer->Qs / (double)pxServer->Ts)) {
       pxServer->dsk = current_timestamp + pxServer->Ts;
       pxServer->cs  = pxServer->Qs;
       // TODO remove?
