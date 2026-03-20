@@ -32,7 +32,7 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 // ===================================
 
 void          reschedule_periodic_tasks();
-static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
+static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 static void   set_highest_priority(const TMB_t *const task);
 static void   deprioritize_task(const TMB_t *const task);
 static void   release_task(const TMB_t *const task);
@@ -45,14 +45,17 @@ void          task_switched_out(void);
 void          task_switched_in(void);
 void          deadline_miss(const TMB_t *const task);
 
+// === HELPER FUNCTION DEFINITIONS ===
+// ================================
+static bool is_aperiodic_ready(TMB_t *t) { return t->is_runnable; }
 
 // === API FUNCTION DEFINITIONS ===
 // ================================
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *EDF_produce_highest_priority_task() {
-  TMB_t *periodic_candidate  = candidate_highest_priority(periodic_tasks, periodic_task_count);
-  TMB_t *aperiodic_candidate = candidate_highest_priority(aperiodic_tasks, aperiodic_task_count);
+  TMB_t *periodic_candidate  = candidate_highest_priority(periodic_tasks, periodic_task_count, NULL);
+  TMB_t *aperiodic_candidate = candidate_highest_priority(aperiodic_tasks, aperiodic_task_count, is_aperiodic_ready);
 
   // // Early return if there are no tasks available
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
@@ -371,7 +374,7 @@ void reschedule_periodic_tasks() {
 }
 
 /// @brief Helper function to find the pending task with the nearest deadline
-static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
+static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *)) {
   const TickType_t current_tick      = xTaskGetTickCountFromISR();
   TMB_t           *candidate         = NULL;
   TickType_t       earliest_deadline = portMAX_DELAY;
@@ -380,7 +383,7 @@ static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
     TMB_t *task = &tasks[i];
 
     // Skip tasks that are done or haven't been released yet
-    if (task->is_done || current_tick < task->release_time) {
+    if (task->is_done || current_tick < task->release_time || (is_eligible != NULL && !is_eligible(task))) {
       continue;
     }
 
