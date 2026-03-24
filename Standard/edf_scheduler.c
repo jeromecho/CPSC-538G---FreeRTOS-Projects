@@ -5,6 +5,11 @@
 #include "helpers.h"
 #include "tracer.h"
 
+#if TRACE_WITH_LOGIC_ANALYZER
+#include "hardware/gpio.h"
+#include "main_blinky.h"
+#endif
+
 #if USE_SRP
 #include "srp.h"
 #endif
@@ -563,15 +568,26 @@ void task_switched_out(void) {
 
 #if TRACE_WITH_LOGIC_ANALYZER
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_4, 0);
-  } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 0);
-  } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 0);
-  } else if (current_task == periodic_tasks[2].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_3, 0);
+    gpio_put(mainGPIO_IDLE_TASK, 0);
   } else {
-    gpio_put(mainGPIO_LED_TASK_5, 0);
+    const TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task);
+    if (current_task_tmb == NULL) {
+      return;
+    }
+
+    if (current_task_tmb->type == TASK_PERIODIC) {
+      for (size_t i = 0; i < periodic_task_count; i++) {
+        if (current_task == periodic_tasks[i].handle) {
+          gpio_put(mainGPIO_PERIODIC_TASK_BASE + i, 0);
+        }
+      }
+    } else if (current_task_tmb->type == TASK_APERIODIC) {
+      for (size_t i = 0; i < aperiodic_task_count; i++) {
+        if (current_task == aperiodic_tasks[i].handle) {
+          gpio_put(mainGPIO_APERIODIC_TASK_BASE + i, 0);
+        }
+      }
+    }
   }
 #else
   if (current_task == idle_task) {
@@ -600,15 +616,26 @@ void task_switched_in(void) {
 
 #if TRACE_WITH_LOGIC_ANALYZER
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_4, 1);
-  } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 1);
-  } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 1);
-  } else if (current_task == periodic_tasks[2].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_3, 1);
+    gpio_put(mainGPIO_IDLE_TASK, 1);
   } else {
-    gpio_put(mainGPIO_LED_TASK_5, 1);
+    const TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task);
+    if (current_task_tmb == NULL) {
+      return;
+    }
+
+    if (current_task_tmb->type == TASK_PERIODIC) {
+      for (size_t i = 0; i < periodic_task_count; i++) {
+        if (current_task == periodic_tasks[i].handle) {
+          gpio_put(mainGPIO_PERIODIC_TASK_BASE + i, 1);
+        }
+      }
+    } else if (current_task_tmb->type == TASK_APERIODIC) {
+      for (size_t i = 0; i < aperiodic_task_count; i++) {
+        if (current_task == aperiodic_tasks[i].handle) {
+          gpio_put(mainGPIO_APERIODIC_TASK_BASE + i, 1);
+        }
+      }
+    }
   }
 #else
   if (current_task == idle_task) {

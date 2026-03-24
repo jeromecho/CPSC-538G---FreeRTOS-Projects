@@ -116,10 +116,12 @@ void vTraceMonitorTask(void *pvParameters) {
 }
 
 void main_blinky(void) {
-  // Block execution until the host opens the USB serial port
+// Block execution until the host opens the USB serial port
+#if !TRACE_WITH_LOGIC_ANALYZER
   while (!stdio_usb_connected()) {
     sleep_ms(100);
   }
+#endif
 
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
@@ -154,12 +156,14 @@ void main_blinky(void) {
 
 void initialize_gpio_pins(void) {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
-  gpio_put(mainGPIO_LED_TASK_1, 0);
-  gpio_put(mainGPIO_LED_TASK_2, 0);
-  gpio_put(mainGPIO_LED_TASK_3, 0);
-  gpio_put(mainGPIO_LED_TASK_4, 0);
-  gpio_put(mainGPIO_LED_TASK_5, 0);
-  gpio_put(mainGPIO_LED_TASK_6, 0);
+  gpio_put(mainGPIO_IDLE_TASK, 0);
+
+  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i < mainGPIO_PERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i < mainGPIO_APERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
 }
 
 #define PASTE(x, y)        x##y
