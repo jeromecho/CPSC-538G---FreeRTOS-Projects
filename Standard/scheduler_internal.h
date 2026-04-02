@@ -52,7 +52,8 @@ BaseType_t _create_task_internal(
   TMB_t *const      new_task,
   const TickType_t  completion_time,
   StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  StaticTask_t     *task_buffer,
+  const bool        should_suspend
 );
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,

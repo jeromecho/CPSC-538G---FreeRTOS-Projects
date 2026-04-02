@@ -104,7 +104,7 @@
 /* SMP port only */
 #define configNUMBER_OF_CORES                   2
 #define configTICK_CORE                         0
-#define configRUN_MULTIPLE_PRIORITIES           1
+#define configRUN_MULTIPLE_PRIORITIES           0
 
 #define configUSE_PASSIVE_IDLE_HOOK             0
 #define portSUPPORT_SMP                         1
@@ -143,6 +143,7 @@ to exclude the API function. */
 // CUSTOM PART
 extern void task_switched_in();
 extern void task_switched_out();
+
 #define traceTASK_SWITCHED_IN()  task_switched_in()
 #define traceTASK_SWITCHED_OUT() task_switched_out()
 

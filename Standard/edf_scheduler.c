@@ -16,6 +16,27 @@
 
 #include <stdio.h>
 
+static volatile BaseType_t  g_deadline_miss_pending  = pdFALSE;
+static volatile TickType_t  g_deadline_miss_time     = 0;
+static volatile UBaseType_t g_deadline_miss_task_id  = 0;
+static volatile TickType_t  g_deadline_miss_deadline = 0;
+static TaskHandle_t         g_trace_monitor_task     = NULL;
+
+static BaseType_t is_in_isr_context(void) {
+  uint32_t ipsr;
+  __asm volatile("mrs %0, ipsr" : "=r"(ipsr));
+  return (ipsr != 0U) ? pdTRUE : pdFALSE;
+}
+
+static void pin_task_to_scheduler_core(TaskHandle_t task_handle) {
+#if (configUSE_CORE_AFFINITY == 1)
+  const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
+  vTaskCoreAffinitySet(task_handle, core_affinity_mask);
+#else
+  (void)task_handle;
+#endif
+}
+
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count = 0;
 
@@ -35,11 +56,11 @@ void          reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
 static void   set_highest_priority(const TMB_t *const task);
 static void   deprioritize_task(const TMB_t *const task);
-static void   release_task(const TMB_t *const task);
+static void   release_task(const TMB_t *const task, const bool use_isr_api);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
-TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
+TickType_t    calculate_release_time_for_new_task(const TickType_t new_period, const bool use_isr_api);
 void          deadline_miss(const TMB_t *const task);
 
 ; // ==================================
@@ -47,6 +68,7 @@ void          deadline_miss(const TMB_t *const task);
 ; // ==================================
 
 void vApplicationTickHook(void);
+static void vApplicationTickHook_initial(void);
 void task_switched_out(void);
 void task_switched_in(void);
 
@@ -119,7 +141,8 @@ BaseType_t _create_task_internal(
   TMB_t *const      new_task,
   const TickType_t  completion_time,
   StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  StaticTask_t     *task_buffer,
+  const bool        should_suspend
 ) {
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
@@ -133,7 +156,12 @@ BaseType_t _create_task_internal(
   if (task_handle == NULL) {
     return pdFAIL;
   }
-  vTaskSuspend(task_handle);
+
+  pin_task_to_scheduler_core(task_handle);
+
+  if (should_suspend) {
+    vTaskSuspend(task_handle); // Suspension is needed so that idle task will run when no tasks are ready
+  }
   new_task->handle        = task_handle;
   new_task->task_function = task_function;
   new_task->stack_buffer  = stack_buffer;
@@ -172,7 +200,8 @@ BaseType_t _create_periodic_task_internal(
     new_task,
     completion_time,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -191,7 +220,7 @@ BaseType_t _create_periodic_task_internal(
     new_task->periodic.next_period = current_tick + period;
     new_task->absolute_deadline    = current_tick + relative_deadline;
   } else {
-    TickType_t release_time        = calculate_release_time_for_new_task(period);
+    TickType_t release_time        = calculate_release_time_for_new_task(period, pdTRUE);
     new_task->release_time         = release_time;
     new_task->periodic.next_period = release_time + period;
     new_task->absolute_deadline    = release_time + relative_deadline;
@@ -228,7 +257,8 @@ BaseType_t _create_aperiodic_task_internal(
     new_task,
     completion_time,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    true
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -343,9 +373,36 @@ void EDF_scheduler_start() {
   /* Start the tasks and timer running. */
   printf("Starting scheduler.\n");
 
-  vApplicationTickHook();
-
   vTaskStartScheduler();
+
+  crash_without_trace("FATAL: vTaskStartScheduler returned unexpectedly.");
+}
+
+void EDF_register_trace_monitor_task(TaskHandle_t monitor_task_handle) { g_trace_monitor_task = monitor_task_handle; }
+
+
+BaseType_t EDF_take_pending_deadline_miss(TickType_t *time, UBaseType_t *task_id, TickType_t *deadline) {
+  BaseType_t had_pending = pdFALSE;
+
+  taskENTER_CRITICAL();
+  if (g_deadline_miss_pending == pdTRUE) {
+    had_pending = pdTRUE;
+
+    if (time != NULL) {
+      *time = g_deadline_miss_time;
+    }
+    if (task_id != NULL) {
+      *task_id = g_deadline_miss_task_id;
+    }
+    if (deadline != NULL) {
+      *deadline = g_deadline_miss_deadline;
+    }
+
+    g_deadline_miss_pending = pdFALSE;
+  }
+  taskEXIT_CRITICAL();
+
+  return had_pending;
 }
 
 
@@ -422,13 +479,21 @@ static void deprioritize_task(const TMB_t *const task) {
 }
 
 /// @brief Resumes a task
-static void release_task(const TMB_t *const task) {
+static TickType_t current_tick_for_context(const bool use_isr_api) {
+  return (use_isr_api == pdTRUE) ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+}
+
+static void release_task(const TMB_t *const task, const bool use_isr_api) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
   TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task);
 
-  xTaskResumeFromISR(task->handle);
+  if (use_isr_api == pdTRUE) {
+    xTaskResumeFromISR(task->handle);
+  } else {
+    vTaskResume(task->handle);
+  }
 }
 
 /// @brief produce true if currently running task is different from the highest priority task
@@ -440,6 +505,12 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
     // No EDF tasks want to run.
     // We only need to update if an EDF task is currently running and needs to be stopped.
     return current_task_tmb != NULL;
+  }
+
+  // If no EDF task is currently running (idle/system task is running),
+  // and an EDF task is ready, we must update priorities to dispatch it.
+  if (current_task_tmb == NULL) {
+    return true;
   }
 
   // Prevent context switch between two tasks with the same deadline
@@ -509,17 +580,17 @@ void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t co
     const bool task_released  = (task->release_time <= current_tick);
     const bool task_suspended = (eTaskGetState(task->handle) == eSuspended);
     if (!task_done && task_released && task_suspended) {
-      release_task(task);
+      release_task(task, pdTRUE);
     }
   }
 }
 
 /// @brief Calculates release time for dropped task
-TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
+TickType_t calculate_release_time_for_new_task(const TickType_t new_period, const bool use_isr_api) {
   const TickType_t H = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
   // Hypothesis: value of xNow doesn't change during duration of function body's
   // execution if function is only called in context of tick hook
-  const TickType_t xNow = xTaskGetTickCountFromISR();
+  const TickType_t xNow = current_tick_for_context(use_isr_api);
   // NB: Theoretically, we shouldn't hit this code block
   if (xNow == 0)
     return 0;
@@ -536,6 +607,23 @@ void deadline_miss(const TMB_t *const task) {
   TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
   TRACE_disable();
 
+  if (is_in_isr_context() == pdTRUE) {
+    // Defer heavy I/O and trace dumping to task context.
+    if (g_deadline_miss_pending == pdFALSE) {
+      g_deadline_miss_time     = xTaskGetTickCountFromISR();
+      g_deadline_miss_task_id  = (UBaseType_t)task->id;
+      g_deadline_miss_deadline = task->absolute_deadline;
+      g_deadline_miss_pending  = pdTRUE;
+
+      if (g_trace_monitor_task != NULL) {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(g_trace_monitor_task, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+      }
+    }
+    return;
+  }
+
   crash_with_trace( //
     "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
     xTaskGetTickCountFromISR(),
@@ -550,6 +638,8 @@ void deadline_miss(const TMB_t *const task) {
 
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
+  // printf("TICK\n");
+
   reschedule_periodic_tasks();
 
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
@@ -558,11 +648,52 @@ void vApplicationTickHook(void) {
   update_priorities();
 }
 
+/// @brief Initial setup version of the tick hook that uses task-context-safe APIs.
+static void vApplicationTickHook_initial(void) {
+  const TickType_t current_tick = xTaskGetTickCount();
+
+  for (size_t i = 0; i < periodic_task_count; ++i) {
+    TMB_t *const task = &periodic_tasks[i];
+
+    if (task->is_done && current_tick >= task->periodic.next_period) {
+      task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
+      task->release_time      = task->periodic.next_period;
+      task->periodic.next_period += task->periodic.period;
+      task->is_done = false;
+    }
+  }
+
+  for (size_t i = 0; i < periodic_task_count; ++i) {
+    TMB_t *const task = &periodic_tasks[i];
+    const bool   task_released = (task->release_time <= current_tick);
+    const bool   task_suspended = (eTaskGetState(task->handle) == eSuspended);
+    if (!task->is_done && task_released && task_suspended) {
+      release_task(task, pdFALSE);
+    }
+  }
+
+  for (size_t i = 0; i < aperiodic_task_count; ++i) {
+    TMB_t *const task = &aperiodic_tasks[i];
+    const bool   task_released = (task->release_time <= current_tick);
+    const bool   task_suspended = (eTaskGetState(task->handle) == eSuspended);
+    if (!task->is_done && task_released && task_suspended) {
+      release_task(task, pdFALSE);
+    }
+  }
+
+  update_priorities();
+}
+
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
 void task_switched_out(void) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const unsigned int core         = portGET_CORE_ID();
 
-  const unsigned int core = portGET_CORE_ID();
+  // Keep tracing constrained to the designated EDF execution core in SMP mode.
+  if (core != configTICK_CORE) {
+    return;
+  }
+
 #if configNUMBER_OF_CORES == 1
   const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
 #elif configNUMBER_OF_CORES > 1
@@ -616,8 +747,13 @@ void task_switched_out(void) {
 /// @brief Tick hook called whenever a task is switched in by the scheduler.
 void task_switched_in(void) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const unsigned int core         = portGET_CORE_ID();
 
-  const unsigned int core = portGET_CORE_ID();
+  // Keep tracing constrained to the designated EDF execution core in SMP mode.
+  if (core != configTICK_CORE) {
+    return;
+  }
+
 #if configNUMBER_OF_CORES == 1
   const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
 #elif configNUMBER_OF_CORES > 1

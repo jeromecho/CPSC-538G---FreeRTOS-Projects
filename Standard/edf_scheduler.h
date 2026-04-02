@@ -35,5 +35,8 @@ TMB_t *EDF_produce_highest_priority_task();
 TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
 void   EDF_scheduler_start();
+void   EDF_register_trace_monitor_task(TaskHandle_t monitor_task_handle);
+
+BaseType_t EDF_take_pending_deadline_miss(TickType_t *time, UBaseType_t *task_id, TickType_t *deadline);
 
 #endif // EDF_SCHEDULER_H

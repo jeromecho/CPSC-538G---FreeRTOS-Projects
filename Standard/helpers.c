@@ -66,7 +66,8 @@ void crash_with_trace(const char *format, ...) {
   printf("\n");
   va_end(args);
 
-  vTaskSuspendAll();
+  // This function is used from both task and ISR contexts (e.g., deadline_miss in vApplicationTickHook).
+  // Avoid non-ISR-safe scheduler APIs here so trace dumping always executes.
   TRACE_print_buffer();
 
   // Spin forever while putting the CPU in a low-power state.

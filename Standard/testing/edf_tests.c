@@ -178,14 +178,22 @@ TickType_t edf_test_9() {
   const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 160, 800, 800};
   build_periodic_task("EDF Test 9, Task 1", &task_config);
 
+  TaskHandle_t test_runner_handle = NULL;
   xTaskCreate( //
     vTestRunner9,
     "EDF Test 9, Test Runner",
     configMINIMAL_STACK_SIZE,
     NULL,
     configMAX_PRIORITIES - 1,
-    NULL
+    &test_runner_handle
   );
+
+#if (configUSE_CORE_AFFINITY == 1)
+  if (test_runner_handle != NULL) {
+    const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
+    vTaskCoreAffinitySet(test_runner_handle, core_affinity_mask);
+  }
+#endif
 
   const TickType_t TEST_DURATION = 1200;
   return TEST_DURATION;
@@ -207,14 +215,22 @@ TickType_t edf_test_10() {
   const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 20, 100, 100};
   build_periodic_task("EDF Test 10, Task 1", &task_config);
 
+  TaskHandle_t test_runner_handle = NULL;
   xTaskCreate( //
     vTestRunner10,
     "EDF Test 10, Test Runner",
     configMINIMAL_STACK_SIZE,
     NULL,
     configMAX_PRIORITIES - 1,
-    NULL
+    &test_runner_handle
   );
+
+#if (configUSE_CORE_AFFINITY == 1)
+  if (test_runner_handle != NULL) {
+    const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
+    vTaskCoreAffinitySet(test_runner_handle, core_affinity_mask);
+  }
+#endif
 
   const TickType_t TEST_DURATION = 1000;
   return TEST_DURATION;
