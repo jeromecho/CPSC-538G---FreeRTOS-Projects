@@ -9,12 +9,12 @@
 #if USE_CBS
 
 #define CBS_MASTER_STACK_SZ configMINIMAL_STACK_SIZE
-#define MAXIMUM_CBS_SERVERS = 10;
+#define MAXIMUM_CBS_SERVERS 10
+#define CBS_QUEUE_CAPACITY  10
 
 #define CBS_PRIORITY_NOT_RUNNING PRIORITY_NOT_RUNNING
 
 typedef BaseType_t (*AperiodicTaskFunc_t)(void);
-size_t CBS_QUEUE_CAPACITY = 10;
 
 typedef BaseType_t (*SchedulerCreateTask_t)(
   TaskFunction_t, const char *const, const TickType_t, const TickType_t, const TickType_t, TMB_t **const
@@ -40,7 +40,7 @@ CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
  * @pre 0 <= cbs_id < MAXIMUM_CBS_SERVERS
  * @pre user's responsibility to ensure `cbs_id` is not already used by an existing server
  */
-BaseType_T create_cbs_server(int Qs, int Ts, int cbs_id);
+BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id);
 
 BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_server_id);
 
@@ -50,7 +50,7 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 /**
  * @brief return pdTrue if budget was exhausted, false otherwise
  */
-BaseType_T CBS_update_budget(TMB_t current_highest_priority_task);
+BaseType_t CBS_update_budget(TMB_t current_highest_priority_task);
 
 #endif // USE_CBS
 

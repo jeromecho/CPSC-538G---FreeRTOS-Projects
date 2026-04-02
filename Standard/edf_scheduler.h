@@ -11,7 +11,8 @@
 #define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE        (tskIDLE_PRIORITY)
 
-#define errADMISSION_FAILED (-6)
+// TODO (for Theodor) - don't see this used anywhere - so commenting out for now
+// #define errADMISSION_FAILED (-6)
 
 typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
 
@@ -47,10 +48,9 @@ typedef struct TMB_t {
     } periodic;
 
     struct {
-    } aperiodic {
       // TODO - below field might need to be locked for concurrent scenarios
       bool is_runnable;
-    };
+    } aperiodic;
   };
 } TMB_t;
 

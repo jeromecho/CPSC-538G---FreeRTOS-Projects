@@ -4,14 +4,14 @@
 #include "edf_scheduler.h"
 
 BaseType_t _create_task_internal(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  const TaskType_t  type,
-  const size_t      id,
-  TMB_t *const      new_task,
-  const TickType_t  completion_time,
-  StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  TaskFunction_t        task_function,
+  const char *const     task_name,
+  const TaskType_t      type,
+  const size_t          id,
+  TMB_t *const          new_task,
+  SchedulerParameters_t parameters,
+  StackType_t          *stack_buffer,
+  StaticTask_t         *task_buffer
 );
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,

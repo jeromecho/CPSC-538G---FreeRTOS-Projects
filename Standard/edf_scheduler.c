@@ -47,7 +47,7 @@ void          deadline_miss(const TMB_t *const task);
 
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
-static bool is_aperiodic_ready(TMB_t *t) { return t->is_runnable; }
+static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; }
 
 // === API FUNCTION DEFINITIONS ===
 // ================================
@@ -106,13 +106,14 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
 /// @brief Creates an actual FreeRTOS task using the provided parameters, and sets common fields in the TMB afterwards.
 BaseType_t _create_task_internal(
-  TaskFunction_t             task_function,
-  const char *const          task_name,
-  const TaskType_t           type,
-  const size_t               id,
-  TMB_t *const               new_task,
-  struct SchedulerParameters parameters;
-  StackType_t * stack_buffer, StaticTask_t *task_buffer
+  TaskFunction_t        task_function,
+  const char *const     task_name,
+  const TaskType_t      type,
+  const size_t          id,
+  TMB_t *const          new_task,
+  SchedulerParameters_t parameters,
+  StackType_t          *stack_buffer,
+  StaticTask_t         *task_buffer
 ) {
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
