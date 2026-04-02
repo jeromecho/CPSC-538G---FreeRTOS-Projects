@@ -3,6 +3,7 @@
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "scheduler_internal.h"
+#include "types/scheduler_types.h"
 
 #if USE_EDF
 
@@ -12,51 +13,6 @@
 
 // TODO (for Theodor) - don't see this used anywhere - so commenting out for now
 // #define errADMISSION_FAILED (-6)
-
-typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
-
-typedef struct TMB_t {
-  // --- FreeRTOS-specific data ---
-  TaskFunction_t task_function;
-  StaticTask_t   task_buffer;
-  StackType_t   *stack_buffer;
-
-  // --- Common Metadata ---
-  TaskType_t   type;
-  size_t       id; // Index in the corresponding TMB array, starting from 0
-  TaskHandle_t handle;
-  bool         is_done;
-
-  // --- Common Scheduling Data ---
-  TickType_t release_time;
-  TickType_t absolute_deadline;
-  TickType_t completion_time;
-
-  // --- SRP-specific Data ---
-#if USE_SRP
-  unsigned int preemption_level;
-  bool         has_started;
-#endif // USE_SRP
-
-  // --- Type-Specific Data ---
-  union {
-    struct {
-      TickType_t period;
-      TickType_t relative_deadline;
-      TickType_t next_period;
-    } periodic;
-
-    struct {
-      // TODO - below field might need to be locked for concurrent scenarios
-      bool is_runnable;
-    } aperiodic;
-  };
-} TMB_t;
-
-typedef struct SchedulerParameters {
-  TickType_t completion_time;
-  void      *parameters_remaining;
-} SchedulerParameters_t;
 
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,

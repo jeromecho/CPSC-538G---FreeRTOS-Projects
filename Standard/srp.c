@@ -197,7 +197,8 @@ BaseType_t SRP_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
-    &handle
+    &handle, 
+    NULL
   );
 
   if (result == pdPASS) {
