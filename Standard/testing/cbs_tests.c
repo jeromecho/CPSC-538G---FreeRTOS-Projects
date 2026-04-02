@@ -5,7 +5,6 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "cbs.h"
 #include "edf_scheduler.h"
-
 #include <stdio.h>
 
 // Wrapper over periodic task

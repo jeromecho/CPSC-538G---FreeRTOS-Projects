@@ -27,4 +27,6 @@ bool q_enqueue(Queue_t *q, const void *item);
  */
 bool q_dequeue(Queue_t *q, void *out_item);
 
+bool q_top(Queue_t *q, void *out_item);
+
 #endif // QUEUE_H

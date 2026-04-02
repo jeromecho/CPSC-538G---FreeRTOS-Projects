@@ -119,7 +119,7 @@ BaseType_t _create_task_internal(
     task_function,
     task_name,
     SHARED_STACK_SIZE,
-    (void *)parameters,
+    (void *)&parameters,
     PRIORITY_NOT_RUNNING,
     stack_buffer,
     task_buffer
@@ -136,7 +136,7 @@ BaseType_t _create_task_internal(
   new_task->id   = id;
 
   new_task->is_done         = false;
-  new_task->completion_time = completion_time;
+  new_task->completion_time = parameters.completion_time;
 
   return pdPASS;
 }
@@ -289,7 +289,7 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
-  void             *parameters_remaining,
+  void             *parameters_remaining
 ) {
   return _create_aperiodic_task_internal( //
     task_function,
@@ -308,7 +308,7 @@ BaseType_t EDF_create_aperiodic_task(
 /// slices equal to its completion time, at which point it will mark itself as done and suspend
 /// itself. When used for periodic tasks, the scheduler should resume it for its next period.
 void EDF_periodic_task(void *pvParameters) {
-  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
+  const BaseType_t xCompletionTime = *(BaseType_t *)pvParameters;
 
   for (;;) {
     execute_for_ticks(xCompletionTime);

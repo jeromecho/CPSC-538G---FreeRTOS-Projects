@@ -20,7 +20,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining
 );
 BaseType_t _create_periodic_task_internal(
   TaskFunction_t    task_function,

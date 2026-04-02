@@ -74,7 +74,8 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining
 );
 
 void EDF_periodic_task(void *pvParameters);

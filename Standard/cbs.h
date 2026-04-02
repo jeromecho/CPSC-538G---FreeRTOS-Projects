@@ -17,12 +17,12 @@
 typedef BaseType_t (*AperiodicTaskFunc_t)(void);
 
 typedef BaseType_t (*SchedulerCreateTask_t)(
-  TaskFunction_t, const char *const, const TickType_t, const TickType_t, const TickType_t, TMB_t **const
+  TaskFunction_t, const char *const, const TickType_t, const TickType_t, const TickType_t, TMB_t **const, void *
 );
 
 extern SchedulerCreateTask_t CBS_create_master_task;
 
-StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
+extern StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
 typedef struct {
   TickType_t          dsk;
   TickType_t          Qs;
@@ -34,7 +34,7 @@ typedef struct {
   TMB_t              *tmb_handle;
 } CBS_MB_t;
 
-CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
+extern CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
 
 /**
  * @pre 0 <= cbs_id < MAXIMUM_CBS_SERVERS
@@ -50,7 +50,7 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 /**
  * @brief return pdTrue if budget was exhausted, false otherwise
  */
-BaseType_t CBS_update_budget(TMB_t current_highest_priority_task);
+BaseType_t CBS_update_budget(TMB_t *current_highest_priority_task);
 
 #endif // USE_CBS
 
