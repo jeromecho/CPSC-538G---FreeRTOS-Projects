@@ -1,10 +1,14 @@
 #include "edf_scheduler.h"
-#include "scheduler_internal.h"
 
 #include "ProjectConfig.h"
 #include "admission_control.h"
 #include "helpers.h"
 #include "tracer.h"
+
+#if TRACE_WITH_LOGIC_ANALYZER
+#include "hardware/gpio.h"
+#include "main_blinky.h"
+#endif
 
 #if USE_EDF
 
@@ -28,8 +32,9 @@ StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZ
 StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 #endif
 
-// === LOCAL FUNCTION DECLARATIONS ===
-// ===================================
+; // ===================================
+; // === LOCAL FUNCTION DECLARATIONS ===
+; // ===================================
 
 void          reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
@@ -39,18 +44,22 @@ static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
-void          vApplicationTickHook(void);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
-void          task_switched_out(void);
-void          task_switched_in(void);
 void          deadline_miss(const TMB_t *const task);
 
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
-static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; }
+static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; }; // ==================================
+;                                                                              // === FUNCTION HOOK DECLARATIONS ===
+;                                                                              // ==================================
 
-// === API FUNCTION DEFINITIONS ===
-// ================================
+void vApplicationTickHook(void);
+void task_switched_out(void);
+void task_switched_in(void);
+
+; // ================================
+; // === API FUNCTION DEFINITIONS ===
+; // ================================
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *EDF_produce_highest_priority_task() {
@@ -78,9 +87,13 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   // This call to ENTER_CRITICAL is necessary both to prevent race conditions, where a task might get preempted in the
   // middle of calling this function, but also because of the calls to vTaskSuspend and vTaskPrioritySet in the middle
   // of it, which would otherwise cause the scheduler to perform a context switch immediately
+  if (task_handle == NULL) {
+    task_handle = xTaskGetCurrentTaskHandle();
+  }
+  configASSERT(task_handle != NULL);
+
   taskENTER_CRITICAL();
 
-  configASSERT(task_handle != NULL);
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
@@ -154,14 +167,6 @@ BaseType_t _create_periodic_task_internal(
   if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
-
-#if PERFORM_ADMISSION_CONTROL
-  if (!can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    printf("%s - Admission failed for: %s\n", __func__, task_name);
-    configASSERT(false);
-  }
-#endif // PERFORM_ADMISSION_CONTROL
-
   configASSERT(relative_deadline <= period);
 
   TMB_t *const new_task = &periodic_tasks[periodic_task_count];
@@ -268,7 +273,13 @@ BaseType_t EDF_create_periodic_task(
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
-  return _create_periodic_task_internal( //
+#if PERFORM_ADMISSION_CONTROL
+  if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
+    crash_without_trace("%s - Admission failed for: %s\n", __func__, task_name);
+  }
+#endif // PERFORM_ADMISSION_CONTROL
+
+  return _create_periodic_task_internal(
     task_function,
     task_name,
     edf_private_stacks_periodic[periodic_task_count],
@@ -312,7 +323,7 @@ void EDF_periodic_task(void *pvParameters) {
 
   for (;;) {
     execute_for_ticks(xCompletionTime);
-    EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+    EDF_mark_task_done(NULL);
   }
 }
 
@@ -322,7 +333,7 @@ void EDF_periodic_task(void *pvParameters) {
 void EDF_aperiodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
   execute_for_ticks(xCompletionTime);
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+  EDF_mark_task_done(NULL);
 }
 
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only
@@ -356,8 +367,9 @@ void EDF_scheduler_start() {
 }
 
 
-// === LOCAL FUNCTION DEFINITIONS ===
-// ==================================
+; // ==================================
+; // === LOCAL FUNCTION DEFINITIONS ===
+; // ==================================
 
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 void reschedule_periodic_tasks() {
@@ -487,7 +499,7 @@ void update_priorities() {
 #if USE_SRP
     if (!highest_priority_task->has_started) {
 #if ENABLE_STACK_SHARING // Only do the memory wipe if stack sharing is enabled
-      reset_task_stack(highest_priority_task);
+      SRP_reset_TCB(highest_priority_task);
 #endif                   // ENABLE_STACK_SHARING
       highest_priority_task->has_started = true;
       SRP_push_ceiling(highest_priority_task->preemption_level);
@@ -525,16 +537,6 @@ void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t co
   }
 }
 
-/// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
-void vApplicationTickHook(void) {
-  reschedule_periodic_tasks();
-
-  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
-  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
-
-  update_priorities();
-}
-
 /// @brief Calculates release time for dropped task
 TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
   const TickType_t H = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
@@ -552,6 +554,33 @@ TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
   }
 }
 
+/// @brief Logic for whatever should happen when a deadline is missed
+void deadline_miss(const TMB_t *const task) {
+  TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
+  TRACE_disable();
+
+  crash_with_trace( //
+    "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
+    xTaskGetTickCountFromISR(),
+    task->id,
+    task->absolute_deadline
+  );
+}
+
+; // =================================
+; // === FUNCTION HOOK DEFINITIONS ===
+; // =================================
+
+/// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
+void vApplicationTickHook(void) {
+  reschedule_periodic_tasks();
+
+  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
+  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
+
+  update_priorities();
+}
+
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
 void task_switched_out(void) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
@@ -562,15 +591,26 @@ void task_switched_out(void) {
 
 #if TRACE_WITH_LOGIC_ANALYZER
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_4, 0);
-  } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 0);
-  } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 0);
-  } else if (current_task == periodic_tasks[2].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_3, 0);
+    gpio_put(mainGPIO_IDLE_TASK, 0);
   } else {
-    gpio_put(mainGPIO_LED_TASK_5, 0);
+    const TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task);
+    if (current_task_tmb == NULL) {
+      return;
+    }
+
+    if (current_task_tmb->type == TASK_PERIODIC) {
+      for (size_t i = 0; i < periodic_task_count; i++) {
+        if (current_task == periodic_tasks[i].handle) {
+          gpio_put(mainGPIO_PERIODIC_TASK_BASE + i, 0);
+        }
+      }
+    } else if (current_task_tmb->type == TASK_APERIODIC) {
+      for (size_t i = 0; i < aperiodic_task_count; i++) {
+        if (current_task == aperiodic_tasks[i].handle) {
+          gpio_put(mainGPIO_APERIODIC_TASK_BASE + i, 0);
+        }
+      }
+    }
   }
 #else
   if (current_task == idle_task) {
@@ -599,15 +639,26 @@ void task_switched_in(void) {
 
 #if TRACE_WITH_LOGIC_ANALYZER
   if (current_task == idle_task) {
-    gpio_put(mainGPIO_LED_TASK_4, 1);
-  } else if (current_task == periodic_tasks[0].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_1, 1);
-  } else if (current_task == periodic_tasks[1].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_2, 1);
-  } else if (current_task == periodic_tasks[2].tmb.handle) {
-    gpio_put(mainGPIO_LED_TASK_3, 1);
+    gpio_put(mainGPIO_IDLE_TASK, 1);
   } else {
-    gpio_put(mainGPIO_LED_TASK_5, 1);
+    const TMB_t *current_task_tmb = EDF_get_task_by_handle(current_task);
+    if (current_task_tmb == NULL) {
+      return;
+    }
+
+    if (current_task_tmb->type == TASK_PERIODIC) {
+      for (size_t i = 0; i < periodic_task_count; i++) {
+        if (current_task == periodic_tasks[i].handle) {
+          gpio_put(mainGPIO_PERIODIC_TASK_BASE + i, 1);
+        }
+      }
+    } else if (current_task_tmb->type == TASK_APERIODIC) {
+      for (size_t i = 0; i < aperiodic_task_count; i++) {
+        if (current_task == aperiodic_tasks[i].handle) {
+          gpio_put(mainGPIO_APERIODIC_TASK_BASE + i, 1);
+        }
+      }
+    }
   }
 #else
   if (current_task == idle_task) {
@@ -626,27 +677,9 @@ void task_switched_in(void) {
 #endif
 }
 
-/// @brief Logic for whatever should happen when a deadline is missed
-void deadline_miss(const TMB_t *const task) {
-  TRACE_record(EVENT_BASIC(TRACE_DEADLINE_MISS), TRACE_TASK_EITHER, task);
-
-  TRACE_disable();
-
-  printf( //
-    "Time: %u FATAL: Task %d missed its deadline of %u ticks!\n",
-    xTaskGetTickCountFromISR(),
-    task->id,
-    task->absolute_deadline
-  );
-
-  TRACE_print_buffer();
-
-  configASSERT(false);
-}
-
-
-// === FreeRTOS Static Allocation Callbacks ===
-// ============================================
+; // ============================================
+; // === FreeRTOS Static Allocation Callbacks ===
+; // ============================================
 
 // Since configSUPPORT_STATIC_ALLOCATION is set to 1, the application must provide an
 // implementation of vApplicationGetIdleTaskMemory() to provide the memory that is

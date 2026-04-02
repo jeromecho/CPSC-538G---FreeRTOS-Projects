@@ -2,8 +2,7 @@
 #define EDF_SCHEDULER_H
 
 #include "FreeRTOS.h" // IWYU pragma: keep
-#include "ProjectConfig.h"
-#include "task.h"
+#include "scheduler_internal.h"
 
 #if USE_EDF
 

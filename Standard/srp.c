@@ -2,52 +2,41 @@
 
 #if USE_SRP
 
+#include "admission_control.h"
 #include "edf_scheduler.h"
+#include "helpers.h"
 #include "scheduler_internal.h"
 #include "tracer.h"
 
 #include <stdio.h>
+#include <string.h> // For memcpy
 
 // Statically allocated state
-static SRPState_t   srp_state;
-static unsigned int resource_ceilings[N_RESOURCES];
+#if N_RESOURCES == 0
+static SRPState_t   srp_state                      = {.priority_ceiling_index = 0, .resource_availability = {}};
+static unsigned int resource_ceilings[N_RESOURCES] = {};
+#else
+static SRPState_t   srp_state = {.priority_ceiling_index = 0, .resource_availability = {[0 ... N_RESOURCES - 1] = 1}};
+static unsigned int resource_ceilings[N_RESOURCES] = {0};
+#endif // N_RESOURCES
 
 // Statically allocated stack for the stack sharing enabled by SRP
 #if ENABLE_STACK_SHARING
 StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
 #endif
 
-// === API FUNCTION DEFINITIONS ===
-// ================================
+; // ===================================
+; // === LOCAL FUNCTION DECLARATIONS ===
+; // ===================================
 
-/// @brief Initializes the SRP state for the system. Must be called before any calls to SRP-specific
-void SRP_initialize( //
-  TMF_t *const              task_matrix,
-  const size_t              num_tasks,
-  const unsigned int *const user_ceilings_memory
-) {
-  srp_state.priority_ceiling_index = 0;
+void srp_specific_initialization(
+  TMB_t *task, const unsigned int preemption_level, const TickType_t resource_hold_times[N_RESOURCES]
+);
 
-  // Initialize all resources to available (1)
-  for (int i = 0; i < N_RESOURCES; i++) {
-    srp_state.resource_availability[i] = 1;
-    resource_ceilings[i]               = 0;
-  }
 
-  // Populate the resource ceilings table based on the TMF matrix
-  // A resource ceiling is the maximum preemption level of all tasks that use it
-  for (size_t t = 0; t < num_tasks; t++) {
-    for (int r = 0; r < N_RESOURCES; r++) {
-      if (task_matrix[t].resource_hold_times[r] > 0) {
-        if (task_matrix[t].preemption_level > resource_ceilings[r]) {
-          resource_ceilings[r] = task_matrix[t].preemption_level;
-        }
-      }
-    }
-  }
-
-  srp_state.initialized = true;
-}
+; // ================================
+; // === API FUNCTION DEFINITIONS ===
+; // ================================
 
 void SRP_push_ceiling(unsigned int new_ceiling) {
   taskENTER_CRITICAL();
@@ -72,6 +61,7 @@ void SRP_pop_ceiling(void) {
   taskEXIT_CRITICAL();
 }
 
+// TODO: Semaphore logic should be implemented using actual FreeRTOS semaphores and tick hooks
 BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   taskENTER_CRITICAL();
   configASSERT(semaphoreIdx < N_RESOURCES);
@@ -89,17 +79,11 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
     return pdTRUE;
   } else {
     taskEXIT_CRITICAL();
-    printf(
+    crash_with_trace(
       "Tick: %u FATAL: SRP Scheduler failed to prevent preemption. Resource %u is locked!\n",
       xTaskGetTickCount(),
       semaphoreIdx
     );
-
-    vTaskSuspendAll(); // Freeze the scheduler to prevent being preempted in the middle of printing the error message
-                       // and dumping the trace logs
-    TRACE_print_buffer();
-    configASSERT(0);
-
     return pdFALSE;
   }
 }
@@ -133,8 +117,6 @@ unsigned int SRP_get_system_ceiling(void) {
   return current_ceiling;
 }
 
-bool SRP_initialized() { return srp_state.initialized; }
-
 /// @brief Creates a periodic task, making sure all the fields required for SRP are set
 BaseType_t SRP_create_periodic_task(
   TaskFunction_t    task_function,
@@ -143,11 +125,20 @@ BaseType_t SRP_create_periodic_task(
   const TickType_t  period,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
-  const BaseType_t  preemption_level
+  const BaseType_t  preemption_level,
+  const TickType_t  resource_hold_times[N_RESOURCES]
 ) {
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
+  configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
+
+#if PERFORM_ADMISSION_CONTROL
+  // TODO: Should admission control be extended to aperiodic tasks?
+  if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
+    crash_without_trace("%s - Admission failed for: %s\n", __func__, task_name);
+  }
+#endif // PERFORM_ADMISSION_CONTROL
 
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
@@ -167,8 +158,7 @@ BaseType_t SRP_create_periodic_task(
   );
 
   if (result == pdPASS) {
-    handle->preemption_level = preemption_level;
-    handle->has_started      = false;
+    srp_specific_initialization(handle, preemption_level, resource_hold_times);
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
@@ -185,11 +175,13 @@ BaseType_t SRP_create_aperiodic_task(
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
-  const BaseType_t  preemption_level
+  const BaseType_t  preemption_level,
+  const TickType_t  resource_hold_times[N_RESOURCES]
 ) {
   configASSERT(USE_SRP == 1);
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
+  configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
 #if USE_SRP && ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
@@ -209,8 +201,7 @@ BaseType_t SRP_create_aperiodic_task(
   );
 
   if (result == pdPASS) {
-    handle->preemption_level = preemption_level;
-    handle->has_started      = false;
+    srp_specific_initialization(handle, preemption_level, resource_hold_times);
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
@@ -219,14 +210,10 @@ BaseType_t SRP_create_aperiodic_task(
   return result;
 }
 
-
-// === Scheduler internal definitions ===
-// ======================================
-
 /// @brief Resets a FreeRTOS task's TCB, so that it can safely use shared stack memory even if it has used it
 /// previously. Without this, the task would attempt to pop the registers from the stack in order to resume its previous
 /// state, which wouldn't work when the shared stack has been used by another task in the mean time.
-void reset_task_stack(const TMB_t *const task) {
+void SRP_reset_TCB(const TMB_t *const task) {
   extern StackType_t *pxPortInitialiseStack(StackType_t * pxTopOfStack, TaskFunction_t pxCode, void *pvParameters);
 
   // Find the top of the stack array
@@ -243,6 +230,36 @@ void reset_task_stack(const TMB_t *const task) {
 
   // Overwrite the TCB's stack pointer
   *((StackType_t **)task->handle) = new_top_of_stack;
+}
+
+; // ==================================
+; // === LOCAL FUNCTION DEFINITIONS ===
+; // ==================================
+
+/// @brief Get the current resource ceilings in the system
+const unsigned int *SRP_get_resource_ceilings() { return resource_ceilings; }
+
+/// @brief Update the resource ceilings in the array passed as the last parameter.
+void SRP_update_resource_ceilings(
+  const unsigned int preemption_level,
+  const TickType_t   resource_hold_times[N_RESOURCES],
+  unsigned int       resource_ceilings[N_RESOURCES]
+) {
+  for (int r = 0; r < N_RESOURCES; r++) {
+    if (resource_hold_times[r] > 0 && preemption_level > resource_ceilings[r]) {
+      resource_ceilings[r] = preemption_level;
+    }
+  }
+}
+
+/// @brief SRP-specific TMB values which need to be set whenever a task is created
+void srp_specific_initialization(
+  TMB_t *task, const unsigned int preemption_level, const TickType_t resource_hold_times[N_RESOURCES]
+) {
+  task->preemption_level = preemption_level;
+  task->has_started      = false;
+  memcpy(task->resource_hold_times, resource_hold_times, N_RESOURCES);
+  SRP_update_resource_ceilings(preemption_level, resource_hold_times, resource_ceilings);
 }
 
 #endif // USE_SRP

@@ -74,6 +74,7 @@
 
 // Custom scheduler includes
 #include "edf_scheduler.h"
+#include "helpers.h"
 #include "tracer.h"
 
 #if !USE_SRP
@@ -112,29 +113,23 @@ void vTraceMonitorTask(void *pvParameters) {
 
   // Sleep for the exact duration of your test
   vTaskDelay(pdMS_TO_TICKS(test_duration));
-  TRACE_disable();
 
   // The test is over. Freeze the scheduler so no more task switches occur.
-  vTaskSuspendAll();
-  TRACE_print_buffer();
-
-  // Spin forever. The test is done.
-  while (1) {
-    // Hardware specific wait-for-interrupt to save power, or just empty loop
-    __asm volatile("wfi");
-  }
+  TRACE_disable();
+  crash_with_trace("");
 }
 
 void main_blinky(void) {
-  // Block execution until the host opens the USB serial port
+// Block execution until the host opens the USB serial port
+#if !TRACE_WITH_LOGIC_ANALYZER
   while (!stdio_usb_connected()) {
     sleep_ms(100);
   }
+#endif
 
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  printf("Starting test.\n");
   TickType_t test_duration = run_test();
 
 #if !TRACE_WITH_LOGIC_ANALYZER
@@ -165,12 +160,14 @@ void main_blinky(void) {
 
 void initialize_gpio_pins(void) {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
-  gpio_put(mainGPIO_LED_TASK_1, 0);
-  gpio_put(mainGPIO_LED_TASK_2, 0);
-  gpio_put(mainGPIO_LED_TASK_3, 0);
-  gpio_put(mainGPIO_LED_TASK_4, 0);
-  gpio_put(mainGPIO_LED_TASK_5, 0);
-  gpio_put(mainGPIO_LED_TASK_6, 0);
+  gpio_put(mainGPIO_IDLE_TASK, 0);
+
+  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i < mainGPIO_PERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i < mainGPIO_APERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
 }
 
 #define PASTE(x, y)        x##y
@@ -182,9 +179,11 @@ TickType_t run_test() {
     // If TEST_NR is 3, this becomes: edf_test_3();
     return PASTE_EXPAND(edf_test_, TEST_NR)();
   #elif USE_SRP
+    printf("Running SRP Test %d\n", TEST_NR);
     // If TEST_NR is 1, this becomes: return srp_test_1();
     return PASTE_EXPAND(srp_test_, TEST_NR)();
   #else
+    printf("Running EDF Test %d\n", TEST_NR);
     return PASTE_EXPAND(cbs_test_, TEST_NR)();
   #endif
 #endif

@@ -134,7 +134,7 @@ def select_serial_port():
             print("Please enter a valid number.")
 
 
-def plot_rtos_trace(csv_data):
+def plot_rtos_trace(csv_data, plot_title):
     try:
         df = pd.read_csv(io.StringIO(csv_data))
 
@@ -341,7 +341,7 @@ def plot_rtos_trace(csv_data):
                 )
 
         fig.update_layout(
-            title="FreeRTOS EDF+SRP Scheduling Trace",
+            title=plot_title,
             xaxis_title="System Ticks",
             yaxis=dict(
                 title="Tasks",
@@ -367,6 +367,9 @@ def main():
     capturing = False
     trace_buffer = []
 
+    # Default title just in case it misses the printout
+    current_title = "[Name of test not printed from microcontroller]"
+
     print(
         f"\nLooking for {selected_port} at {BAUD_RATE} baud... (Press Ctrl+C to exit)"
     )
@@ -381,6 +384,11 @@ def main():
 
                     if line:
                         print(line)
+
+                        # --- Catch the Test Name ---
+                        if "Running EDF Test" in line or "Running SRP Test" in line:
+                            current_title = line.replace("Running ", "")
+                        # ---------------------------
 
                         if "TIMESTAMP" in line:
                             if line != EXPECTED_HEADERS:
@@ -401,14 +409,18 @@ def main():
                             )
                             capturing = False
                             csv_string = "\n".join(trace_buffer)
-                            plot_rtos_trace(csv_string)
+
+                            # Pass the captured title to the plot!
+                            plot_rtos_trace(csv_string, current_title)
+
                             trace_buffer = []
+                            current_title = "FreeRTOS EDF+SRP Scheduling Trace"  # Reset for the next run
                             continue
 
                         elif capturing:
                             trace_buffer.append(line)
 
-        except serial.SerialException as e:
+        except serial.SerialException:
             time.sleep(1)
         except Exception as e:
             print(f"\n[Error] Unexpected error: {e}")

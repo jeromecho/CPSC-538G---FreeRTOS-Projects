@@ -5,10 +5,18 @@
 
 // NB: we seem to treat aperiodic tasks as soft real-time tasks, so current
 // admission control implementation only operates over periodic tasks
-bool can_admit_periodic_task( //
+bool EDF_can_admit_periodic_task( //
   const TickType_t completion_time,
   const TickType_t period,
   const TickType_t relative_deadline
+);
+
+bool SRP_can_admit_periodic_task(
+  const TickType_t   completion_time,
+  const TickType_t   period,
+  const TickType_t   relative_deadline,
+  const unsigned int preemption_level,
+  const TickType_t  *resource_hold_times
 );
 
 #endif // ADMISSION_CONTROL_H

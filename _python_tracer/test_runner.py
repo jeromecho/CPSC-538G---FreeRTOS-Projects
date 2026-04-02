@@ -1,0 +1,311 @@
+import sys
+import time
+import argparse
+import serial
+
+# Import definitions from our data module
+from test_data import TEST_CASES, TraceEvent, TASK_TYPES  # ty:ignore[unresolved-import]
+
+# Import utilities from our environment module
+from pico_env import (  # ty:ignore[unresolved-import]
+    C_GREEN,
+    C_RED,
+    C_YELLOW,
+    C_RESET,
+    BAUD_RATE,
+    print_status,
+    clear_status,
+    check_port_availability,
+    auto_detect_port,
+    patch_config_file,
+    compile_and_flash,
+    get_binary_memory_usage,
+)
+
+# Define which tests to run. Leave empty to run all tests
+TESTS_TO_RUN: list[str] = [  #
+    # "SRP1",
+    # "SRP2",
+    # "SRP3",
+    # "SRP4",
+    # "SRP5",
+    # "SRP6",
+]
+
+
+def get_task_name(t_type, t_id):
+    base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
+    if t_type in [1, 2]:
+        return f"{base_name} {(t_id + 1):02d}"
+    return base_name
+
+
+def run_test(test_id, test_case):
+    patch_config_file(test_case["flags"])
+
+    if not compile_and_flash():
+        return False, None
+
+    mem_usage = get_binary_memory_usage()
+
+    port = auto_detect_port()
+    if not port:
+        print_status("[Monitor] Waiting for serial port to initialize...")
+        time.sleep(2)
+        port = auto_detect_port()
+        if not port:
+            clear_status()
+            print(f"{C_RED}❌ Could not detect Pico serial port.{C_RESET}")
+            return False, mem_usage
+
+    parsed_logs = []
+    output_log_raw = ""
+    capturing = False
+
+    test_type = "SRP" if "SRP" in test_id.upper() else "EDF"
+    test_num = "".join(filter(str.isdigit, test_id))
+    expected_boot_name = f"Running {test_type} Test {test_num}"
+    found_boot_name = False
+
+    try:
+        with serial.Serial(port, BAUD_RATE, timeout=1.0) as ser:
+            start_time = time.time()
+            while time.time() - start_time < 5.0:
+                elapsed = time.time() - start_time
+                state_msg = (
+                    "Capturing traces..." if capturing else "Waiting for boot name..."
+                )
+                print_status(
+                    f"[Monitor] attached to {port}. {state_msg} ({elapsed:.1f}s)"
+                )
+
+                line = ser.readline().decode("utf-8", errors="ignore").strip()
+                if not line:
+                    continue
+
+                output_log_raw += line + "\n"
+
+                if not found_boot_name and expected_boot_name in line:
+                    found_boot_name = True
+
+                if test_case.get("expected_admission_failure"):
+                    if test_case["expected_admission_failure"] in line:
+                        clear_status()
+                        if not found_boot_name:
+                            print(
+                                f"    {C_YELLOW}⚠ Missed boot name, but caught expected failure.{C_RESET}"
+                            )
+                        return True, mem_usage
+
+                if "Assertion" in line or "failed" in line:
+                    clear_status()
+                    print(f"    {C_RED}❌ [CRITICAL ASSERTION] {line}{C_RESET}")
+                    return False, mem_usage
+
+                if "TIMESTAMP" in line:
+                    capturing = True
+                    continue
+                elif line == "--- END OF TRACE ---":
+                    break
+                elif capturing:
+                    parts = line.split(",")
+                    if len(parts) >= 5:
+                        try:
+                            parsed_logs.append(
+                                {
+                                    "tick": int(parts[0]),
+                                    "event": int(parts[1]),
+                                    "task_name": get_task_name(
+                                        int(parts[3]), int(parts[4])
+                                    ),
+                                    "raw": line,
+                                }
+                            )
+                        except ValueError:
+                            pass
+
+    except serial.SerialException as e:
+        clear_status()
+        print(f"{C_RED}❌ Serial Error: {e}{C_RESET}")
+        return False, mem_usage
+
+    clear_status()
+
+    if not found_boot_name:
+        print(
+            f"{C_RED}❌ FAILED: Did not detect '{expected_boot_name}' on boot.{C_RESET}"
+        )
+        return False, mem_usage
+
+    if test_case.get("expected_admission_failure"):
+        print(
+            f"{C_RED}❌ FAILED: Expected an admission failure, but it did not occur.{C_RESET}"
+        )
+        return False, mem_usage
+
+    if test_case.get("ignore_traces", False):
+        return True, mem_usage
+
+    expected_set = set()
+    for exp_task, events in test_case.get("expected_events", {}).items():
+        for exp_tick, exp_event in events:
+            expected_set.add((exp_tick, exp_task, exp_event))
+
+    all_passed = True
+    sorted_expected_events = sorted(list(expected_set), key=lambda x: (x[0], x[1]))
+
+    for exp_tick, exp_task, exp_event in sorted_expected_events:
+        event_name = TraceEvent(exp_event).name
+        found = any(
+            log["tick"] == exp_tick
+            and log["task_name"] == exp_task
+            and log["event"] == exp_event
+            for log in parsed_logs
+        )
+
+        if not found:
+            print(
+                f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {exp_task} | {event_name}{C_RESET}"
+            )
+            all_passed = False
+
+    allowed_background_tasks = ["Idle Task", "System Task"]
+    strict_policed_events = {TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT}
+
+    for log in parsed_logs:
+        if (
+            log["task_name"] not in allowed_background_tasks
+            and log["event"] in strict_policed_events
+        ):
+            actual_event_tuple = (log["tick"], log["task_name"], log["event"])
+            if actual_event_tuple not in expected_set:
+                event_name = TraceEvent(log["event"]).name
+                print(
+                    f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {log['task_name']} | {event_name}{C_RESET}"
+                )
+                all_passed = False
+
+    return all_passed, mem_usage
+
+
+if __name__ == "__main__":
+    try:
+        parser = argparse.ArgumentParser(
+            description="Pico RTOS Hardware-in-the-Loop Test Runner"
+        )
+        parser.add_argument(
+            "tests",
+            metavar="ID",
+            type=str,
+            nargs="*",
+            help="List of test IDs to run (e.g., EDF1 SRP2). Overrides TESTS_TO_RUN.",
+        )
+        parser.add_argument(
+            "-l",
+            "--list",
+            action="store_true",
+            help="List all available tests and exit.",
+        )
+
+        args = parser.parse_args()
+
+        if args.list:
+            print("=== AVAILABLE TESTS ===")
+            for test_id, test_data in TEST_CASES.items():
+                print(f"[{test_id}] {test_data['name']}")
+            sys.exit(0)
+
+        check_port_availability()
+
+        active_tests = [t.upper() for t in (args.tests if args.tests else TESTS_TO_RUN)]
+        invalid_ids = [
+            t for t in active_tests if t not in [k.upper() for k in TEST_CASES.keys()]
+        ]
+
+        if invalid_ids:
+            print(
+                f"{C_RED}❌ Invalid test IDs requested: {', '.join(invalid_ids)}{C_RESET}"
+            )
+            sys.exit(1)
+
+        tests_to_execute = [
+            (tid, tdata)
+            for tid, tdata in TEST_CASES.items()
+            if not active_tests or tid.upper() in active_tests
+        ]
+
+        if not tests_to_execute:
+            print(f"{C_RED}❌ No valid tests selected. Exiting.{C_RESET}")
+            sys.exit(1)
+
+        test_results = []
+        passed_count = 0
+
+        for i, (test_id, test_data) in enumerate(tests_to_execute):
+            print(
+                f"\n{C_YELLOW}▶ Running [{test_id}] {test_data['name']} ({i + 1}/{len(tests_to_execute)}){C_RESET}"
+            )
+
+            test_passed, mem_usage = run_test(test_id, test_data)
+
+            if test_passed and mem_usage:
+                rel_check_id = test_data.get("expected_less_bss_than")
+                if rel_check_id:
+                    ref_mem = next(
+                        (
+                            past_mem
+                            for past_t_id, _, _, past_mem in test_results
+                            if past_t_id == rel_check_id
+                        ),
+                        None,
+                    )
+
+                    if ref_mem:
+                        if mem_usage["bss"] < ref_mem["bss"]:
+                            diff = ref_mem["bss"] - mem_usage["bss"]
+                            print(
+                                f"    {C_GREEN}✓ MEMORY CHECK: Saved {diff:,} Bytes compared to {rel_check_id}.{C_RESET}"
+                            )
+                        else:
+                            print(
+                                f"    {C_RED}❌ MEMORY FAIL: .BSS ({mem_usage['bss']:,} B) is NOT less than {rel_check_id} ({ref_mem['bss']:,} B).{C_RESET}"
+                            )
+                            test_passed = False
+                    else:
+                        print(
+                            f"    {C_YELLOW}⚠ Skipped memory check: Reference test '{rel_check_id}' was not run in this session.{C_RESET}"
+                        )
+
+            if test_passed:
+                passed_count += 1
+                print(f"{C_GREEN}✅ [{test_id}] PASSED{C_RESET}")
+            else:
+                print(f"{C_RED}❌ [{test_id}] FAILED{C_RESET}")
+
+            test_results.append((test_id, test_data["name"], test_passed, mem_usage))
+
+        print("\n" + "=" * 95)
+        print(f"  TEST SUITE OVERVIEW: {passed_count}/{len(tests_to_execute)} PASSED")
+        print("=" * 95)
+        print(
+            f"{'STATUS':<8} | {'ID':<6} | {'.TEXT':<10} | {'.DATA':<10} | {'.BSS':<10} | {'TEST NAME'}"
+        )
+        print("-" * 95)
+
+        for t_id, t_name, passed, mem in test_results:
+            status = (
+                f"{C_GREEN}[PASS]{C_RESET}" if passed else f"{C_RED}[FAIL]{C_RESET}"
+            )
+            text_str = f"{mem['text']:,} B" if mem else "N/A"
+            data_str = f"{mem['data']:,} B" if mem else "N/A"
+            bss_str = f"{mem['bss']:,} B" if mem else "N/A"
+            print(
+                f"{status:<17} | {t_id:<6} | {text_str:<10} | {data_str:<10} | {bss_str:<10} | {t_name}"
+            )
+
+        print("=" * 95 + "\n")
+
+    except KeyboardInterrupt, EOFError:
+        clear_status()
+        print(f"\n\n{C_YELLOW}[Test Runner] Aborted by user. Exiting cleanly.{C_RESET}")
+        sys.exit(0)

@@ -9,6 +9,27 @@
 
 #include <stdio.h>
 
+#define LEN(x) (sizeof(x) / sizeof((x)[0]))
+
+; // ===================================
+; // === Local function declarations ===
+; // ===================================
+
+static void       build_periodic_task(const char *task_name, const SRP_PeriodicTaskParams_t *config);
+static void       build_aperiodic_task(const char *task_name, const SRP_AperiodicTaskParams_t *config);
+static TickType_t build_periodic_test(
+  const char *test_name, const SRP_PeriodicTaskParams_t *config, size_t num_tasks, TickType_t duration
+);
+static TickType_t build_aperiodic_test(
+  const char *test_name, const SRP_AperiodicTaskParams_t *config, size_t num_tasks, TickType_t duration
+);
+static void execute_steps(const TickType_t completion_time, const TaskStep_t steps[], const size_t num_steps);
+
+; // ========================
+; // === Test definitions ===
+; // ========================
+
+#if TEST_NR == 1
 /// Test 1: Basic SRP Priority Inversion Prevention
 ///
 /// This test demonstrates how SRP prevents a medium-priority task from preempting a low-priority task holding a shared
@@ -17,75 +38,39 @@
 /// - Task 3 (Low) starts and takes Resource 1, raising the system ceiling.
 /// - Task 2 (Medium) arrives but is blocked by the ceiling, preventing priority inversion.
 /// - Task 1 (High) arrives, preempts, and interacts with the resource.
-#if TEST_NR == 1
-void vSRPTest1Task3(void *pvParameters) {
-  SRP_take_binary_semaphore(0); // Take R1 (System ceiling should become 3)
-  execute_for_ticks(100);
-  SRP_give_binary_semaphore(0); // Give R1
-  execute_for_ticks(20);        // Finish remaining work
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
-void vSRPTest1Task2(void *pvParameters) {
-  execute_for_ticks(50);
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
 void vSRPTest1Task1(void *pvParameters) {
-  SRP_take_binary_semaphore(0); // Take R1
-  execute_for_ticks(30);
-  SRP_give_binary_semaphore(0); // Give R1
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0 },
+    {TASK_EXECUTE,        30},
+    {TASK_GIVE_SEMAPHORE, 0 },
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+void vSRPTest1Task3(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0  },
+    {TASK_EXECUTE,        100},
+    {TASK_GIVE_SEMAPHORE, 0  },
+    {TASK_EXECUTE,        20 },
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
 TickType_t srp_test_1() {
-  const int    NUM_TASKS = 3;
-  unsigned int user_ceilings_memory[1];
-
-  const unsigned int task1_preemption_level = 3;
-  const unsigned int task2_preemption_level = 2;
-  const unsigned int task3_preemption_level = 1;
-
-  TMF_t test_tmf[3] = {
-    {.preemption_level = task1_preemption_level, .resource_hold_times = {10}, .stackSize = configMINIMAL_STACK_SIZE},
-    {.preemption_level = task2_preemption_level, .resource_hold_times = {0},  .stackSize = configMINIMAL_STACK_SIZE},
-    {.preemption_level = task3_preemption_level, .resource_hold_times = {50}, .stackSize = configMINIMAL_STACK_SIZE}
+  const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
+    {vSRPTest1Task1,     30,  40, 100, 3, {30} },
+    {EDF_aperiodic_task, 50,  20, 200, 2, {0}  },
+    {vSRPTest1Task3,     120, 0,  300, 1, {100}},
   };
 
-  SRP_initialize(test_tmf, NUM_TASKS, user_ceilings_memory);
-
-  SRP_create_aperiodic_task( //
-    vSRPTest1Task1,
-    "SRP Test 1, Task 1",
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(40),
-    pdMS_TO_TICKS(100),
-    NULL,
-    task1_preemption_level
+  return build_aperiodic_test( //
+    "SRP Test 1",
+    test_config,
+    MAXIMUM_APERIODIC_TASKS,
+    300
   );
-  SRP_create_aperiodic_task( //
-    vSRPTest1Task2,
-    "SRP Test 1, Task 2",
-    pdMS_TO_TICKS(200),
-    pdMS_TO_TICKS(20),
-    pdMS_TO_TICKS(200),
-    NULL,
-    task2_preemption_level
-  );
-  SRP_create_aperiodic_task( //
-    vSRPTest1Task3,
-    "SRP Test 1, Task 3",
-    pdMS_TO_TICKS(300),
-    pdMS_TO_TICKS(0),
-    pdMS_TO_TICKS(300),
-    NULL,
-    task3_preemption_level
-  );
-
-  const TickType_t TEST_DURATION = 250; // Run the test long enough for all tasks to complete
-  return TEST_DURATION;
 }
 
+#elif TEST_NR == 2
 /// Test 2: Complex Multi-Resource SRP Validation
 ///
 /// Uses 4 tasks and 3 distinct resources (semaphores) to validate nested resource locking and system ceiling dynamic
@@ -93,129 +78,71 @@ TickType_t srp_test_1() {
 /// implementation.
 ///
 /// This test is taken from https://cpen432.github.io/resources/bader-slides/8-ResourceSharing.pdf, Page 49
-#elif TEST_NR == 2
-void vSRPTest2Task4(void *pvParameters) {
-  execute_for_ticks(93);        // Initial execution
-  SRP_take_binary_semaphore(0); // Take Red (R0)
-  execute_for_ticks(157);       // Critical section
-  SRP_give_binary_semaphore(0); // Give Red (R0)
-  execute_for_ticks(93);        // Finish remaining work
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
-}
-void vSRPTest2Task3(void *pvParameters) {
-  execute_for_ticks(90);
-  SRP_take_binary_semaphore(2); // Take Yellow (R2)
-  execute_for_ticks(109);       // Critical section
-  SRP_give_binary_semaphore(2); // Give Yellow (R2)
-  execute_for_ticks(93);        // Finish remaining work
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+void vSRPTest2Task1(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_EXECUTE,        93},
+    {TASK_TAKE_SEMAPHORE, 0 }, // Take Red (R0)
+    {TASK_EXECUTE,        45},
+    {TASK_GIVE_SEMAPHORE, 0 }, // Give Red (R0)
+    {TASK_EXECUTE,        45},
+    {TASK_TAKE_SEMAPHORE, 1 }, // Take Blue (R1)
+    {TASK_EXECUTE,        45},
+    {TASK_GIVE_SEMAPHORE, 1 }, // Give Blue (R1)
+    {TASK_EXECUTE,        45},
+    {TASK_TAKE_SEMAPHORE, 2 }, // Take Yellow (R2)
+    {TASK_EXECUTE,        45},
+    {TASK_GIVE_SEMAPHORE, 2 }, // Give Yellow (R2)
+    {TASK_EXECUTE,        45},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
 void vSRPTest2Task2(void *pvParameters) {
-  execute_for_ticks(93);        // Initial execution
-  SRP_take_binary_semaphore(1); // Take Blue (R1)
-  execute_for_ticks(109);       // Critical section
-  SRP_give_binary_semaphore(1); // Give Blue (R1)
-  execute_for_ticks(93);        // Finish remaining work
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+  const TaskStep_t steps[] = {
+    {TASK_EXECUTE,        93 },
+    {TASK_TAKE_SEMAPHORE, 1  }, // Take Blue (R1)
+    {TASK_EXECUTE,        109},
+    {TASK_GIVE_SEMAPHORE, 1  }, // Give Blue (R1)
+    {TASK_EXECUTE,        93 },
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-void vSRPTest2Task1(void *pvParameters) {
-  execute_for_ticks(93);        // Initial execution
-
-  SRP_take_binary_semaphore(0); // Take Red (R0)
-  execute_for_ticks(45);
-  SRP_give_binary_semaphore(0); // Give Red (R0)
-
-  execute_for_ticks(45);        // Execution between resources
-
-  SRP_take_binary_semaphore(1); // Take Blue (R1)
-  execute_for_ticks(45);
-  SRP_give_binary_semaphore(1); // Give Blue (R1)
-
-  execute_for_ticks(45);        // Execution between resources
-
-  SRP_take_binary_semaphore(2); // Take Yellow (R2)
-  execute_for_ticks(45);
-  SRP_give_binary_semaphore(2); // Give Yellow (R2)
-
-  execute_for_ticks(45);        // Finish remaining work
-
-  EDF_mark_task_done(xTaskGetCurrentTaskHandle());
+void vSRPTest2Task3(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_EXECUTE,        90 },
+    {TASK_TAKE_SEMAPHORE, 2  }, // Take Yellow (R2)
+    {TASK_EXECUTE,        109},
+    {TASK_GIVE_SEMAPHORE, 2  }, // Give Yellow (R2)
+    {TASK_EXECUTE,        93 },
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+void vSRPTest2Task4(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_EXECUTE,        93 },
+    {TASK_TAKE_SEMAPHORE, 0  }, // Take Red (R0)
+    {TASK_EXECUTE,        157},
+    {TASK_GIVE_SEMAPHORE, 0  }, // Give Red (R0)
+    {TASK_EXECUTE,        93 },
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
 TickType_t srp_test_2() {
-  const int    NUM_TASKS = 4;
-  unsigned int user_ceilings_memory[3];
-
-  const unsigned int task1_preemption_level = 4;
-  const unsigned int task2_preemption_level = 3;
-  const unsigned int task3_preemption_level = 2;
-  const unsigned int task4_preemption_level = 1;
-
-  // Define the TMF matrix mapped to the diagram
-  TMF_t test_tmf[4] = {
-    {.preemption_level    = task1_preemption_level,
-     .resource_hold_times = {45, 45, 45},
-     .stackSize           = configMINIMAL_STACK_SIZE},
-    {.preemption_level    = task2_preemption_level,
-     .resource_hold_times = {0, 109, 0},
-     .stackSize           = configMINIMAL_STACK_SIZE},
-    {.preemption_level    = task3_preemption_level,
-     .resource_hold_times = {0, 0, 109},
-     .stackSize           = configMINIMAL_STACK_SIZE},
-    {.preemption_level    = task4_preemption_level,
-     .resource_hold_times = {157, 0, 0},
-     .stackSize           = configMINIMAL_STACK_SIZE}
+  const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
+    {vSRPTest2Task1, 363, 400, 500,  4, {45, 45, 45}},
+    {vSRPTest2Task2, 295, 279, 700,  3, {0, 109, 0} },
+    {vSRPTest2Task3, 292, 150, 1100, 2, {0, 0, 109} },
+    {vSRPTest2Task4, 343, 0,   1400, 1, {157, 0, 0} },
   };
 
-  // 1. Initialize SRP with our TMF matrix
-  SRP_initialize(test_tmf, NUM_TASKS, user_ceilings_memory);
-
-  // Create the tasks
-  // Deadlines are scaled so T1 < T2 < T3 < T4 to allow the EDF scheduler to naturally map the correct priorities.
-
-  SRP_create_aperiodic_task( //
-    vSRPTest2Task1,
-    "SRP Test 2, Task 1",
-    pdMS_TO_TICKS(500),
-    pdMS_TO_TICKS(400),
-    pdMS_TO_TICKS(500),
-    NULL,
-    task1_preemption_level
+  return build_aperiodic_test( //
+    "SRP Test 2",
+    test_config,
+    MAXIMUM_APERIODIC_TASKS,
+    1500
   );
-  SRP_create_aperiodic_task( //
-    vSRPTest2Task2,
-    "SRP Test 2, Task 2",
-    pdMS_TO_TICKS(1000),
-    pdMS_TO_TICKS(279),
-    pdMS_TO_TICKS(1000),
-    NULL,
-    task2_preemption_level
-  );
-  SRP_create_aperiodic_task( //
-    vSRPTest2Task3,
-    "SRP Test 2, Task 3",
-    pdMS_TO_TICKS(1500),
-    pdMS_TO_TICKS(150),
-    pdMS_TO_TICKS(1500),
-    NULL,
-    task3_preemption_level
-  );
-  SRP_create_aperiodic_task( //
-    vSRPTest2Task4,
-    "SRP Test 2, Task 4",
-    pdMS_TO_TICKS(2000),
-    pdMS_TO_TICKS(0),
-    pdMS_TO_TICKS(2000),
-    NULL,
-    task4_preemption_level
-  );
-
-  const TickType_t TEST_DURATION = 1500;
-  return TEST_DURATION;
 }
 
+#elif TEST_NR == 3 || TEST_NR == 4
 /// Test 3 & 4: Comparison of execution traces when Stack Sharing is enabled vs. disabled.
 ///
 /// Since tasks at the same preemption level cannot preempt each other under SRP, this enables stack sharing. This
@@ -225,59 +152,29 @@ TickType_t srp_test_2() {
 /// - Task 1 (Level 1) runs.
 /// - Task 2 (Level 1) arrives with an earlier deadline but is correctly blocked by the ceiling.
 /// - Task 3 (Level 2) arrives and successfully preempts Task 1.
-#elif TEST_NR == 3 || TEST_NR == 4
+const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
+  {EDF_aperiodic_task, 100, 0,  300, 1, {NULL}},
+  {EDF_aperiodic_task, 100, 20, 230, 1, {NULL}},
+  {EDF_aperiodic_task, 50,  50, 150, 2, {NULL}},
+};
 TickType_t srp_test_3() {
-  const int num_test_tasks = 3;
-
-  unsigned int user_ceilings_memory[1] = {0};
-
-  const unsigned int task3_preemption_level = 2;
-  const unsigned int task2_preemption_level = 1;
-  const unsigned int task1_preemption_level = 1;
-
-  // Define the TMF matrix. No resource hold times needed, since the tasks do not acquire any resources
-  TMF_t test_tmf[3] = {
-    {.preemption_level = task1_preemption_level, .stackSize = configMINIMAL_STACK_SIZE},
-    {.preemption_level = task2_preemption_level, .stackSize = configMINIMAL_STACK_SIZE},
-    {.preemption_level = task3_preemption_level, .stackSize = configMINIMAL_STACK_SIZE}
-  };
-
-  SRP_initialize(test_tmf, num_test_tasks, user_ceilings_memory);
-
-  SRP_create_aperiodic_task( //
-    EDF_aperiodic_task,
-    "SRP Test 3, Task 1",
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(0),
-    pdMS_TO_TICKS(300),
-    NULL,
-    task1_preemption_level
+  return build_aperiodic_test( //
+    "SRP Test 3",
+    test_config,
+    MAXIMUM_APERIODIC_TASKS,
+    300
   );
-  SRP_create_aperiodic_task( //
-    EDF_aperiodic_task,
-    "SRP Test 3, Task 2",
-    pdMS_TO_TICKS(100),
-    pdMS_TO_TICKS(20),
-    pdMS_TO_TICKS(230),
-    NULL,
-    task2_preemption_level
-  );
-
-  SRP_create_aperiodic_task( //
-    EDF_aperiodic_task,
-    "SRP Test 3, Task 3",
-    pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(50),
-    pdMS_TO_TICKS(150),
-    NULL,
-    task3_preemption_level
-  );
-
-  const TickType_t TEST_DURATION = 300;
-  return TEST_DURATION;
 }
-TickType_t srp_test_4() { return srp_test_3(); }
+TickType_t srp_test_4() {
+  return build_aperiodic_test( //
+    "SRP Test 4",
+    test_config,
+    MAXIMUM_APERIODIC_TASKS,
+    300
+  );
+}
 
+#elif TEST_NR == 5 || TEST_NR == 6
 /// Tests 5 & 6: Quantitative Analysis of Stack Sharing RAM Usage
 ///
 /// A stress test designed to measure the memory reduction achieved by SRP.
@@ -287,41 +184,26 @@ TickType_t srp_test_4() { return srp_test_3(); }
 /// using `sizeof()`. Proves that stack sharing significantly reduces the `.bss`
 /// memory allocation required for the RTOS.
 ///
-#elif TEST_NR == 5 || TEST_NR == 6
 TickType_t srp_test_5() {
   const unsigned int NUM_TASKS            = MAXIMUM_APERIODIC_TASKS;
   const unsigned int COMPLETION_TIME_MS   = 10;
   const unsigned int RELATIVE_DEADLINE_MS = NUM_TASKS * COMPLETION_TIME_MS;
 
-  unsigned int user_ceilings_memory[1] = {0};
-
-  // Initialize the TMF matrix for all the tasks
-  // TODO: is this true? Test the boot stack usage with and without static.
-  // We use static to avoid blowing up the Pico's boot stack
-  TMF_t test_tmf[NUM_TASKS];
+  SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS];
   for (int i = 0; i < NUM_TASKS; i++) {
-    test_tmf[i].preemption_level       = (i % N_PREEMPTION_LEVELS) + 1;
-    test_tmf[i].resource_hold_times[0] = 0;
-    test_tmf[i].stackSize              = SHARED_STACK_SIZE;
+    test_config[i].func = EDF_aperiodic_task;
+    test_config[i].C    = COMPLETION_TIME_MS;
+    test_config[i].r    = 0;
+    test_config[i].D    = RELATIVE_DEADLINE_MS;
+    test_config[i].plvl = (i % N_PREEMPTION_LEVELS) + 1;
   }
 
-  SRP_initialize(test_tmf, NUM_TASKS, user_ceilings_memory);
-
-  // Create the tasks
-  for (int i = 0; i < NUM_TASKS; i++) {
-    char taskName[19];
-    sprintf(taskName, "SRP Test 5, T%d", i);
-
-    SRP_create_aperiodic_task( //
-      EDF_aperiodic_task,
-      taskName,
-      pdMS_TO_TICKS(COMPLETION_TIME_MS),
-      pdMS_TO_TICKS(0),
-      pdMS_TO_TICKS(RELATIVE_DEADLINE_MS),
-      NULL,
-      test_tmf[i].preemption_level
-    );
-  }
+  build_aperiodic_test( //
+    "SRP Test 5",
+    test_config,
+    NUM_TASKS,
+    RELATIVE_DEADLINE_MS
+  );
 
   // 3. Quantitative Analysis Output
   printf("\n==================================================\n");
@@ -363,16 +245,218 @@ TickType_t srp_test_5() {
   return TEST_DURATION;
 }
 
-TickType_t srp_test_6() { return srp_test_5(); }
+TickType_t srp_test_6() {
+  return srp_test_5();
+}
+
+#elif TEST_NR == 7
+void vSRPTest7Task1(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        1},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        1},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+void vSRPTest7Task3(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        3},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        7},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+TickType_t srp_test_7() {
+  const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {vSRPTest7Task1,    2,  10, 10, 3, {1}},
+    {EDF_periodic_task, 4,  20, 20, 2, {0}},
+    {vSRPTest7Task3,    10, 50, 50, 1, {3}},
+  };
+  return build_periodic_test( //
+    "SRP Test 7",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    300
+  );
+}
+
+#elif TEST_NR == 8
+void vSRPTest8Task1(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        1},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        1},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+void vSRPTest8Task3(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        9},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        1},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+TickType_t srp_test_8() {
+  const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {vSRPTest8Task1,    2,  10, 10, 3, {1}},
+    {EDF_periodic_task, 4,  20, 20, 2, {0}},
+    {vSRPTest8Task3,    10, 50, 50, 1, {9}},
+  };
+  return build_periodic_test( //
+    "SRP Test 8",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    300
+  );
+}
+
+#elif TEST_NR == 9
+void vSRPTest9Task1(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        2},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        3},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+void vSRPTest9Task3(void *pvParameters) {
+  const TaskStep_t steps[] = {
+    {TASK_TAKE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        6},
+    {TASK_GIVE_SEMAPHORE, 0},
+    {TASK_EXECUTE,        2},
+  };
+  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+}
+TickType_t srp_test_9() {
+  const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {vSRPTest9Task1,    5, 20, 10, 3, {2}},
+    {EDF_periodic_task, 4, 20, 12, 2, {0}},
+    {vSRPTest9Task3,    8, 50, 50, 1, {6}}
+  };
+
+  return build_periodic_test( //
+    "SRP Test 9",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS,
+    300
+  );
+}
 
 #endif // TEST_NR
 
+; // ==================================
+; // === Local function definitions ===
+; // ==================================
+
+/// @brief Creates a periodic task from a provided task configuration
+static void build_periodic_task(const char *task_name, const SRP_PeriodicTaskParams_t *config) {
+  SRP_create_periodic_task(
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->T),
+    pdMS_TO_TICKS(config->D),
+    NULL,
+    config->plvl,
+    config->resources
+  );
+}
+
+/// @brief Creates an aperiodic task from a provided task configuration
+static void build_aperiodic_task(const char *task_name, const SRP_AperiodicTaskParams_t *config) {
+  SRP_create_aperiodic_task(
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->r),
+    pdMS_TO_TICKS(config->D),
+    NULL,
+    config->plvl,
+    config->resources
+  );
+}
+
+/// @brief Creates all tasks from the provided test configuration for periodic tasks
+static TickType_t build_periodic_test( //
+  const char                     *test_name,
+  const SRP_PeriodicTaskParams_t *config,
+  size_t                          num_tasks,
+  TickType_t                      duration
+) {
+  configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
+
+  for (size_t i = 0; i < num_tasks; i++) {
+    char task_name[22]; // Exactly enough for "SRP Test XX, Task YYY", plus a null terminator byte
+    snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
+    build_periodic_task(task_name, &config[i]);
+  }
+
+  return duration;
+}
+
+/// @brief Creates all tasks from the provided test configuration for aperiodic tasks
+static TickType_t build_aperiodic_test( //
+  const char                      *test_name,
+  const SRP_AperiodicTaskParams_t *config,
+  size_t                           num_tasks,
+  TickType_t                       duration
+) {
+  configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
+
+  for (size_t i = 0; i < num_tasks; i++) {
+    char task_name[22]; // Exactly enough for "SRP Test XX, Task YYY", plus a null terminator byte
+    snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
+    build_aperiodic_task(task_name, &config[i]);
+  }
+
+  return duration;
+}
+
+/// @brief Executes a series of steps defined for a given test. Verifies that the total execution time for the task
+/// matches the intended completion time
+static void execute_steps(const TickType_t completion_time, const TaskStep_t steps[], const size_t num_steps) {
+  // Verify that the execution time of the steps matches the completion time for the task
+  TickType_t calculated_execution_time = 0;
+  for (size_t i = 0; i < num_steps; i++) {
+    if (steps[i].action == TASK_EXECUTE) {
+      calculated_execution_time += steps[i].value;
+    }
+  }
+  configASSERT(calculated_execution_time == completion_time);
+
+  // Actually execute the steps
+  for (size_t i = 0; i < num_steps; i++) {
+    const TaskStep_t *step = &steps[i];
+
+    switch (step->action) {
+    case TASK_TAKE_SEMAPHORE:
+      SRP_take_binary_semaphore(step->value);
+      break;
+
+    case TASK_EXECUTE:
+      execute_for_ticks(step->value);
+      break;
+
+    case TASK_GIVE_SEMAPHORE:
+      SRP_give_binary_semaphore(step->value);
+      break;
+
+    default:
+      // Catch invalid configurations
+      configASSERT(pdFALSE);
+      break;
+    }
+  }
+
+  // Mark as done
+  EDF_mark_task_done(NULL);
+}
+
 #endif // USE_SRP
-
-// TODO: Periodic tasks with SRP
-
-// TODO: Maybe one test showing the stack sharing in combination with the semaphores?
-
-// TODO: Admission control
-
-// TODO: Many weird system traces (switch in, switch out and update priorities) after end of test
