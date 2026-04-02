@@ -561,7 +561,15 @@ void vApplicationTickHook(void) {
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
 void task_switched_out(void) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  const TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  const unsigned int core = portGET_CORE_ID();
+#if configNUMBER_OF_CORES == 1
+  const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
+#elif configNUMBER_OF_CORES > 1
+  const TaskHandle_t idle_task = xTaskGetIdleTaskHandleForCore(core);
+#else
+#error "configNUMBER_OF_CORES should always be a positive integer!"
+#endif // configNUMBER_OF_CORES
 
   if (current_task == NULL)
     return;
@@ -608,7 +616,15 @@ void task_switched_out(void) {
 /// @brief Tick hook called whenever a task is switched in by the scheduler.
 void task_switched_in(void) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  const TaskHandle_t idle_task    = xTaskGetIdleTaskHandle();
+
+  const unsigned int core = portGET_CORE_ID();
+#if configNUMBER_OF_CORES == 1
+  const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
+#elif configNUMBER_OF_CORES > 1
+  const TaskHandle_t idle_task = xTaskGetIdleTaskHandleForCore(core);
+#else
+#error "configNUMBER_OF_CORES should always be a positive integer!"
+#endif // configNUMBER_OF_CORES
 
   // Can this ever happen?
   if (current_task == NULL)
@@ -671,6 +687,22 @@ void vApplicationGetIdleTaskMemory(
   *ppxIdleTaskTCBBuffer   = &xIdleTaskTCB;
   *ppxIdleTaskStackBuffer = uxIdleTaskStack;
   *pulIdleTaskStackSize   = configMINIMAL_STACK_SIZE;
+}
+
+void vApplicationGetPassiveIdleTaskMemory(
+  StaticTask_t          **ppxIdleTaskTCBBuffer,
+  StackType_t           **ppxIdleTaskStackBuffer,
+  configSTACK_DEPTH_TYPE *puxIdleTaskStackSize,
+  BaseType_t              xPassiveIdleTaskIndex
+) {
+  /* Static memory for the passive idle task */
+  /* On RP2040, xPassiveIdleTaskIndex will be 0 (representing the 1st passive core) */
+  static StaticTask_t xPassiveIdleTaskTCB;
+  static StackType_t  uxPassiveIdleTaskStack[configMINIMAL_STACK_SIZE];
+
+  *ppxIdleTaskTCBBuffer   = &xPassiveIdleTaskTCB;
+  *ppxIdleTaskStackBuffer = uxPassiveIdleTaskStack;
+  *puxIdleTaskStackSize   = configMINIMAL_STACK_SIZE;
 }
 
 // Since configSUPPORT_STATIC_ALLOCATION and configUSE_TIMERS are both set to 1, the

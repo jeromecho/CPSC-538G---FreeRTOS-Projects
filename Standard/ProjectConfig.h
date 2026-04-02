@@ -4,12 +4,12 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
-#define USE_SRP 1
+#define USE_SRP 0
 #define TEST_NR 2
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         300
-#define TRACE_WITH_LOGIC_ANALYZER 1
+#define TRACE_WITH_LOGIC_ANALYZER 0
 
 // clang-format off
 
