@@ -33,6 +33,8 @@ add_executable(main_blinky
         
         tracer.c
         helpers.c
+
+        cbs.c
         
         testing/edf_tests.c
         testing/srp_tests.c
