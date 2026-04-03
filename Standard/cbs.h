@@ -17,7 +17,14 @@
 typedef BaseType_t (*AperiodicTaskFunc_t)(void);
 
 typedef BaseType_t (*SchedulerCreateTask_t)(
-  TaskFunction_t, const char *const, const TickType_t, const TickType_t, const TickType_t, TMB_t **const, void *
+  TaskFunction_t,
+  const char *const,
+  const TickType_t,
+  const TickType_t,
+  const TickType_t,
+  TMB_t **const,
+  void *,
+  bool is_hard_rt
 );
 
 extern SchedulerCreateTask_t CBS_create_master_task;

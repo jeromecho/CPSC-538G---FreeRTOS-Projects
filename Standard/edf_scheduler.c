@@ -126,7 +126,8 @@ BaseType_t _create_task_internal(
   TMB_t *const          new_task,
   SchedulerParameters_t parameters,
   StackType_t          *stack_buffer,
-  StaticTask_t         *task_buffer
+  StaticTask_t         *task_buffer,
+  bool                  is_hard_rt
 ) {
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
@@ -149,6 +150,7 @@ BaseType_t _create_task_internal(
   new_task->id   = id;
 
   new_task->is_done         = false;
+  new_task->is_hard_rt      = is_hard_rt;
   new_task->completion_time = parameters.completion_time;
 
   return pdPASS;
@@ -183,7 +185,8 @@ BaseType_t _create_periodic_task_internal(
     new_task,
     parameters,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    true
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -224,7 +227,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
-  void             *parameters_remaining
+  void             *parameters_remaining,
+  bool              is_hard_rt
 ) {
   if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -236,6 +240,8 @@ BaseType_t _create_aperiodic_task_internal(
   parameters.completion_time      = completion_time;
   parameters.parameters_remaining = parameters_remaining;
 
+  printf("_create_aperiodic_task_internal - passing %d for is_hard_rt\n", is_hard_rt);
+
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
@@ -244,7 +250,8 @@ BaseType_t _create_aperiodic_task_internal(
     new_task,
     parameters,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    is_hard_rt
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -299,7 +306,8 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
-  void             *parameters_remaining
+  void             *parameters_remaining,
+  bool              is_hard_rt
 ) {
   return _create_aperiodic_task_internal( //
     task_function,
@@ -309,7 +317,8 @@ BaseType_t EDF_create_aperiodic_task(
     release_time,
     relative_deadline,
     TMB_handle, 
-    parameters_remaining
+    parameters_remaining,
+    is_hard_rt
   );
 }
 
@@ -522,7 +531,8 @@ void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t co
 
     // Checks if the task has missed its deadline
     const bool deadline_missed = (current_tick > task->absolute_deadline);
-    if (!task_done && deadline_missed) {
+    // Only count a deadline miss if task is hard real-time
+    if (!task_done && deadline_missed && task->is_hard_rt) {
       deadline_miss(task);
     }
 
@@ -573,6 +583,29 @@ void deadline_miss(const TMB_t *const task) {
 void vApplicationTickHook(void) {
   reschedule_periodic_tasks();
 
+  /*
+  Q: Fundamentally, does it ever matter if a CBS master task "misses its deadline"?
+
+  - CBS servers fundamentally serve soft real-time tasks
+  - Scheduler should be sensitive to the deadline of a CBS master task, however
+
+  Q: What does a deadline miss fundamentally mean for a CBS task?
+  - `Current tick count` > dsk of CBS
+  - In vanilla CBS, dsk is updated in the following scenarios:
+    - Servers budget runs out
+    - Task arrives and its execution time is bigger than a bound computed using
+      deadline and release time
+  * deadlines are computed repeatedly for CBS
+
+  - In Vanilla CBS, it is totally okay for CBS master tasks to have a deadline that
+  "lags behind" the current tick count
+    - Solutions:
+      - Create a new flag-conditioned CBS_master_task type alongside periodic and aperiodic
+        and check for this condition in the aperiodic tasks check
+      - Create a separate array in EDF for CBS master tasks
+
+
+  */
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 

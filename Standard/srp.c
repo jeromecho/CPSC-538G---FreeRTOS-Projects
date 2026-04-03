@@ -146,7 +146,7 @@ BaseType_t SRP_create_periodic_task(
   StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_count];
 #endif
 
-  TMB_t     *handle = NULL;
+  TMB_t *handle = NULL;
   BaseType_t result = _create_periodic_task_internal( //
     task_function,
     task_name,
@@ -189,7 +189,7 @@ BaseType_t SRP_create_aperiodic_task(
   StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_count];
 #endif
 
-  TMB_t     *handle = NULL;
+  TMB_t *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal( //
     task_function,
     task_name,
@@ -198,7 +198,8 @@ BaseType_t SRP_create_aperiodic_task(
     release_time,
     relative_deadline,
     &handle, 
-    NULL
+    NULL, 
+    true
   );
 
   if (result == pdPASS) {

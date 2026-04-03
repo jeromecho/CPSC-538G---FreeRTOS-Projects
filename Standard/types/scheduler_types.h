@@ -24,6 +24,7 @@ typedef struct TMB_t {
   size_t       id; // Index in the corresponding TMB array, starting from 0
   TaskHandle_t handle;
   bool         is_done;
+  bool         is_hard_rt;
 
   // --- Common Scheduling Data ---
   TickType_t release_time;

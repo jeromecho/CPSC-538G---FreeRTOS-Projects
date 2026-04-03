@@ -6,7 +6,7 @@
 SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
 
 StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
-CBS_MB_t cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
+CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
 
 // NB: might make sense to put manager in its own dedicated file if logic gets complex
 typedef struct CBS_Manager {
@@ -82,7 +82,8 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
     0, // NB: fix release time to 0 to ensure release time <= relative deadline holds
     pxServer->dsk,
     &pxServer->tmb_handle,
-    (void *)pxServer
+    (void *)pxServer,
+    false
   );
   pxServer->tmb_handle->aperiodic.is_runnable = false;
 };
