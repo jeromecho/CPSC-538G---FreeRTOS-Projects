@@ -56,6 +56,7 @@ void          reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
 static void   set_highest_priority(const TMB_t *const task);
 static void   deprioritize_task(const TMB_t *const task);
+static void   deprioritize_other_tasks(const TMB_t *const highest_priority_task);
 static void   release_task(const TMB_t *const task, const bool use_isr_api);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
@@ -68,7 +69,6 @@ void          deadline_miss(const TMB_t *const task);
 ; // ==================================
 
 void vApplicationTickHook(void);
-static void vApplicationTickHook_initial(void);
 void task_switched_out(void);
 void task_switched_in(void);
 
@@ -144,12 +144,13 @@ BaseType_t _create_task_internal(
   StaticTask_t     *task_buffer,
   const bool        should_suspend
 ) {
-  TaskHandle_t task_handle = xTaskCreateStatic( //
+  const unsigned int priority    = (should_suspend) ? PRIORITY_NOT_RUNNING : PRIORITY_RUNNING;
+  TaskHandle_t       task_handle = xTaskCreateStatic( //
     task_function,
     task_name,
     SHARED_STACK_SIZE,
     (void *)completion_time,
-    PRIORITY_NOT_RUNNING,
+    priority,
     stack_buffer,
     task_buffer
   );
@@ -190,7 +191,8 @@ BaseType_t _create_periodic_task_internal(
   }
   configASSERT(relative_deadline <= period);
 
-  TMB_t *const new_task = &periodic_tasks[periodic_task_count];
+  TMB_t *const new_task          = &periodic_tasks[periodic_task_count];
+  const bool   scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
 
   BaseType_t result = _create_task_internal( //
     task_function,
@@ -201,7 +203,7 @@ BaseType_t _create_periodic_task_internal(
     completion_time,
     stack_buffer,
     &new_task->task_buffer,
-    (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED)
+    scheduler_started
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -213,7 +215,6 @@ BaseType_t _create_periodic_task_internal(
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
 
-  const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
   if (!scheduler_started) {
     const TickType_t current_tick  = xTaskGetTickCount();
     new_task->release_time         = current_tick;
@@ -229,6 +230,8 @@ BaseType_t _create_periodic_task_internal(
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
   }
+
+  TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_PERIODIC, new_task);
 
   return pdPASS;
 }
@@ -273,6 +276,8 @@ BaseType_t _create_aperiodic_task_internal(
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
   }
+
+  TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_APERIODIC, new_task);
 
   return pdPASS;
 }
@@ -372,6 +377,24 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
 void EDF_scheduler_start() {
   /* Start the tasks and timer running. */
   printf("Starting scheduler.\n");
+
+  // update_priorities();
+  TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
+  const bool   should_update         = should_update_priorities(highest_priority_task);
+  if (!should_update) {
+    return;
+  }
+
+  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
+
+  deprioritize_other_tasks(highest_priority_task);
+
+  // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
+  // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
+  // to run the Idle task.
+  if (highest_priority_task != NULL) {
+    // set_highest_priority(highest_priority_task);
+  }
 
   vTaskStartScheduler();
 
@@ -478,6 +501,23 @@ static void deprioritize_task(const TMB_t *const task) {
   TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
 }
 
+/// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
+static void deprioritize_other_tasks(const TMB_t *const highest_priority_task) {
+  for (size_t i = 0; i < periodic_task_count; ++i) {
+    TMB_t *const task = &periodic_tasks[i];
+    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+      deprioritize_task(task);
+    }
+  }
+
+  for (size_t i = 0; i < aperiodic_task_count; ++i) {
+    TMB_t *const task = &aperiodic_tasks[i];
+    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+      deprioritize_task(task);
+    }
+  }
+}
+
 /// @brief Resumes a task
 static TickType_t current_tick_for_context(const bool use_isr_api) {
   return (use_isr_api == pdTRUE) ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
@@ -534,16 +574,7 @@ void update_priorities() {
 
   TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
 
-  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
-  // configASSERT(current_task != NULL);
-
-  if (current_task != NULL) {
-    const UBaseType_t task_priority = uxTaskPriorityGet(current_task_handle);
-    if (task_priority == PRIORITY_RUNNING) {
-      deprioritize_task(current_task);
-    }
-  }
+  deprioritize_other_tasks(highest_priority_task);
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
   // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
@@ -638,48 +669,10 @@ void deadline_miss(const TMB_t *const task) {
 
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
-  // printf("TICK\n");
-
   reschedule_periodic_tasks();
 
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
-
-  update_priorities();
-}
-
-/// @brief Initial setup version of the tick hook that uses task-context-safe APIs.
-static void vApplicationTickHook_initial(void) {
-  const TickType_t current_tick = xTaskGetTickCount();
-
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const task = &periodic_tasks[i];
-
-    if (task->is_done && current_tick >= task->periodic.next_period) {
-      task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
-      task->release_time      = task->periodic.next_period;
-      task->periodic.next_period += task->periodic.period;
-      task->is_done = false;
-    }
-  }
-
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const task = &periodic_tasks[i];
-    const bool   task_released = (task->release_time <= current_tick);
-    const bool   task_suspended = (eTaskGetState(task->handle) == eSuspended);
-    if (!task->is_done && task_released && task_suspended) {
-      release_task(task, pdFALSE);
-    }
-  }
-
-  for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    TMB_t *const task = &aperiodic_tasks[i];
-    const bool   task_released = (task->release_time <= current_tick);
-    const bool   task_suspended = (eTaskGetState(task->handle) == eSuspended);
-    if (!task->is_done && task_released && task_suspended) {
-      release_task(task, pdFALSE);
-    }
-  }
 
   update_priorities();
 }
