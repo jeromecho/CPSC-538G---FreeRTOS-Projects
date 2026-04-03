@@ -5,7 +5,17 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "cbs.h"
 #include "edf_scheduler.h"
+#include "helpers.h"
 #include <stdio.h>
+
+#define GENERATE_APERIODIC_TASK(name, ticks)                                                                           \
+  BaseType_t CBS_task_##name(void) {                                                                                   \
+    execute_for_ticks(ticks);                                                                                          \
+    return pdTRUE;                                                                                                     \
+  }
+
+GENERATE_APERIODIC_TASK(400, 400)
+GENERATE_APERIODIC_TASK(300, 300)
 
 // Wrapper over periodic task
 BaseType_t platform_create_periodic_task(
@@ -34,7 +44,6 @@ void vTestRunner1() {
   platform_create_periodic_task( //
     EDF_periodic_task,
     "Task P1",
-    configMINIMAL_STACK_SIZE,
     pdMS_TO_TICKS(400),
     pdMS_TO_TICKS(700),
     pdMS_TO_TICKS(700),
@@ -42,25 +51,10 @@ void vTestRunner1() {
   );
 
   vTaskDelay(pdMS_TO_TICKS(300));
-  CBS_create_aperiodic_task(
-    CBS_aperiodic_task,
-    "Task A1",
-    configMINIMAL_STACK_SIZE, // TODO: might not actually need this argument
-    pdMS_TO_TICKS(400),       // completion time
-    NULL,                     // Task Handle
-    CBS_SERVER_ID
-  );
+  CBS_create_aperiodic_task(CBS_task_400, CBS_SERVER_ID);
   vTaskDelay(pdMS_TO_TICKS(1000));
 
-  CBS_create_aperiodic_task(
-    CBS_aperiodic_task,
-    "Task A1",
-    configMINIMAL_STACK_SIZE, // TODO: might not actually need this argument
-    pdMS_TO_TICKS(300),       // completion time
-    NULL,                     // Task Handle
-    CBS_SERVER_ID
-  );
-
+  CBS_create_aperiodic_task(CBS_task_300, CBS_SERVER_ID);
   vTaskDelay(1100);
   vTaskDelete(NULL);
 }

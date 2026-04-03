@@ -175,16 +175,16 @@ void initialize_gpio_pins(void) {
 TickType_t run_test() {
   // clang-format off
 #if USE_EDF
-  #if USE_EDF 
-    // If TEST_NR is 3, this becomes: edf_test_3();
-    return PASTE_EXPAND(edf_test_, TEST_NR)();
+  #if USE_CBS
+    printf("Running CBS Test %d\n", TEST_NR);
+    return PASTE_EXPAND(cbs_test_, TEST_NR)();
   #elif USE_SRP
     printf("Running SRP Test %d\n", TEST_NR);
     // If TEST_NR is 1, this becomes: return srp_test_1();
     return PASTE_EXPAND(srp_test_, TEST_NR)();
   #else
-    printf("Running EDF Test %d\n", TEST_NR);
-    return PASTE_EXPAND(cbs_test_, TEST_NR)();
+    // If TEST_NR is 3, this becomes: edf_test_3();
+    return PASTE_EXPAND(edf_test_, TEST_NR)();
   #endif
 #endif
   // clang-format on
