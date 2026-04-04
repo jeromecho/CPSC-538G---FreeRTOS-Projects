@@ -49,9 +49,11 @@ void          deadline_miss(const TMB_t *const task);
 
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
-static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; }; // ==================================
-;                                                                              // === FUNCTION HOOK DECLARATIONS ===
-;                                                                              // ==================================
+static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; };
+
+; // ==================================
+; // === FUNCTION HOOK DECLARATIONS ===
+; // ==================================
 
 void vApplicationTickHook(void);
 void task_switched_out(void);
@@ -129,11 +131,18 @@ BaseType_t _create_task_internal(
   StaticTask_t         *task_buffer,
   bool                  is_hard_rt
 ) {
+  new_task->parameters = parameters;
+
+  printf("_create_task_internal: new_task->parameters.completion_time %d\n", new_task->parameters.completion_time);
+  printf(
+    "_create_task_internal: new_task->parameters.parameters_remaining %d\n", new_task->parameters.parameters_remaining
+  );
+
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
     task_name,
     SHARED_STACK_SIZE,
-    (void *)&parameters,
+    (void *)&new_task->parameters,
     PRIORITY_NOT_RUNNING,
     stack_buffer,
     task_buffer
@@ -241,6 +250,8 @@ BaseType_t _create_aperiodic_task_internal(
   parameters.parameters_remaining = parameters_remaining;
 
   printf("_create_aperiodic_task_internal - passing %d for is_hard_rt\n", is_hard_rt);
+  printf("_create_aperiodic_task_internal - parameters.completion_time: %d\n", parameters.completion_time);
+  printf("_create_aperiodic_task_internal - parameters.parameters_remaining: %d\n", parameters.parameters_remaining);
 
   BaseType_t result = _create_task_internal( //
     task_function,
@@ -309,6 +320,10 @@ BaseType_t EDF_create_aperiodic_task(
   void             *parameters_remaining,
   bool              is_hard_rt
 ) {
+
+  printf("EDF_create_aperiodic_task - completion_time: %d\n", completion_time);
+  printf("EDF_create_aperiodic_task - parameters_remaining: %d\n", parameters_remaining);
+
   return _create_aperiodic_task_internal( //
     task_function,
     task_name,
@@ -582,6 +597,10 @@ void deadline_miss(const TMB_t *const task) {
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
   reschedule_periodic_tasks();
+
+  if (xTaskGetTickCount() % 50 == 0) {
+    printf("current tick count %d\n", xTaskGetTickCount());
+  }
 
   /*
   Q: Fundamentally, does it ever matter if a CBS master task "misses its deadline"?

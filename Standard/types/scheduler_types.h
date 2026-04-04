@@ -31,6 +31,9 @@ typedef struct TMB_t {
   TickType_t absolute_deadline;
   TickType_t completion_time;
 
+  // --- Task Parameters ---
+  SchedulerParameters_t parameters;
+
   // --- SRP-specific Data ---
 #if USE_SRP
   unsigned int preemption_level;
