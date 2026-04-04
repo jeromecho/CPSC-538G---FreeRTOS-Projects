@@ -62,9 +62,14 @@ static void CBS_master_task(void *pvParameters) {
     // NB: dequeue here should succeed
     q_top(&pxServer->aperiodic_tasks, &fptr);
     // TODO: nice-to-have: add error handling if calling the function pointer returns an error
+
+    printf("CBS_master_task - 8: calling `fptr`\n");
+    printf("CBS_master_task - 8.5: sizeof(AperiodicTaskFunc_t) %d\n", sizeof(AperiodicTaskFunc_t));
+    printf("CBS_master_task - `fptr`: %d\n", fptr);
     fptr();
+    printf("CBS_master_task - 9: called `fptr`\n");
     q_dequeue(&pxServer->aperiodic_tasks, NULL);
-    printf("CBS_master_task - 8\n");
+    printf("CBS_master_task - 10\n");
   }
 }
 // NB: if we ever want to add support for seeing which specific soft real-time aperiodic task the CBS
@@ -82,7 +87,6 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   pxServer->cs      = Qs;
   pxServer->is_idle = true; // TODO might be able to remove
 
-  /*
   printf("create_cbs_server - q_init pre \n");
   q_init(
     &pxServer->aperiodic_tasks,
@@ -91,7 +95,8 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
     CBS_QUEUE_CAPACITY
   );
   printf("create_cbs_server - q_init post \n");
-  */
+  /*
+   */
 
   char pcTaskName[20];
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
@@ -132,7 +137,9 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
       pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
     }
   }
-  q_enqueue(&cbs_metadata_blocks[cbs_id].aperiodic_tasks, (void *)task_function);
+
+  printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
+  q_enqueue(&cbs_metadata_blocks[cbs_id].aperiodic_tasks, (void *)&task_function);
 };
 
 // NB: current design - soft real-time aperiodic tasks are very bare-bones, and are only a function pointer

@@ -10,7 +10,9 @@
 
 #define GENERATE_APERIODIC_TASK(name, ticks)                                                                           \
   BaseType_t CBS_task_##name(void) {                                                                                   \
+    printf("executing for %d ticks\n", ticks);                                                                         \
     execute_for_ticks(ticks);                                                                                          \
+    printf("executed for %d ticks\n", ticks);                                                                          \
     return pdTRUE;                                                                                                     \
   }
 
@@ -39,23 +41,41 @@ BaseType_t platform_create_periodic_task(
 ; // ====================================
 
 void vTestRunner1() {
+  /*
+   */
+
+  // Q: Bug is at initialization?
   const int CBS_SERVER_ID = 1;
+
+  printf("vTestRunner1 - create_cbs_server - pre\n");
   create_cbs_server(pdMS_TO_TICKS(300), pdMS_TO_TICKS(800), CBS_SERVER_ID);
-  platform_create_periodic_task( //
-    EDF_periodic_task,
-    "Task P1",
-    pdMS_TO_TICKS(400),
-    pdMS_TO_TICKS(700),
-    pdMS_TO_TICKS(700),
-    NULL
+  printf("vTestRunner1 - create_cbs_server - post\n");
+  /*
+   */
+
+  // TODO - refactor below with function building periodic task based on given CONFIGURATION
+  /*
+  printf("vTestRunner1 - platform_create_periodic_task - pre\n");
+  platform_create_periodic_task(
+    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(400), pdMS_TO_TICKS(700), pdMS_TO_TICKS(700), NULL
   );
+  printf("vTestRunner1 - platform_create_periodic_task - post\n");
 
   vTaskDelay(pdMS_TO_TICKS(300));
+   */
+
+  printf("vTestRunner1 - calling CBS_create_aperiodic_task\n");
+  printf("vTestRunner1 - CBS_task_400 %d\n", CBS_task_400);
   CBS_create_aperiodic_task(CBS_task_400, CBS_SERVER_ID);
+  printf("vTestRunner1 - called CBS_create_aperiodic_task\n");
   vTaskDelay(pdMS_TO_TICKS(1000));
 
+  /*
   CBS_create_aperiodic_task(CBS_task_300, CBS_SERVER_ID);
-  vTaskDelay(1100);
+  */
+  printf("vTestRunner1 - vTaskDelay - pre\n");
+  vTaskDelay(pdMS_TO_TICKS(1100));
+  printf("vTestRunner1 - vTaskDelete - pre\n");
   vTaskDelete(NULL);
 }
 
@@ -70,6 +90,5 @@ TickType_t cbs_test_1() {
     NULL
   );
 
-  const TickType_t TEST_DURATION = 2400; // TODO: current value is arbitrary choice
-  return TEST_DURATION;
+  return pdMS_TO_TICKS(2100);
 }

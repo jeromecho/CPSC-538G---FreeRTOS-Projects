@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <stdio.h>
+
 void q_init(Queue_t *q, uint8_t *storage, size_t element_size, uint16_t max_elements) {
   q->buffer       = storage;
   q->element_size = element_size;
@@ -14,13 +16,23 @@ void q_init(Queue_t *q, uint8_t *storage, size_t element_size, uint16_t max_elem
   q->count        = 0;
 }
 
-bool q_empty(Queue_t *q) { return q->count == 0; }
+bool q_empty(Queue_t *q) {
+  printf("q_empty 1\n");
+  printf("q->count: %d\n", q->count);
+  return q->count == 0;
+}
 
 // NB: critical sections below may be optional as long we guarantee no concurrency-related
 //     issues with accessing the queue
 bool q_enqueue(Queue_t *q, const void *item) {
   bool success = false;
   taskENTER_CRITICAL();
+
+  /*
+  printf("q_enqueue: q->element_size %d\n", q->element_size);
+  printf("q_enqueue: sizeof() %d\n", q->element_size);
+  */
+
   if (q->count < q->max_elements) {
     // Calculate destination address and copy bytes
     uint8_t *dest = q->buffer + (q->tail * q->element_size);
@@ -54,6 +66,9 @@ bool q_dequeue(Queue_t *q, void *out_item) {
 bool q_top(Queue_t *q, void *out_item) {
   bool success = false;
   taskENTER_CRITICAL();
+
+  printf("q_top: q->element_size %d\n", q->element_size);
+
   if (q->count > 0) {
     // Calculate source address and copy bytes
     uint8_t *src = q->buffer + (q->head * q->element_size);
