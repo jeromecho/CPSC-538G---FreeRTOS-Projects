@@ -4,7 +4,7 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
-#define USE_SRP 1
+#define USE_SRP 0
 #define USE_CBS 1
 #define TEST_NR 1
 
@@ -16,7 +16,18 @@
 
 #if USE_EDF
 
-  #if USE_SRP
+  #if USE_CBS
+    #if TEST_NR == 1
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 2
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #else
+      #error "Invalid or undefined TEST_NR"
+    #endif // TEST_NR
+
+  #elif USE_SRP
 
     #if TEST_NR == 1
       #define MAXIMUM_PERIODIC_TASKS  0
@@ -131,7 +142,7 @@
 
     #endif // TEST_NR
 
-  #endif // USE_SRP
+  #endif // USE_CBS
 
   // Validation of definitions
   #ifndef MAXIMUM_PERIODIC_TASKS

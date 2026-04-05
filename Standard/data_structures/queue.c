@@ -17,8 +17,9 @@ void q_init(Queue_t *q, uint8_t *storage, size_t element_size, uint16_t max_elem
 }
 
 bool q_empty(Queue_t *q) {
-  printf("q_empty 1\n");
-  printf("q->count: %d\n", q->count);
+  /*
+  printf("q_empty: q->count: %d\n", q->count);
+  */
   return q->count == 0;
 }
 
@@ -67,7 +68,7 @@ bool q_top(Queue_t *q, void *out_item) {
   bool success = false;
   taskENTER_CRITICAL();
 
-  printf("q_top: q->element_size %d\n", q->element_size);
+  // printf("q_top: q->element_size %d\n", q->element_size);
 
   if (q->count > 0) {
     // Calculate source address and copy bytes
