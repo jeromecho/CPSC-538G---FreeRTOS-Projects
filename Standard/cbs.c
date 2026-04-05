@@ -21,7 +21,15 @@ static CBS_Manager_t cbs_manager = {.last_cbs_task = NULL, .last_timestamp = 0};
 /**
  * @pre this function should only be called from within the context of a CBS master task
  */
-static BaseType_t CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) { cbs_mb->tmb_handle->aperiodic.is_runnable = false; }
+static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
+  cbs_mb->tmb_handle->is_done = true;
+  printf(
+    "CBS_master_task_out_of_tasks - calling vTaskSuspend with cbs_mb->tmb_handle->handle: %d\n",
+    cbs_mb->tmb_handle->handle
+  );
+  vTaskSuspend(cbs_mb->tmb_handle->handle);
+  // printf("cbs_mb->tmb_handle->aperiodic.is_runnable: %d\n", cbs_mb->tmb_handle->aperiodic.is_runnable);
+}
 
 static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
   if (task == NULL)
@@ -38,38 +46,40 @@ static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
 // === API FUNCTION DEFINITIONS ===
 // ================================
 static void CBS_master_task(void *pvParameters) {
-  printf("CBS_master_task - 1\n");
+  // printf("CBS_master_task - 1\n");
 
   SchedulerParameters_t *parameters = (SchedulerParameters_t *)pvParameters;
 
-  printf("CBS_master_task - 2\n");
+  // printf("CBS_master_task - 2\n");
 
   CBS_MB_t *pxServer = (CBS_MB_t *)parameters->parameters_remaining;
 
+  /*
   printf("CBS_master_task - 3\n");
   printf("CBS_master_task pxServer: %d\n", pxServer);
   printf("CBS_master_task - 4\n");
   printf("CBS_master_task pxServer->aperiodic_tasks: %d\n", pxServer->aperiodic_tasks);
   printf("CBS_master_task - 5\n");
+  */
 
   for (;;) {
-    printf("CBS_master_task - 6\n");
+    // printf("CBS_master_task - 6\n");
     if (q_empty(&pxServer->aperiodic_tasks)) {
       CBS_master_task_out_of_tasks(pxServer);
     }
-    printf("CBS_master_task - 7\n");
+    // printf("CBS_master_task - 7\n");
     AperiodicTaskFunc_t fptr;
     // NB: dequeue here should succeed
     q_top(&pxServer->aperiodic_tasks, &fptr);
     // TODO: nice-to-have: add error handling if calling the function pointer returns an error
 
-    printf("CBS_master_task - 8: calling `fptr`\n");
-    printf("CBS_master_task - 8.5: sizeof(AperiodicTaskFunc_t) %d\n", sizeof(AperiodicTaskFunc_t));
-    printf("CBS_master_task - `fptr`: %d\n", fptr);
+    // printf("CBS_master_task - 8: calling `fptr`\n");
+    // printf("CBS_master_task - 8.5: sizeof(AperiodicTaskFunc_t) %d\n", sizeof(AperiodicTaskFunc_t));
+    // printf("CBS_master_task - `fptr`: %d\n", fptr);
     fptr();
-    printf("CBS_master_task - 9: called `fptr`\n");
+    // printf("CBS_master_task - 9: called `fptr`\n");
     q_dequeue(&pxServer->aperiodic_tasks, NULL);
-    printf("CBS_master_task - 10\n");
+    // printf("CBS_master_task - 10\n");
   }
 }
 // NB: if we ever want to add support for seeing which specific soft real-time aperiodic task the CBS
@@ -87,22 +97,22 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   pxServer->cs      = Qs;
   pxServer->is_idle = true; // TODO might be able to remove
 
-  printf("create_cbs_server - q_init pre \n");
+  // printf("create_cbs_server - q_init pre \n");
   q_init(
     &pxServer->aperiodic_tasks,
     (void *)pxServer->aperiodic_tasks_storage,
     sizeof(AperiodicTaskFunc_t),
     CBS_QUEUE_CAPACITY
   );
-  printf("create_cbs_server - q_init post \n");
+  // printf("create_cbs_server - q_init post \n");
   /*
    */
 
   char pcTaskName[20];
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
 
-  printf("create_cbs_server - CBS_create_master_task pre \n");
-  printf("create_cbs_server - pxServer %d \n", pxServer);
+  // printf("create_cbs_server - CBS_create_master_task pre \n");
+  // printf("create_cbs_server - pxServer %d \n", pxServer);
 
   CBS_create_master_task(
     CBS_master_task,
@@ -115,15 +125,16 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
     false
   );
 
-  printf("create_cbs_server - CBS_create_master_task post \n");
-
-  pxServer->tmb_handle->aperiodic.is_runnable = false;
+  // printf("create_cbs_server - CBS_create_master_task post \n");
 };
 
 BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_id) {
   CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
   if (q_empty(&pxServer->aperiodic_tasks)) {
-    pxServer->tmb_handle->aperiodic.is_runnable = true;
+    // printf("CBS_create_aperiodic_task - setting pxServer->tmb_handle->aperiodic.is_runnnable to true\n");
+    pxServer->tmb_handle->is_done = false;
+    printf("CBS_create_aperiodic_task - calling vTaskResume...\n");
+    vTaskResume(pxServer->tmb_handle->handle);
     // TODO: might need to be wary about doing arithmethic with TickType_t
     TickType_t current_timestamp = xTaskGetTickCount();
     if (
@@ -138,7 +149,7 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
     }
   }
 
-  printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
+  // printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
   q_enqueue(&cbs_metadata_blocks[cbs_id].aperiodic_tasks, (void *)&task_function);
 };
 
