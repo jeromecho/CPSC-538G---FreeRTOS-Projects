@@ -8,11 +8,6 @@ SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
 StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
 CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
 
-// NB: might make sense to put manager in its own dedicated file if logic gets complex
-typedef struct CBS_Manager {
-  TMB_t     *last_cbs_task;
-  TickType_t last_timestamp;
-} CBS_Manager_t;
 
 static CBS_Manager_t cbs_manager = {.last_cbs_task = NULL, .last_timestamp = 0};
 
@@ -22,12 +17,17 @@ static CBS_Manager_t cbs_manager = {.last_cbs_task = NULL, .last_timestamp = 0};
  * @pre this function should only be called from within the context of a CBS master task
  */
 static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
-  cbs_mb->tmb_handle->is_done = true;
-  printf(
-    "CBS_master_task_out_of_tasks - calling vTaskSuspend with cbs_mb->tmb_handle->handle: %d\n",
-    cbs_mb->tmb_handle->handle
-  );
+  /*
+printf(
+  "CBS_master_task_out_of_tasks - calling vTaskSuspend with cbs_mb->tmb_handle->handle: %d\n",
+  cbs_mb->tmb_handle->handle
+);
+  */
+
+  taskENTER_CRITICAL();
   vTaskSuspend(cbs_mb->tmb_handle->handle);
+  cbs_mb->tmb_handle->is_done = true;
+  taskEXIT_CRITICAL();
   // printf("cbs_mb->tmb_handle->aperiodic.is_runnable: %d\n", cbs_mb->tmb_handle->aperiodic.is_runnable);
 }
 
@@ -89,6 +89,7 @@ static void CBS_master_task(void *pvParameters) {
 // (e.g., as a field "current_gpio_pin")
 
 BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
+  configASSERT(Qs > 0);
   CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
   // NB: current implementation of CBS assues CBS servers are always initialized at beginning
   pxServer->dsk     = 0;
@@ -124,6 +125,9 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
     (void *)pxServer,
     false
   );
+  // Newly created CBS server is considered "done" since it has no tasks to execute
+  // and should not be considered for execution
+  pxServer->tmb_handle->is_done = true;
 
   // printf("create_cbs_server - CBS_create_master_task post \n");
 };
@@ -132,8 +136,7 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
   CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
   if (q_empty(&pxServer->aperiodic_tasks)) {
     // printf("CBS_create_aperiodic_task - setting pxServer->tmb_handle->aperiodic.is_runnnable to true\n");
-    pxServer->tmb_handle->is_done = false;
-    printf("CBS_create_aperiodic_task - calling vTaskResume...\n");
+    // printf("CBS_create_aperiodic_task - calling vTaskResume...\n");
     vTaskResume(pxServer->tmb_handle->handle);
     // TODO: might need to be wary about doing arithmethic with TickType_t
     TickType_t current_timestamp = xTaskGetTickCount();
@@ -142,11 +145,18 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
       ((double)pxServer->dsk - (double)current_timestamp) * ((double)pxServer->Qs / (double)pxServer->Ts)
     ) {
       pxServer->dsk = current_timestamp + pxServer->Ts;
-      pxServer->cs  = pxServer->Qs;
+
+      // printf("Tick: %d\n", current_timestamp);
+      // printf("CBS_create_aperiodic_task - set new deadline and refill pxServer->cs\n");
+
+      pxServer->cs = pxServer->Qs;
       // TODO remove?
       // pxServer->is_idle = false;
       pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
     }
+    // printf("CBS_create_aperiodic_task: set tmb_handle->absolute_deadline to %d\n", pxServer->dsk);
+    pxServer->tmb_handle->is_done = false;
+    // printf("CBS_create_aperiodic_task: set is_done to false\n");
   }
 
   // printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
@@ -159,34 +169,31 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 // NB: enqueueing structs "wrapping around" task_function could be one way to potentially
 // integrate tracing into the data structures we enqueue themselves (e.g., add a field called
 // `gpio_pin` to determine which GPIO pin to turn on for a particular soft real-time aperiodic task)
+
+// ASSUMPTION: current_task is task GURANTEED to run this current time slice
+// ASSUMPTION: CBS_update_budget is called every time slice
+// INVARIANT: last_server->cs > 0 at entry of function (i.e., server capacity > 0 must hold)
 BaseType_t CBS_update_budget(TMB_t *current_task) {
   const TickType_t now              = xTaskGetTickCount();
   BaseType_t       budget_exhausted = pdFALSE;
   CBS_MB_t        *server           = find_cbs_server_by_tmb(current_task);
-  cbs_manager.last_timestamp        = now;
   if (server == NULL) {
-    cbs_manager.last_cbs_task = NULL;
     return pdFALSE;
   }
-  if (cbs_manager.last_cbs_task != NULL && current_task == cbs_manager.last_cbs_task) {
-    // NB: guard below should technically not be necessary
-    TickType_t elapsed = now - cbs_manager.last_timestamp;
-    // Safe Subtraction (Underflow Guard)
-    if (elapsed >= server->cs) {
-      server->cs       = 0;
-      budget_exhausted = pdTRUE;
-    } else {
-      server->cs -= elapsed;
-    }
-    if (budget_exhausted) {
-      server->dsk += server->Ts;
-      server->tmb_handle->absolute_deadline = server->dsk;
-      server->cs                            = server->Qs;
-    }
+  TickType_t count = xTaskGetTickCount();
+  // printf("Tick %d: server->cs - pre: %lu\n", count, server->cs);
+  server->cs -= 1;
+  // printf("Tick %d: server->cs - post: %lu\n", count, server->cs);
+
+  if (server->cs == 0) {
+    // printf("CBS_update_budget: current tick %d : budget exhausted\n", xTaskGetTickCount());
+    server->dsk += server->Ts;
+    // REQUIRES: CBS_update_budget must be called AFTER choosing of highest_priority_task
+    server->tmb_handle->absolute_deadline = server->dsk;
+    server->cs                            = server->Qs;
+    return pdTRUE;
   }
-  cbs_manager.last_timestamp = now;
-  cbs_manager.last_cbs_task  = current_task;
-  return budget_exhausted;
+  return pdFALSE;
 };
 
 #endif // USE_CBS

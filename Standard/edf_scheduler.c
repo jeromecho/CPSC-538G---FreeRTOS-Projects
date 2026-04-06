@@ -49,7 +49,7 @@ void          deadline_miss(const TMB_t *const task);
 
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
-static bool is_aperiodic_ready(TMB_t *t) { return t->aperiodic.is_runnable; };
+static bool is_aperiodic_ready(TMB_t *t) { return !t->is_done; };
 
 ; // ==================================
 ; // === FUNCTION HOOK DECLARATIONS ===
@@ -77,7 +77,35 @@ TMB_t *EDF_produce_highest_priority_task() {
     (periodic_candidate != NULL) ? periodic_candidate->absolute_deadline : portMAX_DELAY;
   const TickType_t aperiodic_deadline =
     (aperiodic_candidate != NULL) ? aperiodic_candidate->absolute_deadline : portMAX_DELAY;
-  TMB_t *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
+
+
+  TickType_t count     = xTaskGetTickCount();
+  TMB_t     *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
+
+  if (count < 4) {
+
+    /*
+    printf(
+      "Tick %d: EDF_produce_highest_priority_task: periodic_candidate.handle %d\n", count, periodic_candidate->handle
+    )
+    printf(
+      "Tick %d: EDF_produce_highest_priority_task: aperiodic_candidate.handle %d\n", count, aperiodic_candidate->handle
+    );
+    */
+    /*
+     printf("Tick %d: EDF_produce_highest_priority_task: portMAX_DELAY %lu\n", count, portMAX_DELAY);
+     printf("Tick %d: EDF_produce_highest_priority_task: periodic_deadline %lu\n", count, periodic_deadline);
+     printf("Tick %d: EDF_produce_highest_priority_task: aperiodic_deadline %lu\n", count, aperiodic_deadline);
+    */
+    // printf("candidate == periodic_candidate: %d\n", candidate == periodic_candidate);
+    /*
+    UBaseType_t priority = uxTaskPriorityGet(aperiodic_tasks[0].handle);
+    printf("uxTaskPriorityGet(aperiodic_tasks[0].handle): %d\n", priority);
+    priority = uxTaskPriorityGet(periodic_candidate->handle);
+    printf("uxTaskPriorityGet(periodic_candidate->handle): %d\n", priority);
+    */
+  }
+
 
   return candidate;
 }
@@ -133,10 +161,12 @@ BaseType_t _create_task_internal(
 ) {
   new_task->parameters = parameters;
 
+  /*
   printf("_create_task_internal: new_task->parameters.completion_time %d\n", new_task->parameters.completion_time);
   printf(
     "_create_task_internal: new_task->parameters.parameters_remaining %d\n", new_task->parameters.parameters_remaining
   );
+  */
 
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
@@ -186,6 +216,7 @@ BaseType_t _create_periodic_task_internal(
   parameters.completion_time      = completion_time;
   parameters.parameters_remaining = NULL;
 
+  // printf("_create_periodic_task_internal - calling _create_task_internal\n");
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
@@ -223,7 +254,6 @@ BaseType_t _create_periodic_task_internal(
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
   }
-
   return pdPASS;
 }
 
@@ -248,10 +278,6 @@ BaseType_t _create_aperiodic_task_internal(
   SchedulerParameters_t parameters;
   parameters.completion_time      = completion_time;
   parameters.parameters_remaining = parameters_remaining;
-
-  printf("_create_aperiodic_task_internal - passing %d for is_hard_rt\n", is_hard_rt);
-  printf("_create_aperiodic_task_internal - parameters.completion_time: %d\n", parameters.completion_time);
-  printf("_create_aperiodic_task_internal - parameters.parameters_remaining: %d\n", parameters.parameters_remaining);
 
   BaseType_t result = _create_task_internal( //
     task_function,
@@ -320,9 +346,6 @@ BaseType_t EDF_create_aperiodic_task(
   void             *parameters_remaining,
   bool              is_hard_rt
 ) {
-
-  printf("EDF_create_aperiodic_task - completion_time: %d\n", completion_time);
-  printf("EDF_create_aperiodic_task - parameters_remaining: %d\n", parameters_remaining);
 
   return _create_aperiodic_task_internal( //
     task_function,
@@ -446,6 +469,10 @@ static void set_highest_priority(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
+  /*
+  TickType_t count = xTaskGetTickCount();
+  printf("Tick %d: vTaskPrioritySet to PRIORITY_RUNNING for %d\n", count, task->handle);
+  */
   vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
 
   TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
@@ -456,6 +483,10 @@ static void deprioritize_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
+  /*
+  TickType_t count = xTaskGetTickCount();
+  printf("Tick %d: vTaskPrioritySet to PRIORITY_NOT_RUNNING for %d\n", count, task->handle);
+  */
   vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
 
   TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
@@ -476,9 +507,13 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t             *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
 
+  TickType_t count = xTaskGetTickCount();
   if (highest_priority_task == NULL) {
     // No EDF tasks want to run.
     // We only need to update if an EDF task is currently running and needs to be stopped.
+    if (count == 3) {
+      // printf("Tick %d: should_update_priorities: current_task_tmb\n", count, current_task_tmb);
+    }
     return current_task_tmb != NULL;
   }
 
@@ -488,6 +523,17 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
     return false;
   }
 
+  /*
+  if (count < 3) {
+    printf("Tick %d: highest_priority_task->handle: %d\n", count, highest_priority_task->handle);
+    printf("Tick %d: highest_priority_task->absolute_deadline: %lu\n", count, highest_priority_task->absolute_deadline);
+    printf("Tick %d: current_task_handle: %d\n", count, current_task_handle);
+    printf("Tick %d: aperiodic_tasks[0].handle: %d\n", count, aperiodic_tasks[0].handle);
+    printf("Tick %d: aperiodic_tasks[0].absolute_deadline: %lu\n", count, aperiodic_tasks[0].absolute_deadline);
+    printf("Tick %d: aperiodic_tasks[0].is_done: %d\n", count, aperiodic_tasks[0].is_done);
+  }
+   */
+
   // An EDF task wants to run. Only return true if it is not already running?
   return highest_priority_task->handle != current_task_handle;
 }
@@ -496,15 +542,54 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 /// priority task.
 void update_priorities() {
   TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
-  const bool   should_update         = should_update_priorities(highest_priority_task);
+  TaskHandle_t current_task_handle   = xTaskGetCurrentTaskHandle();
+  TMB_t       *current_task          = EDF_get_task_by_handle(current_task_handle);
+
+  /*
+  if (count == 3) {
+    printf("Tick: %d - entering update_priorities...\n", count);
+  }
+  */
+
+#if USE_CBS
+  // ASSUMPTION: highest_priority_task is going to be the task that runs this time slice
+  // with no exceptions
+  CBS_update_budget(highest_priority_task);
+#endif // USE_CBS
+
+  /*
+  if (count < 8) {
+    // printf("update_priorities: highest_priority_task %d\n", highest_priority_task);
+    // char        *pcTaskName;
+    // Pass NULL to get the name of the calling task
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    // pcTaskName                = pcTaskGetName(current_task);
+    // Print or use pcTaskName
+    // printf("Current task Name: %s\n", pcTaskName);
+    // printf("=======================\n");
+    printf("Tick: %d\n", count);
+    printf("Current task handle beginning: %d\n", current_task);
+    // printf("periodic_tasks[0].handle: %d\n", periodic_tasks[0].handle);
+    // printf("aperiodic_tasks[0].handle: %d\n", aperiodic_tasks[0].handle);
+    // printf("=======================\n");
+  }
+   */
+
+  const bool should_update = should_update_priorities(highest_priority_task);
   if (!should_update) {
+    // printf("Tick: %d - nothing to update!\n", count);
     return;
   }
 
+  /*
+  if (count < 8) {
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    // printf("Tick: %d: updating priorities...\n", count);
+  }
+  */
+
   TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
 
-  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
   // configASSERT(current_task != NULL);
 
   if (current_task != NULL) {
@@ -528,9 +613,15 @@ void update_priorities() {
     }
 #endif // USE_SRP
 
-#if USE_CBS
-    CBS_update_budget(highest_priority_task);
-#endif // USE_CBS
+
+    TickType_t   count        = xTaskGetTickCount();
+    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+    /*
+    printf("Tick %d: aperiodic_tasks[0].handle: %d\n", count, aperiodic_tasks[0].handle);
+    // printf("Current task handle end: %d\n", current_task);
+    printf("highest_priority_task.handle: %d\n", highest_priority_task->handle);
+    printf("-----------------------------\n");
+    */
 
     set_highest_priority(highest_priority_task);
   }
@@ -598,33 +689,22 @@ void deadline_miss(const TMB_t *const task) {
 void vApplicationTickHook(void) {
   reschedule_periodic_tasks();
 
-  if (xTaskGetTickCount() % 50 == 0) {
-    printf("current tick count %d\n", xTaskGetTickCount());
-  }
-
   /*
-  Q: Fundamentally, does it ever matter if a CBS master task "misses its deadline"?
-
-  - CBS servers fundamentally serve soft real-time tasks
-  - Scheduler should be sensitive to the deadline of a CBS master task, however
-
-  Q: What does a deadline miss fundamentally mean for a CBS task?
-  - `Current tick count` > dsk of CBS
-  - In vanilla CBS, dsk is updated in the following scenarios:
-    - Servers budget runs out
-    - Task arrives and its execution time is bigger than a bound computed using
-      deadline and release time
-  * deadlines are computed repeatedly for CBS
-
-  - In Vanilla CBS, it is totally okay for CBS master tasks to have a deadline that
-  "lags behind" the current tick count
-    - Solutions:
-      - Create a new flag-conditioned CBS_master_task type alongside periodic and aperiodic
-        and check for this condition in the aperiodic tasks check
-      - Create a separate array in EDF for CBS master tasks
-
-
-  */
+  if (xTaskGetTickCount() % pdMS_TO_TICKS(1) == 0 && xTaskGetTickCount() > 0) {
+    printf("------------------------------------------\n");
+    printf("------------------------------------------\n");
+    printf("current tick count %d\n", xTaskGetTickCount());
+    const UBaseType_t task_priority = uxTaskPriorityGet(aperiodic_tasks[0].handle);
+    TaskHandle_t      handle        = xTaskGetCurrentTaskHandle();
+    printf("current task handle: %d\n", handle);
+    printf("aperiodic_tasks[0].handle: %d\n", aperiodic_tasks[0].handle);
+    printf("uxTaskPriorityGet(aperiodic_tasks[0].handle) %d\n", task_priority);
+    printf("------------------------------------------\n");
+    TaskHandle_t idle_handle = xTaskGetIdleTaskHandle();
+    printf("idle_handle: %d\n", idle_handle);
+    printf("uxTaskPriorityGet(idle_handle): %d\n", uxTaskPriorityGet(idle_handle));
+  }
+   */
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 

@@ -8,16 +8,24 @@
 #include "helpers.h"
 #include <stdio.h>
 
-#define GENERATE_APERIODIC_TASK(name, ticks)                                                                           \
+// ======= FUNCTION MACROS ========
+// ================================
+
+#define GENERATE_APERIODIC_TASK(name, ms)                                                                              \
   BaseType_t CBS_task_##name(void) {                                                                                   \
-    printf("executing for %d ticks\n", ticks);                                                                         \
-    execute_for_ticks(ticks);                                                                                          \
-    printf("executed for %d ticks\n", ticks);                                                                          \
+    execute_for_ticks(pdMS_TO_TICKS(ms));                                                                              \
     return pdTRUE;                                                                                                     \
   }
 
 GENERATE_APERIODIC_TASK(400, 400)
 GENERATE_APERIODIC_TASK(300, 300)
+GENERATE_APERIODIC_TASK(4, 4)
+GENERATE_APERIODIC_TASK(3, 3)
+
+// ========== CONSTANTS ===========
+// ================================
+
+const int CBS_SERVER1_ID = 1;
 
 // Wrapper over periodic task
 BaseType_t platform_create_periodic_task(
@@ -41,46 +49,45 @@ BaseType_t platform_create_periodic_task(
 ; // ====================================
 
 void vTestRunner1() {
-  /*
-   */
-
-  // Q: Bug is at initialization?
-  const int CBS_SERVER_ID = 1;
-
-  printf("vTestRunner1 - create_cbs_server - pre\n");
-  create_cbs_server(pdMS_TO_TICKS(300), pdMS_TO_TICKS(800), CBS_SERVER_ID);
-  printf("vTestRunner1 - create_cbs_server - post\n");
-  /*
-   */
-
-  // TODO - refactor below with function building periodic task based on given CONFIGURATION
-  /*
-  printf("vTestRunner1 - platform_create_periodic_task - pre\n");
-  platform_create_periodic_task(
-    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(400), pdMS_TO_TICKS(700), pdMS_TO_TICKS(700), NULL
-  );
-  printf("vTestRunner1 - platform_create_periodic_task - post\n");
-
-  vTaskDelay(pdMS_TO_TICKS(300));
-   */
-
-  printf("vTestRunner1 - calling CBS_create_aperiodic_task\n");
-  printf("vTestRunner1 - CBS_task_400 %d\n", CBS_task_400);
-  CBS_create_aperiodic_task(CBS_task_400, CBS_SERVER_ID);
-  printf("vTestRunner1 - called CBS_create_aperiodic_task\n");
-  vTaskDelay(pdMS_TO_TICKS(1000));
-
-  /*
-  CBS_create_aperiodic_task(CBS_task_300, CBS_SERVER_ID);
-  */
-  printf("vTestRunner1 - vTaskDelay - pre\n");
-  vTaskDelay(pdMS_TO_TICKS(1100));
-  printf("vTestRunner1 - vTaskDelete - pre\n");
+  vTaskDelay(pdMS_TO_TICKS(3));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
+  vTaskDelay(pdMS_TO_TICKS(10));
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
+  vTaskDelay(pdMS_TO_TICKS(11));
   vTaskDelete(NULL);
+}
+
+void vTestRunner2() {
+  const int CBS_SERVER_ID = 1;
+  create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER_ID);
+  for (size_t i = 0; i < CBS_QUEUE_CAPACITY; i++) {
+    CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER_ID);
+  }
+  /*
+   */
+  vTaskDelay(pdMS_TO_TICKS(50));
+  vTaskDelete(NULL);
+}
+
+// Multiple tasks queueing up on 1 CBS server
+TickType_t cbs_test_2() {
+  xTaskCreate( //
+    vTestRunner2,
+    "test runner 2",
+    configMINIMAL_STACK_SIZE,
+    NULL, // Task parameter
+    2,    // Task priority
+    NULL
+  );
+  return pdMS_TO_TICKS(50);
 }
 
 // Smoke test (textbook pg.190): 1 periodic task with 2 aperiodic tasks; 1 CBS server
 TickType_t cbs_test_1() {
+  create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
+  platform_create_periodic_task(
+    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(4), pdMS_TO_TICKS(7), pdMS_TO_TICKS(7), NULL
+  );
   xTaskCreate( //
     vTestRunner1,
     "test runner 1",
@@ -90,5 +97,5 @@ TickType_t cbs_test_1() {
     NULL
   );
 
-  return pdMS_TO_TICKS(2100);
+  return pdMS_TO_TICKS(21);
 }
