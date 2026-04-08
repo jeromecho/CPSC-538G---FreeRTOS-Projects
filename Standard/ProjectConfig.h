@@ -43,13 +43,13 @@
       #define ENABLE_STACK_SHARING    1
     #elif TEST_NR == 5
       #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 25
+      #define MAXIMUM_APERIODIC_TASKS 100
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     5
       #define ENABLE_STACK_SHARING    0
     #elif TEST_NR == 6
       #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 25
+      #define MAXIMUM_APERIODIC_TASKS 100
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     5
       #define ENABLE_STACK_SHARING    1
