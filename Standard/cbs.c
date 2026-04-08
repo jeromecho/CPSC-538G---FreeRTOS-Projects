@@ -8,9 +8,6 @@ SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
 StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
 CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
 
-
-static CBS_Manager_t cbs_manager = {.last_cbs_task = NULL, .last_timestamp = 0};
-
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
 /**
