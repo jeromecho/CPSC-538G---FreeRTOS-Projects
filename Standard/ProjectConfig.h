@@ -6,7 +6,7 @@
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 0
 #define USE_CBS 1
-#define TEST_NR 1
+#define TEST_NR 2
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         300
@@ -22,6 +22,51 @@
       #define MAXIMUM_APERIODIC_TASKS 1
     #elif TEST_NR == 2
       #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 3 
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 4
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 5
+      #define MAXIMUM_PERIODIC_TASKS  2
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 6
+      #define MAXIMUM_PERIODIC_TASKS  2
+      #define MAXIMUM_APERIODIC_TASKS 2
+    #elif TEST_NR == 7
+      #define MAXIMUM_PERIODIC_TASKS  2
+      #define MAXIMUM_APERIODIC_TASKS 2
+    #elif TEST_NR == 8
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 2
+    #elif TEST_NR == 9
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 2
+    #elif TEST_NR == 10
+      #define MAXIMUM_PERIODIC_TASKS  0
+      #define MAXIMUM_APERIODIC_TASKS 3
+    #elif TEST_NR == 11
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 2
+    #elif TEST_NR == 12
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 3
+    #elif TEST_NR == 13
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 14
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 15
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 16
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 17
+      #define MAXIMUM_PERIODIC_TASKS  1
       #define MAXIMUM_APERIODIC_TASKS 1
     #else
       #error "Invalid or undefined TEST_NR"
