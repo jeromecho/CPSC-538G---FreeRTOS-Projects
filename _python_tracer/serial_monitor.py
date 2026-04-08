@@ -145,7 +145,7 @@ def plot_rtos_trace(csv_data, plot_title):
 
             # Append ID only for periodic/aperiodic tasks
             if t_type in [1, 2]:
-                return f"{base_name} {t_id:02}"
+                return f"{base_name} {t_id:03}"
             return base_name
 
         df["TASK_NAME"] = df.apply(get_task_name, axis=1)
@@ -155,63 +155,142 @@ def plot_rtos_trace(csv_data, plot_title):
         task_y_map = {task: i for i, task in enumerate(unique_tasks)}
 
         # 1. Calculate Execution Bars
-        df_switches = df[
-            df["EVENT"].isin([TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT])
-        ].copy()
+        # We rely on the original file order so SWITCH_OUT correctly precedes SWITCH_IN on identical ticks
+        df_sorted = df.copy()
         exec_bars = []
-        active_ins = {}
+        active_task = None
+        current_segment_start = None
+        current_in_row = None
 
-        for _, row in df_switches.iterrows():
+        # Track the active resource per task (None means normal execution)
+        task_resource = {task: None for task in unique_tasks}
+
+        for _, row in df_sorted.iterrows():
             t_name = row["TASK_NAME"]
+            event = row["EVENT"]
+            timestamp = row["TIMESTAMP"]
 
-            if row["EVENT"] == TraceEvent.TRACE_SWITCH_IN:
-                active_ins[t_name] = row
-            elif row["EVENT"] == TraceEvent.TRACE_SWITCH_OUT:
-                if t_name in active_ins:
-                    current_in = active_ins[t_name]
+            if event == TraceEvent.TRACE_SWITCH_IN:
+                active_task = t_name
+                current_segment_start = timestamp
+                current_in_row = row
+
+            elif event == TraceEvent.TRACE_SWITCH_OUT:
+                if (
+                    active_task == t_name
+                    and current_segment_start is not None
+                    and current_in_row is not None
+                ):
                     exec_bars.append(
                         {
-                            "TASK_NAME": current_in["TASK_NAME"],
-                            "TIMESTAMP": current_in["TIMESTAMP"],
-                            "END_TIMESTAMP": row["TIMESTAMP"],
-                            "DURATION": row["TIMESTAMP"] - current_in["TIMESTAMP"],
-                            "ABS_TIME_START": current_in["ABS_TIME"],
+                            "TASK_NAME": t_name,
+                            "TIMESTAMP": current_segment_start,
+                            "END_TIMESTAMP": timestamp,
+                            "DURATION": timestamp - current_segment_start,
+                            "ABS_TIME_START": current_in_row["ABS_TIME"],
                             "ABS_TIME_END": row["ABS_TIME"],
-                            "PRIORITY": current_in["PRIORITY"],
+                            "PRIORITY": current_in_row["PRIORITY"],
                             "TASK_STATE": TASK_STATES.get(
-                                current_in["TASK_STATE"], "Unknown"
+                                current_in_row["TASK_STATE"], "Unknown"
                             ),
-                            "DEADLINE": current_in["DEADLINE"],
-                            "PREEMPT_LVL": current_in["PREEMPT_LVL"],
-                            "CEILING": current_in["CEILING"],
-                            "RESOURCE": current_in["RESOURCE"],
+                            "DEADLINE": current_in_row["DEADLINE"],
+                            "PREEMPT_LVL": current_in_row["PREEMPT_LVL"],
+                            "CEILING": current_in_row["CEILING"],
+                            "RESOURCE": task_resource[t_name],  # Tracked resource
                         }
                     )
-                    del active_ins[t_name]
+                    active_task = None
+                    current_segment_start = None
 
-        if active_ins:
+            elif event == TraceEvent.TRACE_SEMAPHORE_TAKE:
+                task_resource[t_name] = row["RESOURCE"]
+
+                if (
+                    active_task == t_name
+                    and current_segment_start is not None
+                    and current_in_row is not None
+                ):
+                    # Split bar: Close normal segment
+                    if timestamp > current_segment_start:
+                        exec_bars.append(
+                            {
+                                "TASK_NAME": t_name,
+                                "TIMESTAMP": current_segment_start,
+                                "END_TIMESTAMP": timestamp,
+                                "DURATION": timestamp - current_segment_start,
+                                "ABS_TIME_START": current_in_row["ABS_TIME"],
+                                "ABS_TIME_END": row["ABS_TIME"],
+                                "PRIORITY": current_in_row["PRIORITY"],
+                                "TASK_STATE": TASK_STATES.get(
+                                    current_in_row["TASK_STATE"], "Unknown"
+                                ),
+                                "DEADLINE": current_in_row["DEADLINE"],
+                                "PREEMPT_LVL": current_in_row["PREEMPT_LVL"],
+                                "CEILING": current_in_row["CEILING"],
+                                "RESOURCE": None,  # Was normal
+                            }
+                        )
+                    current_segment_start = timestamp
+                    current_in_row = row
+
+            elif event == TraceEvent.TRACE_SEMAPHORE_GIVE:
+                held_res = task_resource[t_name]
+                task_resource[t_name] = None
+
+                if (
+                    active_task == t_name
+                    and current_segment_start is not None
+                    and current_in_row is not None
+                ):
+                    # Split bar: Close resource segment
+                    if timestamp > current_segment_start:
+                        exec_bars.append(
+                            {
+                                "TASK_NAME": t_name,
+                                "TIMESTAMP": current_segment_start,
+                                "END_TIMESTAMP": timestamp,
+                                "DURATION": timestamp - current_segment_start,
+                                "ABS_TIME_START": current_in_row["ABS_TIME"],
+                                "ABS_TIME_END": row["ABS_TIME"],
+                                "PRIORITY": current_in_row["PRIORITY"],
+                                "TASK_STATE": TASK_STATES.get(
+                                    current_in_row["TASK_STATE"], "Unknown"
+                                ),
+                                "DEADLINE": current_in_row["DEADLINE"],
+                                "PREEMPT_LVL": current_in_row["PREEMPT_LVL"],
+                                "CEILING": current_in_row["CEILING"],
+                                "RESOURCE": held_res,  # Was holding resource
+                            }
+                        )
+                    current_segment_start = timestamp
+                    current_in_row = row
+
+        # Handle edge case: Trace ends while a task is still active
+        if (
+            active_task
+            and current_segment_start is not None
+            and current_in_row is not None
+        ):
             last_timestamp = df["TIMESTAMP"].max()
             last_abs_time = df["ABS_TIME"].max()
-
-            for t_name, current_in in active_ins.items():
-                exec_bars.append(
-                    {
-                        "TASK_NAME": current_in["TASK_NAME"],
-                        "TIMESTAMP": current_in["TIMESTAMP"],
-                        "END_TIMESTAMP": last_timestamp,
-                        "DURATION": last_timestamp - current_in["TIMESTAMP"],
-                        "ABS_TIME_START": current_in["ABS_TIME"],
-                        "ABS_TIME_END": last_abs_time,
-                        "PRIORITY": current_in["PRIORITY"],
-                        "TASK_STATE": TASK_STATES.get(
-                            current_in["TASK_STATE"], "Unknown"
-                        ),
-                        "DEADLINE": current_in["DEADLINE"],
-                        "PREEMPT_LVL": current_in["PREEMPT_LVL"],
-                        "CEILING": current_in["CEILING"],
-                        "RESOURCE": current_in["RESOURCE"],
-                    }
-                )
+            exec_bars.append(
+                {
+                    "TASK_NAME": active_task,
+                    "TIMESTAMP": current_segment_start,
+                    "END_TIMESTAMP": last_timestamp,
+                    "DURATION": last_timestamp - current_segment_start,
+                    "ABS_TIME_START": current_in_row["ABS_TIME"],
+                    "ABS_TIME_END": last_abs_time,
+                    "PRIORITY": current_in_row["PRIORITY"],
+                    "TASK_STATE": TASK_STATES.get(
+                        current_in_row["TASK_STATE"], "Unknown"
+                    ),
+                    "DEADLINE": current_in_row["DEADLINE"],
+                    "PREEMPT_LVL": current_in_row["PREEMPT_LVL"],
+                    "CEILING": current_in_row["CEILING"],
+                    "RESOURCE": task_resource[active_task],
+                }
+            )
 
         df_exec = pd.DataFrame(exec_bars)
         df_events = df.copy()
@@ -261,12 +340,29 @@ def plot_rtos_trace(csv_data, plot_title):
 
         # Add execution bars
         if not df_exec.empty:
+            # Color map for resources (Matches your reference image style)
+            res_color_map = [
+                "#DE6046",  # Red
+                "#656EF2",  # Blue
+                "#F2A667",  # Yellow
+                "#A167F2",  # Magenta
+                "#63D0EF",  # Light blue
+            ]
+
             for task_name in df_exec["TASK_NAME"].unique():
                 df_task = df_exec[df_exec["TASK_NAME"] == task_name].copy()
 
                 df_task["US_DURATION"] = (
                     df_task["ABS_TIME_END"] - df_task["ABS_TIME_START"]
                 )
+
+                # Assign colors dynamically: base color is green; map resources to specific colors
+                def get_bar_color(res_id):
+                    if pd.isna(res_id) or res_id is None or res_id == UINT8_MAX:
+                        return "#5CC99A"
+                    return res_color_map[int(res_id) % len(res_color_map)]
+
+                df_task["BAR_COLOR"] = df_task["RESOURCE"].apply(get_bar_color)
 
                 # Apply the dynamic builder function
                 df_task["HOVER_TEXT"] = df_task.apply(build_bar_hover, axis=1)
@@ -275,12 +371,16 @@ def plot_rtos_trace(csv_data, plot_title):
                     go.Bar(
                         base=df_task["TIMESTAMP"],
                         x=df_task["DURATION"],
-                        y=df_task["TASK_NAME"].map(task_y_map),  # Map to numeric
+                        y=df_task["TASK_NAME"].map(task_y_map),
                         orientation="h",
                         name=task_name,
-                        marker=dict(line=dict(width=1, color="black")),
+                        marker=dict(
+                            line=dict(width=1, color="black"),
+                            color=df_task["BAR_COLOR"],
+                        ),
                         hovertext=df_task["HOVER_TEXT"],
                         hoverinfo="text",
+                        showlegend=False,
                     )
                 )
 
