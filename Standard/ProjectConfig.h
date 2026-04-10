@@ -8,7 +8,7 @@
 #define TEST_NR 2
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
-#define MAX_TRACE_RECORDS         300
+#define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0
 
 // clang-format off

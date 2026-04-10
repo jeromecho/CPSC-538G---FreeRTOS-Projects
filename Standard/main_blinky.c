@@ -89,6 +89,11 @@
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
 
+// Compile-time assertions
+#if configNUMBER_OF_CORES <= 0
+#error "configNUMBER_OF_CORES should always be a positive integer!"
+#endif // configNUMBER_OF_CORES
+
 /*-----------------------------------------------------------*/
 
 /*
@@ -105,27 +110,17 @@ TickType_t run_test();
 
 /*-----------------------------------------------------------*/
 
+TaskHandle_t monitor_task_handle = NULL;
+
 void vTraceMonitorTask(void *pvParameters) {
   const TickType_t test_duration_ticks = pdMS_TO_TICKS((TickType_t)(uintptr_t)pvParameters);
-  const uint32_t   notified            = ulTaskNotifyTake(pdTRUE, test_duration_ticks);
 
-  if (notified > 0U) {
-    TickType_t  miss_time     = 0;
-    UBaseType_t miss_task_id  = 0;
-    TickType_t  miss_deadline = 0;
+  // Either sleeps for the specified duration, or is forced to wake by task notification due to something like a
+  // deadline miss
+  ulTaskNotifyTake(pdTRUE, test_duration_ticks);
 
-    if (EDF_take_pending_deadline_miss(&miss_time, &miss_task_id, &miss_deadline) == pdTRUE) {
-      crash_with_trace(
-        "Time: %u FATAL: Task %u missed its deadline of %u ticks!\n",
-        (unsigned int)miss_time,
-        (unsigned int)miss_task_id,
-        (unsigned int)miss_deadline
-      );
-    }
-
-    crash_with_trace("FATAL: Monitor notified without pending deadline miss.");
-  }
-
+  // The test is over, so output trace
+  vTaskSuspendAll();
   TRACE_disable();
   crash_with_trace("");
 }
@@ -146,8 +141,7 @@ void main_blinky(void) {
 #if !TRACE_WITH_LOGIC_ANALYZER
   // This creates the monitor task, which is responsible for printing all trace data after a certain amount of time has
   // passed. It doesn't interfere with the scheduling.
-  TaskHandle_t     monitor_task_handle = NULL;
-  const BaseType_t monitor_created     = xTaskCreate(
+  const BaseType_t monitor_created = xTaskCreate(
     vTraceMonitorTask,
     "Monitor",
     configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
@@ -157,16 +151,15 @@ void main_blinky(void) {
   );
 
   if (monitor_created != pdPASS) {
+    vTaskSuspendAll();
     crash_without_trace("Failed to create monitor task; trace output will be unavailable.");
   }
 
 #if (configUSE_CORE_AFFINITY == 1)
   const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
   vTaskCoreAffinitySet(monitor_task_handle, core_affinity_mask);
-#endif
-
-  EDF_register_trace_monitor_task(monitor_task_handle);
-#endif
+#endif // configUSE_CORE_AFFINITY
+#endif // TRACE_WITH_LOGIC_ANALYZER
 
   /* Start the tasks and timer running. */
   EDF_scheduler_start();

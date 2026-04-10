@@ -64,28 +64,20 @@ void SRP_pop_ceiling(void) {
 // TODO: Semaphore logic should be implemented using actual FreeRTOS semaphores and tick hooks
 BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   taskENTER_CRITICAL();
+
   configASSERT(semaphoreIdx < N_RESOURCES);
+  configASSERT(srp_state.resource_availability[semaphoreIdx] == 1);
 
-  if (srp_state.resource_availability[semaphoreIdx] == 1) {
-    srp_state.resource_availability[semaphoreIdx] = 0;
+  srp_state.resource_availability[semaphoreIdx] = 0;
 
-    SRP_push_ceiling(resource_ceilings[semaphoreIdx]);
+  SRP_push_ceiling(resource_ceilings[semaphoreIdx]);
 
-    const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-    const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-    TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
+  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
+  TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
 
-    taskEXIT_CRITICAL();
-    return pdTRUE;
-  } else {
-    taskEXIT_CRITICAL();
-    crash_with_trace(
-      "Tick: %u FATAL: SRP Scheduler failed to prevent preemption. Resource %u is locked!\n",
-      xTaskGetTickCount(),
-      semaphoreIdx
-    );
-    return pdFALSE;
-  }
+  taskEXIT_CRITICAL();
+  return pdTRUE;
 }
 
 void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
