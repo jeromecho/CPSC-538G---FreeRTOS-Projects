@@ -106,7 +106,6 @@ TMB_t *EDF_produce_highest_priority_task() {
     */
   }
 
-
   return candidate;
 }
 
@@ -135,7 +134,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   SRP_pop_ceiling();
 #endif // USE_SRP
 
-  if (xTaskGetTickCount() > task_tmb->absolute_deadline) {
+  if (xTaskGetTickCount() > task_tmb->absolute_deadline && task_tmb->is_hard_rt) {
     taskEXIT_CRITICAL();
     deadline_miss(task_tmb);
   }
@@ -541,57 +540,28 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 /// @brief Updates priorities of the (potentially) currently running task, as well as the (potentially) new highest
 /// priority task.
 void update_priorities() {
-  TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
+  TMB_t       *highest_priority_task = EDF_produce_highest_priority_task();
   TaskHandle_t current_task_handle   = xTaskGetCurrentTaskHandle();
   TMB_t       *current_task          = EDF_get_task_by_handle(current_task_handle);
 
-  /*
-  if (count == 3) {
-    printf("Tick: %d - entering update_priorities...\n", count);
-  }
-  */
+  TickType_t count = xTaskGetTickCount();
+
+  const bool should_update = should_update_priorities(highest_priority_task);
 
 #if USE_CBS
-  // ASSUMPTION: highest_priority_task is going to be the task that runs this time slice
-  // with no exceptions
+  // NB: Ordering matters here - CBS_update_budget should be called after
+  // should_update_priorities is called
   CBS_update_budget(highest_priority_task);
 #endif // USE_CBS
 
-  /*
-  if (count < 8) {
-    // printf("update_priorities: highest_priority_task %d\n", highest_priority_task);
-    // char        *pcTaskName;
-    // Pass NULL to get the name of the calling task
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-    // pcTaskName                = pcTaskGetName(current_task);
-    // Print or use pcTaskName
-    // printf("Current task Name: %s\n", pcTaskName);
-    // printf("=======================\n");
-    printf("Tick: %d\n", count);
-    printf("Current task handle beginning: %d\n", current_task);
-    // printf("periodic_tasks[0].handle: %d\n", periodic_tasks[0].handle);
-    // printf("aperiodic_tasks[0].handle: %d\n", aperiodic_tasks[0].handle);
-    // printf("=======================\n");
-  }
-   */
-
-  const bool should_update = should_update_priorities(highest_priority_task);
   if (!should_update) {
     // printf("Tick: %d - nothing to update!\n", count);
     return;
   }
 
-  /*
-  if (count < 8) {
-    TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-    // printf("Tick: %d: updating priorities...\n", count);
-  }
-  */
-
   TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
 
   // configASSERT(current_task != NULL);
-
   if (current_task != NULL) {
     const UBaseType_t task_priority = uxTaskPriorityGet(current_task_handle);
     if (task_priority == PRIORITY_RUNNING) {
@@ -687,6 +657,9 @@ void deadline_miss(const TMB_t *const task) {
 
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
+  // Alis for entering and exiting the vApplicationTickHook
+  // TRACE_record(EVENT_SEMAPHORE_TAKE(0), TRACE_TASK_SYSTEM, NULL);
+
   reschedule_periodic_tasks();
 
   /*
@@ -709,6 +682,7 @@ void vApplicationTickHook(void) {
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 
   update_priorities();
+  // TRACE_record(EVENT_SEMAPHORE_GIVE(0), TRACE_TASK_SYSTEM, NULL);
 }
 
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
