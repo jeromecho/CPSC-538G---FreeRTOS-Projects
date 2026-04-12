@@ -4,6 +4,7 @@
 #if USE_CBS
 
 SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
+MarkTaskDone_t        CBS_mark_task_done     = EDF_mark_task_done;
 
 StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
 CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
@@ -14,18 +15,11 @@ CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
  * @pre this function should only be called from within the context of a CBS master task
  */
 static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
-  /*
-printf(
-  "CBS_master_task_out_of_tasks - calling vTaskSuspend with cbs_mb->tmb_handle->handle: %d\n",
-  cbs_mb->tmb_handle->handle
-);
-  */
-
+  // TODO: Might be able to remove the critical section below
   taskENTER_CRITICAL();
-  vTaskSuspend(cbs_mb->tmb_handle->handle);
-  cbs_mb->tmb_handle->is_done = true;
+  TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_APERIODIC, cbs_mb->tmb_handle);
+  CBS_mark_task_done(cbs_mb->tmb_handle->handle);
   taskEXIT_CRITICAL();
-  // printf("cbs_mb->tmb_handle->aperiodic.is_runnable: %d\n", cbs_mb->tmb_handle->aperiodic.is_runnable);
 }
 
 static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
@@ -43,40 +37,18 @@ static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
 // === API FUNCTION DEFINITIONS ===
 // ================================
 static void CBS_master_task(void *pvParameters) {
-  // printf("CBS_master_task - 1\n");
-
   SchedulerParameters_t *parameters = (SchedulerParameters_t *)pvParameters;
-
-  // printf("CBS_master_task - 2\n");
-
-  CBS_MB_t *pxServer = (CBS_MB_t *)parameters->parameters_remaining;
-
-  /*
-  printf("CBS_master_task - 3\n");
-  printf("CBS_master_task pxServer: %d\n", pxServer);
-  printf("CBS_master_task - 4\n");
-  printf("CBS_master_task pxServer->aperiodic_tasks: %d\n", pxServer->aperiodic_tasks);
-  printf("CBS_master_task - 5\n");
-  */
-
+  CBS_MB_t              *pxServer   = (CBS_MB_t *)parameters->parameters_remaining;
   for (;;) {
-    // printf("CBS_master_task - 6\n");
     if (q_empty(&pxServer->aperiodic_tasks)) {
       CBS_master_task_out_of_tasks(pxServer);
     }
-    // printf("CBS_master_task - 7\n");
     AperiodicTaskFunc_t fptr;
     // NB: dequeue here should succeed
     q_top(&pxServer->aperiodic_tasks, &fptr);
     // TODO: nice-to-have: add error handling if calling the function pointer returns an error
-
-    // printf("CBS_master_task - 8: calling `fptr`\n");
-    // printf("CBS_master_task - 8.5: sizeof(AperiodicTaskFunc_t) %d\n", sizeof(AperiodicTaskFunc_t));
-    // printf("CBS_master_task - `fptr`: %d\n", fptr);
     fptr();
-    // printf("CBS_master_task - 9: called `fptr`\n");
     q_dequeue(&pxServer->aperiodic_tasks, NULL);
-    // printf("CBS_master_task - 10\n");
   }
 }
 // NB: if we ever want to add support for seeing which specific soft real-time aperiodic task the CBS
@@ -95,22 +67,15 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   pxServer->cs      = Qs;
   pxServer->is_idle = true; // TODO might be able to remove
 
-  // printf("create_cbs_server - q_init pre \n");
   q_init(
     &pxServer->aperiodic_tasks,
     (void *)pxServer->aperiodic_tasks_storage,
     sizeof(AperiodicTaskFunc_t),
     CBS_QUEUE_CAPACITY
   );
-  // printf("create_cbs_server - q_init post \n");
-  /*
-   */
 
   char pcTaskName[20];
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
-
-  // printf("create_cbs_server - CBS_create_master_task pre \n");
-  // printf("create_cbs_server - pxServer %d \n", pxServer);
 
   CBS_create_master_task(
     CBS_master_task,
@@ -125,7 +90,6 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   // Newly created CBS server is considered "done" since it has no tasks to execute
   // and should not be considered for execution
   pxServer->tmb_handle->is_done = true;
-
   // printf("create_cbs_server - CBS_create_master_task post \n");
 };
 
@@ -138,11 +102,10 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
     // TODO: might need to be wary about doing arithmethic with TickType_t
     TickType_t current_timestamp = xTaskGetTickCount();
     if (
-      (double)pxServer->cs >=
-      ((double)pxServer->dsk - (double)current_timestamp) * ((double)pxServer->Qs / (double)pxServer->Ts)
+      pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
+                                                                 ((double)pxServer->Qs / (double)pxServer->Ts)
     ) {
       pxServer->dsk = current_timestamp + pxServer->Ts;
-
       // printf("Tick: %d\n", current_timestamp);
       // printf("CBS_create_aperiodic_task - set new deadline and refill pxServer->cs\n");
 
@@ -150,9 +113,9 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
       // TODO remove?
       // pxServer->is_idle = false;
       pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
+      pxServer->tmb_handle->is_done           = false;
     }
     // printf("CBS_create_aperiodic_task: set tmb_handle->absolute_deadline to %d\n", pxServer->dsk);
-    pxServer->tmb_handle->is_done = false;
     // printf("CBS_create_aperiodic_task: set is_done to false\n");
   }
 
@@ -171,8 +134,7 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 // ASSUMPTION: CBS_update_budget is called every time slice
 // INVARIANT: last_server->cs > 0 at entry of function (i.e., server capacity > 0 must hold)
 BaseType_t CBS_update_budget(TMB_t *current_task) {
-  const TickType_t now              = xTaskGetTickCount();
-  BaseType_t       budget_exhausted = pdFALSE;
+  const BaseType_t budget_exhausted = pdFALSE;
   CBS_MB_t        *server           = find_cbs_server_by_tmb(current_task);
   if (server == NULL) {
     return pdFALSE;
@@ -183,13 +145,14 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
   // printf("Tick %d: server->cs - post: %lu\n", count, server->cs);
 
   if (server->cs == 0) {
-    // printf("CBS_update_budget: current tick %d : budget exhausted\n", xTaskGetTickCount());
     server->dsk += server->Ts;
+    TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
     // REQUIRES: CBS_update_budget must be called AFTER choosing of highest_priority_task
     server->tmb_handle->absolute_deadline = server->dsk;
     server->cs                            = server->Qs;
     return pdTRUE;
   }
+  // printf("Tick %d: end\n", count);
   return pdFALSE;
 };
 
