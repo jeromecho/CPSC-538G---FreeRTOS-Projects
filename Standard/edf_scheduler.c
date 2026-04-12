@@ -51,9 +51,14 @@ void          update_priorities();
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          deadline_miss(const TMB_t *const task);
-void          update_gpio_pin(
-           const TaskHandle_t idle_task_handle, const TaskHandle_t current_task_handle, const bool gpio_state
-         );
+
+#if TRACE_WITH_LOGIC_ANALYZER
+void update_gpio_pin(
+  const TaskHandle_t idle_task_handle, const TaskHandle_t current_task_handle, const bool gpio_state
+);
+#else
+static void trace_task_switch(TraceEventType_t switch_event);
+#endif // TRACE_WITH_LOGIC_ANALYZER
 
 
 ; // ==================================
@@ -283,7 +288,9 @@ BaseType_t EDF_create_periodic_task(
 ) {
 #if PERFORM_ADMISSION_CONTROL
   if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    crash_without_trace("%s - Admission failed for: %s\n", __func__, task_name);
+    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
+    TRACE_disable();
+    return pdFALSE;
   }
 #endif // PERFORM_ADMISSION_CONTROL
 
@@ -388,8 +395,6 @@ void EDF_scheduler_start() {
 #endif // USE_SRP
 
   vTaskStartScheduler();
-
-  // crash_without_trace("FATAL: vTaskStartScheduler returned unexpectedly.");
 }
 
 ; // ==================================
@@ -608,28 +613,24 @@ void vApplicationTickHook(void) {
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 
   update_priorities();
-
-  // const TickType_t current_tick = xTaskGetTickCountFromISR();
-  // if (current_tick > 100) {
-  //   vTaskNotifyGiveFromISR(monitor_task_handle, 0);
-  // }
 }
 
-/// @brief Tick hook called whenever a task is switched out by the scheduler.
-void task_switched_out(void) {
+static void trace_task_switch(TraceEventType_t switch_event) {
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  const unsigned int core         = portGET_CORE_ID();
+  const unsigned int current_core = portGET_CORE_ID();
 
-  // Keep tracing constrained to the designated EDF execution core in SMP mode.
-  if (core != configTICK_CORE) {
-    return;
+  TaskHandle_t idle_tasks[configNUMBER_OF_CORES];
+  bool         current_task_is_idle = false;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    idle_tasks[core] = xTaskGetIdleTaskHandleForCore(core);
+    if (current_task == idle_tasks[core])
+      current_task_is_idle = true;
   }
 
-#if configNUMBER_OF_CORES <= 1
-  const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
-#else
-  const TaskHandle_t idle_task = xTaskGetIdleTaskHandleForCore(core);
-#endif // configNUMBER_OF_CORES
+  // Keep tracing constrained to the designated EDF execution core in SMP mode.
+  // if (current_core != configTICK_CORE) {
+  //   return;
+  // }
 
   if (current_task == NULL)
     return;
@@ -637,59 +638,26 @@ void task_switched_out(void) {
 #if TRACE_WITH_LOGIC_ANALYZER
   update_gpio_pin(idle_task, current_task, 0);
 #else
-  if (current_task == idle_task) {
-    TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_IDLE, NULL);
+  if (current_task_is_idle) {
+    TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_IDLE, NULL);
     return;
   }
 
   const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
   if (current_task_tmb == NULL) {
-    TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_SYSTEM, NULL);
+    TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_SYSTEM, NULL);
     return;
   }
 
-  TRACE_record(EVENT_BASIC(TRACE_SWITCH_OUT), TRACE_TASK_EITHER, current_task_tmb);
+  TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_EITHER, current_task_tmb);
 #endif
 }
+
+/// @brief Tick hook called whenever a task is switched out by the scheduler.
+void task_switched_out(void) { trace_task_switch(TRACE_SWITCH_OUT); }
 
 /// @brief Tick hook called whenever a task is switched in by the scheduler.
-void task_switched_in(void) {
-  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  const unsigned int core         = portGET_CORE_ID();
-
-  // Keep tracing constrained to the designated EDF execution core in SMP mode.
-  if (core != configTICK_CORE) {
-    return;
-  }
-
-#if configNUMBER_OF_CORES <= 1
-  const TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
-#else
-  const TaskHandle_t idle_task = xTaskGetIdleTaskHandleForCore(core);
-#endif // configNUMBER_OF_CORES
-
-  // Can this ever happen?
-  if (current_task == NULL)
-    return;
-
-#if TRACE_WITH_LOGIC_ANALYZER
-  update_gpio_pin(idle_task, current_task, 1);
-#else
-  if (current_task == idle_task) {
-    TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_IDLE, NULL);
-    return;
-  }
-
-  const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
-  if (current_task_tmb == NULL) {
-    // This should never happen, but just in case
-    TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_SYSTEM, NULL);
-    return;
-  }
-
-  TRACE_record(EVENT_BASIC(TRACE_SWITCH_IN), TRACE_TASK_EITHER, current_task_tmb);
-#endif
-}
+void task_switched_in(void) { trace_task_switch(TRACE_SWITCH_IN); }
 
 #if TRACE_WITH_LOGIC_ANALYZER
 void update_gpio_pin( //

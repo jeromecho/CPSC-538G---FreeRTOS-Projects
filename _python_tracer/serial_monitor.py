@@ -6,9 +6,10 @@ import sys
 import os
 import time
 import signal
-from enum import IntEnum
 
 import plotly.graph_objects as go
+
+from test_data import TraceEvent
 
 # --- CONFIGURATION ---
 BAUD_RATE = 115200
@@ -17,21 +18,6 @@ EXPECTED_HEADERS = "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STA
 # C-Header Maximums for N/A masking
 UINT32_MAX = 4294967295
 UINT8_MAX = 255
-
-
-class TraceEvent(IntEnum):
-    TRACE_RELEASE = 0
-    TRACE_SWITCH_IN = 1
-    TRACE_SWITCH_OUT = 2
-    TRACE_DONE = 3
-    TRACE_RESCHEDULED = 4
-    TRACE_UPDATING_PRIORITIES = 5
-    TRACE_DEPRIORITIZED = 6
-    TRACE_PRIORITY_SET = 7
-    TRACE_DEADLINE_MISS = 8
-    TRACE_SRP_BLOCK = 9
-    TRACE_SEMAPHORE_TAKE = 10
-    TRACE_SEMAPHORE_GIVE = 11
 
 
 TASK_TYPES = {
@@ -75,6 +61,7 @@ EVENT_CONFIG = {
 
     # Group: Resources (Shifted further to the edges)
     TraceEvent.TRACE_SRP_BLOCK: ("SRP Blocked", "x", "orange", True, 0.0),
+    TraceEvent.TRACE_ADMISSION_FAILED: ("Admission Failed", "hexagram", "red", True, 0.0),
     TraceEvent.TRACE_SEMAPHORE_TAKE: ("Take Semaphore", "triangle-down", "red", True, -0.2),
     TraceEvent.TRACE_SEMAPHORE_GIVE: ("Give Semaphore", "triangle-up", "blue", True, -0.2),
 }
@@ -89,9 +76,7 @@ def force_quit(signum, frame):
 def select_serial_port():
     ports = serial.tools.list_ports.comports()
     if not ports:
-        print(
-            "\n[Error] No serial ports found! Please plug in your device and try again."
-        )
+        print("\n[Error] No serial ports found! Please plug in your device and try again.")
         sys.exit(1)
 
     default_port = None
@@ -102,13 +87,7 @@ def select_serial_port():
 
     if default_port:
         while True:
-            choice = (
-                input(
-                    f"\nFound likely USB device: {default_port}\nUse this device? [Y/n]: "
-                )
-                .strip()
-                .lower()
-            )
+            choice = input(f"\nFound likely USB device: {default_port}\nUse this device? [Y/n]: ").strip().lower()
             if choice in ["", "y", "yes"]:
                 return default_port
             elif choice in ["n", "no"]:
@@ -122,9 +101,7 @@ def select_serial_port():
 
     while True:
         try:
-            selection = input(
-                f"\nEnter the number of the port to use (0-{len(ports) - 1}): "
-            ).strip()
+            selection = input(f"\nEnter the number of the port to use (0-{len(ports) - 1}): ").strip()
             index = int(selection)
             if 0 <= index < len(ports):
                 return ports[index].device
@@ -137,6 +114,11 @@ def select_serial_port():
 def plot_rtos_trace(csv_data, plot_title):
     try:
         df = pd.read_csv(io.StringIO(csv_data))
+
+        try:
+            df["EVENT"] = df["EVENT"].map(TraceEvent)
+        except ValueError as e:
+            print(f"[Monitor] Warning: Found an undefined Event ID in data: {e}")
 
         def get_task_name(row):
             t_type = row["TASK_TYPE"]
@@ -155,9 +137,7 @@ def plot_rtos_trace(csv_data, plot_title):
         task_y_map = {task: i for i, task in enumerate(unique_tasks)}
 
         # 1. Calculate Execution Bars
-        df_switches = df[
-            df["EVENT"].isin([TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT])
-        ].copy()
+        df_switches = df[df["EVENT"].isin([TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT])].copy()
         exec_bars = []
         active_ins = {}
 
@@ -178,9 +158,7 @@ def plot_rtos_trace(csv_data, plot_title):
                             "ABS_TIME_START": current_in["ABS_TIME"],
                             "ABS_TIME_END": row["ABS_TIME"],
                             "PRIORITY": current_in["PRIORITY"],
-                            "TASK_STATE": TASK_STATES.get(
-                                current_in["TASK_STATE"], "Unknown"
-                            ),
+                            "TASK_STATE": TASK_STATES.get(current_in["TASK_STATE"], "Unknown"),
                             "DEADLINE": current_in["DEADLINE"],
                             "PREEMPT_LVL": current_in["PREEMPT_LVL"],
                             "CEILING": current_in["CEILING"],
@@ -203,9 +181,7 @@ def plot_rtos_trace(csv_data, plot_title):
                         "ABS_TIME_START": current_in["ABS_TIME"],
                         "ABS_TIME_END": last_abs_time,
                         "PRIORITY": current_in["PRIORITY"],
-                        "TASK_STATE": TASK_STATES.get(
-                            current_in["TASK_STATE"], "Unknown"
-                        ),
+                        "TASK_STATE": TASK_STATES.get(current_in["TASK_STATE"], "Unknown"),
                         "DEADLINE": current_in["DEADLINE"],
                         "PREEMPT_LVL": current_in["PREEMPT_LVL"],
                         "CEILING": current_in["CEILING"],
@@ -264,9 +240,7 @@ def plot_rtos_trace(csv_data, plot_title):
             for task_name in df_exec["TASK_NAME"].unique():
                 df_task = df_exec[df_exec["TASK_NAME"] == task_name].copy()
 
-                df_task["US_DURATION"] = (
-                    df_task["ABS_TIME_END"] - df_task["ABS_TIME_START"]
-                )
+                df_task["US_DURATION"] = df_task["ABS_TIME_END"] - df_task["ABS_TIME_START"]
 
                 # Apply the dynamic builder function
                 df_task["HOVER_TEXT"] = df_task.apply(build_bar_hover, axis=1)
@@ -294,16 +268,12 @@ def plot_rtos_trace(csv_data, plot_title):
         ) in EVENT_CONFIG.items():
             # --- Special Case: Absolute Deadlines ---
             if event_id == "ABSOLUTE_DEADLINE":
-                df_evt = df_events[df_events["DEADLINE"] != UINT32_MAX].drop_duplicates(
-                    subset=["TASK_NAME", "DEADLINE"]
-                )
+                df_evt = df_events[df_events["DEADLINE"] != UINT32_MAX].drop_duplicates(subset=["TASK_NAME", "DEADLINE"])
                 x_col = "DEADLINE"
 
                 if not df_evt.empty:
                     hover_texts = df_evt.apply(
-                        lambda r: (
-                            f"<b>{evt_name}</b><br>Task: {r['TASK_NAME']}<br>Tick: {r['DEADLINE']}"
-                        ),
+                        lambda r: f"<b>{evt_name}</b><br>Task: {r['TASK_NAME']}<br>Tick: {r['DEADLINE']}",
                         axis=1,
                     )
             else:
@@ -311,9 +281,7 @@ def plot_rtos_trace(csv_data, plot_title):
                 x_col = "TIMESTAMP"
 
                 if not df_evt.empty:
-                    hover_texts = df_evt.apply(
-                        lambda r: build_marker_hover(r, evt_name), axis=1
-                    )
+                    hover_texts = df_evt.apply(lambda r: build_marker_hover(r, evt_name), axis=1)
 
             # Draw the trace if we found data
             if not df_evt.empty:
@@ -370,9 +338,7 @@ def main():
     # Default title just in case it misses the printout
     current_title = "[Name of test not printed from microcontroller]"
 
-    print(
-        f"\nLooking for {selected_port} at {BAUD_RATE} baud... (Press Ctrl+C to exit)"
-    )
+    print(f"\nLooking for {selected_port} at {BAUD_RATE} baud... (Press Ctrl+C to exit)")
 
     while True:
         try:
@@ -392,21 +358,15 @@ def main():
 
                         if "TIMESTAMP" in line:
                             if line != EXPECTED_HEADERS:
-                                print(
-                                    f"\n[Monitor] Warning: Encountered header with unknown format.\nExpected: {EXPECTED_HEADERS}\nGot:      {line}"
-                                )
+                                print(f"\n[Monitor] Warning: Encountered header with unknown format.\nExpected: {EXPECTED_HEADERS}\nGot:      {line}")
                             else:
                                 capturing = True
                                 trace_buffer = [line]
-                                print(
-                                    "\n[Monitor] Trace start detected. Capturing data..."
-                                )
+                                print("\n[Monitor] Trace start detected. Capturing data...")
                             continue
 
                         elif line == "--- END OF TRACE ---" and capturing:
-                            print(
-                                f"\n[Monitor] Trace ended. Captured {len(trace_buffer) - 1} records. Plotting..."
-                            )
+                            print(f"\n[Monitor] Trace ended. Captured {len(trace_buffer) - 1} records. Plotting...")
                             capturing = False
                             csv_string = "\n".join(trace_buffer)
 

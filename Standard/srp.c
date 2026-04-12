@@ -128,7 +128,9 @@ BaseType_t SRP_create_periodic_task(
 #if PERFORM_ADMISSION_CONTROL
   // TODO: Should admission control be extended to aperiodic tasks?
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    crash_without_trace("%s - Admission failed for: %s\n", __func__, task_name);
+    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
+    TRACE_disable();
+    return pdFALSE;
   }
 #endif // PERFORM_ADMISSION_CONTROL
 

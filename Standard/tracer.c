@@ -24,53 +24,55 @@ void TRACE_record( //
   TraceTaskType_t    task_type,
   const TMB_t *const task
 ) {
-  if (!tracing_enabled) {
+  if (!tracing_enabled || trace_count >= MAX_TRACE_RECORDS) {
     return;
   }
 
+  taskENTER_CRITICAL();
+
   if (task_type == TRACE_TASK_EITHER) {
-    configASSERT(task != NULL);
     task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
   }
 
-  taskENTER_CRITICAL();
-  if (trace_count < MAX_TRACE_RECORDS) {
-    trace_buffer[trace_count].FreeRTOS_tick = xTaskGetTickCount();
-    trace_buffer[trace_count].time          = get_absolute_time();
-    trace_buffer[trace_count].event         = event;
-    trace_buffer[trace_count].task_type     = task_type;
+  size_t      task_id    = UINT8_MAX;
+  TickType_t  deadline   = portMAX_DELAY;
+  UBaseType_t priority   = UINT_MAX;
+  eTaskState  task_state = eInvalid;
 
-    if (task != NULL) {
-      trace_buffer[trace_count].task_id  = task->id;
-      trace_buffer[trace_count].deadline = task->absolute_deadline;
-      if (task->handle != NULL) {
-        trace_buffer[trace_count].priority   = uxTaskPriorityGet(task->handle);
-        trace_buffer[trace_count].task_state = eTaskGetState(task->handle);
-      } else {
-        trace_buffer[trace_count].priority   = UINT_MAX;
-        trace_buffer[trace_count].task_state = eInvalid;
-      }
-    } else {
-      trace_buffer[trace_count].task_id    = UINT8_MAX;
-      trace_buffer[trace_count].deadline   = portMAX_DELAY;
-      trace_buffer[trace_count].priority   = UINT_MAX;
-      trace_buffer[trace_count].task_state = eInvalid;
+  // SRP-related (not updated when SRP is disabled)
+  unsigned int system_ceiling = UINT_MAX;
+  unsigned int preempt_level  = UINT_MAX;
+
+  if (task != NULL) {
+    task_id  = task->id;
+    deadline = task->absolute_deadline;
+    if (task->handle != NULL) {
+      priority   = uxTaskPriorityGet(task->handle);
+      task_state = eTaskGetState(task->handle);
     }
+  }
 
 #if USE_SRP
-    trace_buffer[trace_count].system_ceiling = SRP_get_system_ceiling();
-    if (task != NULL) {
-      trace_buffer[trace_count].preempt_level = task->preemption_level;
-    } else {
-      trace_buffer[trace_count].preempt_level = UINT_MAX; // For idle task or system events, set preemption level to 0
-    }
-#else
-    trace_buffer[trace_count].system_ceiling = UINT_MAX; // Not used when SRP is disabled
-    trace_buffer[trace_count].preempt_level  = UINT_MAX; // Not used when SRP is disabled
-#endif
-
-    trace_count++;
+  system_ceiling = SRP_get_system_ceiling();
+  if (task != NULL) {
+    preempt_level = task->preemption_level;
   }
+#endif // USE_SRP
+
+  trace_buffer[trace_count] = (TraceRecord_t){
+    .FreeRTOS_tick  = xTaskGetTickCount(),
+    .time           = get_absolute_time(),
+    .event          = event,
+    .task_type      = task_type,
+    .task_id        = task_id,
+    .deadline       = deadline,
+    .priority       = priority,
+    .task_state     = task_state,
+    .system_ceiling = system_ceiling,
+    .preempt_level  = preempt_level,
+  };
+
+  trace_count++;
   taskEXIT_CRITICAL();
 }
 
@@ -90,13 +92,18 @@ void TRACE_print_buffer() {
       resource_id = r->event.data.semaphore_index;
     }
 
+    size_t task_id = r->task_id;
+    if (r->event.type == TRACE_ADMISSION_FAILED) {
+      task_id = r->event.data.task_index;
+    }
+
     printf(
       "%u,%d,%llu,%d,%u,%u,%d,%u,%u,%u,%u\n",
       r->FreeRTOS_tick,
       (int)r->event.type,
       to_us_since_boot(r->time),
       r->task_type,
-      r->task_id,
+      task_id,
       (unsigned int)r->priority,
       (int)r->task_state,
       resource_id,

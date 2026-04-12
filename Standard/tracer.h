@@ -2,7 +2,7 @@
 #define TRACER_H
 
 #include "FreeRTOS.h" // IWYU pragma: keep
-#include "edf_scheduler.h"
+#include "scheduler_internal.h"
 #include "task.h"
 
 typedef enum {
@@ -18,24 +18,28 @@ typedef enum {
   TRACE_DEADLINE_MISS,
   TRACE_SRP_BLOCK, // When a task is ready but denied CPU due to ceiling
 
+  TRACE_ADMISSION_FAILED,
+
   // Non-basic events, which are used when there is additional data provided (like semaphore index)
   TRACE_SEMAPHORE_TAKE,
   TRACE_SEMAPHORE_GIVE,
 } TraceEventType_t;
 
 typedef struct {
-  uint32_t index; // The index of the semaphore taken
-} EventDataSemaphore_t;
-typedef struct {
   TraceEventType_t type;
   union {
     uint8_t semaphore_index;
+    size_t  task_index;
   } data;
 } TraceEvent_t;
 
-#define EVENT_BASIC(event_type)   ((TraceEvent_t){.type = (event_type)})
-#define EVENT_SEMAPHORE_TAKE(idx) ((TraceEvent_t){.type = TRACE_SEMAPHORE_TAKE, .data = {.semaphore_index = (idx)}})
-#define EVENT_SEMAPHORE_GIVE(idx) ((TraceEvent_t){.type = TRACE_SEMAPHORE_GIVE, .data = {.semaphore_index = (idx)}})
+#define EVENT_BASIC(event_type) ((TraceEvent_t){.type = (event_type)})
+#define EVENT_ADMISSION_FAIL(task_idx)                                                                                 \
+  ((TraceEvent_t){.type = TRACE_ADMISSION_FAILED, .data = {.task_index = (task_idx)}})
+#define EVENT_SEMAPHORE_TAKE(sem_idx)                                                                                  \
+  ((TraceEvent_t){.type = TRACE_SEMAPHORE_TAKE, .data = {.semaphore_index = (sem_idx)}})
+#define EVENT_SEMAPHORE_GIVE(sem_idx)                                                                                  \
+  ((TraceEvent_t){.type = TRACE_SEMAPHORE_GIVE, .data = {.semaphore_index = (sem_idx)}})
 
 typedef enum {
   TRACE_TASK_IDLE = 0,

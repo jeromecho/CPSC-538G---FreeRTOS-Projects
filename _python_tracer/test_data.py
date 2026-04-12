@@ -1,20 +1,24 @@
-from enum import IntEnum
+from enum import Enum
 
-
-class TraceEvent(IntEnum):
-    TRACE_RELEASE = 0
-    TRACE_SWITCH_IN = 1
-    TRACE_SWITCH_OUT = 2
-    TRACE_DONE = 3
-    TRACE_RESCHEDULED = 4
-    TRACE_UPDATING_PRIORITIES = 5
-    TRACE_DEPRIORITIZED = 6
-    TRACE_PRIORITY_SET = 7
-    TRACE_DEADLINE_MISS = 8
-    TRACE_SRP_BLOCK = 9
-    TRACE_SEMAPHORE_TAKE = 10
-    TRACE_SEMAPHORE_GIVE = 11
-
+TraceEvent = Enum(
+    "TraceEvent",
+    [
+        "TRACE_RELEASE",
+        "TRACE_SWITCH_IN",
+        "TRACE_SWITCH_OUT",
+        "TRACE_DONE",
+        "TRACE_RESCHEDULED",
+        "TRACE_UPDATING_PRIORITIES",
+        "TRACE_DEPRIORITIZED",
+        "TRACE_PRIORITY_SET",
+        "TRACE_DEADLINE_MISS",
+        "TRACE_SRP_BLOCK",
+        "TRACE_ADMISSION_FAILED",
+        "TRACE_SEMAPHORE_TAKE",
+        "TRACE_SEMAPHORE_GIVE",
+    ],
+    start=0,
+)
 
 TASK_TYPES = {
     0: "Idle Task",
@@ -124,7 +128,7 @@ TEST_CASES = {
     "EDF3": {
         "name": "100 Tasks NON-ADMISSIBLE",
         "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 3},
-        "expected_admission_failure": "Admission failed for: EDF Test 3, Task 34",
+        "expected_admission_failure": "Periodic 34",
         "expected_events": {},
     },
     "EDF4": {
@@ -144,7 +148,7 @@ TEST_CASES = {
     "EDF6": {
         "name": "Non-admissible by utilization",
         "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 6},
-        "expected_admission_failure": "Admission failed for: EDF Test 6, Task 10",
+        "expected_admission_failure": "Periodic 10",
         "expected_events": {},
     },
     "EDF7": {
@@ -157,7 +161,7 @@ TEST_CASES = {
     "EDF8": {
         "name": "Non-admissible by processor demand",
         "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 8},
-        "expected_admission_failure": "Admission failed for: EDF Test 8, Task 2",
+        "expected_admission_failure": "Periodic 02",
         "expected_events": {},
     },
     "EDF9": {
@@ -184,7 +188,7 @@ TEST_CASES = {
     "EDF10": {
         "name": "Inadmissible drop-in",
         "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 10},
-        "expected_admission_failure": "Admission failed for: EDF Test 10, Task 2",
+        "expected_admission_failure": "Periodic 02",
         "expected_events": {},
     },
     "EDF11": {
@@ -345,13 +349,13 @@ TEST_CASES = {
     "SRP8": {
         "name": "Admission Control - Fail (Implicit Deadlines)",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 8},
-        "expected_admission_failure": "Admission failed for: SRP Test 8, Task 3",
+        "expected_admission_failure": "Periodic 03",
         "expected_events": {},
     },
     "SRP9": {
         "name": "Admission Control - Fail (Constrained Deadlines)",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 9},
-        "expected_admission_failure": "Admission failed for: SRP Test 9, Task 3",
+        "expected_admission_failure": "Periodic 03",
         "expected_events": {},
     },
 }
