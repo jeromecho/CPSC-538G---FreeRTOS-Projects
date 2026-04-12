@@ -9,3 +9,6 @@ dependencies = [
     "plotly>=6.5.2",
     "pyserial>=3.5",
 ]
+
+[tool.ruff]
+line-length = 200
