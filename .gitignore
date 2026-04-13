@@ -6,3 +6,5 @@ build/
 .venv/
 .cache/
 __pycache__
+
+_python_tracer/one-off-scripts/*

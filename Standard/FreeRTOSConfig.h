@@ -104,21 +104,15 @@
 */
 
 /* SMP port only */
-#if ENABLE_SMP
-#define configNUMBER_OF_CORES                   2
+#define portSUPPORT_SMP                         1
 #define configTICK_CORE                         0
 #define configRUN_MULTIPLE_PRIORITIES           0
-
 #define configUSE_PASSIVE_IDLE_HOOK             0
-#define portSUPPORT_SMP                         1
+#if ENABLE_SMP
+#define configNUMBER_OF_CORES                   2
 #define configUSE_CORE_AFFINITY                 1
 #else 
 #define configNUMBER_OF_CORES                   1
-#define configTICK_CORE                         0
-#define configRUN_MULTIPLE_PRIORITIES           0
-
-#define configUSE_PASSIVE_IDLE_HOOK             0
-#define portSUPPORT_SMP                         0
 #define configUSE_CORE_AFFINITY                 0
 #endif // ENABLE_SMP
 

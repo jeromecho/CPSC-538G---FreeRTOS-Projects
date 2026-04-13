@@ -47,7 +47,7 @@ static void   deprioritize_task(const TMB_t *const task);
 static void   deprioritize_other_tasks(const TMB_t *const highest_priority_task);
 static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
-void          update_priorities();
+void          update_priorities(bool also_elevate_priority);
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          deadline_miss(const TMB_t *const task);
@@ -117,7 +117,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   SRP_pop_ceiling();
 #endif // USE_SRP
 
-  update_priorities();
+  update_priorities(true);
 
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb);
 
@@ -375,25 +375,7 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
 void EDF_scheduler_start() {
   printf("Starting scheduler.\n");
 
-  TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
-  const bool   should_update         = should_update_priorities(highest_priority_task);
-  if (!should_update) {
-    configASSERT(false && "Scheduler should always update priorities when starting up");
-  }
-
-  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL);
-
-  deprioritize_other_tasks(highest_priority_task);
-
-#if USE_SRP
-  if (!highest_priority_task->has_started) {
-#if ENABLE_STACK_SHARING // Only do the memory wipe if stack sharing is enabled
-    SRP_reset_TCB(highest_priority_task);
-#endif                   // ENABLE_STACK_SHARING
-    highest_priority_task->has_started = true;
-    SRP_push_ceiling(highest_priority_task->preemption_level);
-  }
-#endif // USE_SRP
+  update_priorities(false);
 
   vTaskStartScheduler();
 }
@@ -524,9 +506,11 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
   return highest_priority_task->handle != current_task_handle;
 }
 
-/// @brief Updates priorities of the (potentially) currently running task, as well as the (potentially) new highest
-/// priority task.
-void update_priorities() {
+/// @brief Deprioritizes all tasks which are not currently running. If the boolean flag is set, also elevates the
+/// priority of the next task to run. This is presented as an option so that this function can be run before the
+/// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which is
+/// very much not allowed before the scheduler has started (at least when SMP is enabled).
+void update_priorities(bool also_elevate_priority) {
   TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
   const bool   should_update         = should_update_priorities(highest_priority_task);
   if (!should_update) {
@@ -550,7 +534,10 @@ void update_priorities() {
       SRP_push_ceiling(highest_priority_task->preemption_level);
     }
 #endif // USE_SRP
-    set_highest_priority(highest_priority_task);
+
+    if (also_elevate_priority) {
+      set_highest_priority(highest_priority_task);
+    }
   }
 }
 
@@ -613,7 +600,7 @@ void vApplicationTickHook(void) {
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 
-  update_priorities();
+  update_priorities(true);
 }
 
 void trace_task_switch(TraceEventType_t switch_event) {
