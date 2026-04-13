@@ -3,9 +3,9 @@
 
 #define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
 #define USE_SRP 1
+#define USE_MP  0
 #define TEST_NR 9
 
-#define ENABLE_SMP 0
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
