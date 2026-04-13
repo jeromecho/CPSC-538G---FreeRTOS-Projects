@@ -14,10 +14,18 @@ import serial.tools.list_ports
 from test_data import TASK_TYPES, TraceEvent
 
 BAUD_RATE = 115200
+TRACE_RUN_BANNERS = (
+    "Running EDF Test",
+    "Running SRP Test",
+    "Running SMP Test",
+    # "Running CBS Test",
+)
 EXPECTED_HEADERS = {
     "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
     "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
 }
+
+DEFAULT_TRACE_TITLE = "FreeRTOS Scheduling Trace"
 
 UINT32_MAX = 4294967295
 
@@ -39,7 +47,7 @@ EVENT_STYLE = {
 
 
 def force_quit(signum, frame):
-    print("\n[SMP Monitor] Force quitting instantly...")
+    print("\n[Monitor] Force quitting instantly...")
     os._exit(0)
 
 
@@ -77,6 +85,13 @@ def select_serial_port():
             print("Invalid selection. Please choose a number from the list.")
         except ValueError:
             print("Please enter a valid number.")
+
+
+def detect_run_title(line):
+    for banner in TRACE_RUN_BANNERS:
+        if line.startswith(banner):
+            return line.replace("Running ", "", 1)
+    return None
 
 
 def get_task_name(row):
@@ -280,16 +295,68 @@ def _add_execution_bars(fig, df_exec, y_map_func, row=None, col=None):
             fig.add_trace(trace, row=row, col=col)
 
 
-def plot_smp_lanes(csv_data, title):
-    df, df_exec = parse_trace_dataframe(csv_data)
-
-    fig = go.Figure()
-
+def build_trace_figure(df, df_exec, title, view):
     core_labels = sorted(df["CORE"].unique())
     lane_names = {core: f"Core {int(core)}" for core in core_labels}
     core_to_y = {core: idx for idx, core in enumerate(core_labels)}
     marker_offsets = _build_marker_offset_map(df)
 
+    if view == "combined":
+        unique_tasks = ordered_task_names(df, df_exec)
+        task_to_y = {task: idx for idx, task in enumerate(unique_tasks)}
+
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=("Core Lanes", "Task-Centric Timeline"),
+        )
+
+        _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]], row=1, col=1)
+        _add_event_markers(
+            fig,
+            df,
+            y_map_func=lambda r: core_to_y[int(r["CORE"])],
+            marker_offsets=marker_offsets,
+            row=1,
+            col=1,
+            showlegend=True,
+        )
+
+        _add_execution_bars(fig, df_exec, y_map_func=lambda r: task_to_y[r["TASK_NAME"]], row=2, col=1)
+        _add_event_markers(
+            fig,
+            df,
+            y_map_func=lambda r: task_to_y[r["TASK_NAME"]],
+            marker_offsets=marker_offsets,
+            row=2,
+            col=1,
+            showlegend=False,
+        )
+
+        fig.update_yaxes(
+            title_text="Core",
+            row=1,
+            col=1,
+            tickmode="array",
+            tickvals=list(core_to_y.values()),
+            ticktext=[lane_names[c] for c in core_labels],
+        )
+        fig.update_yaxes(
+            title_text="Task",
+            row=2,
+            col=1,
+            tickmode="array",
+            tickvals=list(task_to_y.values()),
+            ticktext=unique_tasks,
+        )
+        fig.update_xaxes(title_text="System Ticks", row=2, col=1)
+
+        fig.update_layout(title=f"{title} (Combined)", barmode="overlay", hovermode="closest", height=900)
+        return fig
+
+    fig = go.Figure()
     _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]])
     _add_event_markers(fig, df, y_map_func=lambda r: core_to_y[int(r["CORE"])], marker_offsets=marker_offsets)
 
@@ -305,74 +372,12 @@ def plot_smp_lanes(csv_data, title):
         barmode="overlay",
         hovermode="closest",
     )
-    fig.show()
+    return fig
 
 
-def plot_combined_dashboard(csv_data, title):
+def render_trace_plot(csv_data, title, view):
     df, df_exec = parse_trace_dataframe(csv_data)
-
-    core_labels = sorted(df["CORE"].unique())
-    lane_names = {core: f"Core {int(core)}" for core in core_labels}
-    core_to_y = {core: idx for idx, core in enumerate(core_labels)}
-
-    unique_tasks = ordered_task_names(df, df_exec)
-    task_to_y = {task: idx for idx, task in enumerate(unique_tasks)}
-    marker_offsets = _build_marker_offset_map(df)
-
-    fig = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.08,
-        subplot_titles=("Core Lanes", "Task-Centric Timeline"),
-    )
-
-    _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]], row=1, col=1)
-    _add_event_markers(
-        fig,
-        df,
-        y_map_func=lambda r: core_to_y[int(r["CORE"])],
-        marker_offsets=marker_offsets,
-        row=1,
-        col=1,
-        showlegend=True,
-    )
-
-    _add_execution_bars(fig, df_exec, y_map_func=lambda r: task_to_y[r["TASK_NAME"]], row=2, col=1)
-    _add_event_markers(
-        fig,
-        df,
-        y_map_func=lambda r: task_to_y[r["TASK_NAME"]],
-        marker_offsets=marker_offsets,
-        row=2,
-        col=1,
-        showlegend=False,
-    )
-
-    fig.update_yaxes(
-        title_text="Core",
-        row=1,
-        col=1,
-        tickmode="array",
-        tickvals=list(core_to_y.values()),
-        ticktext=[lane_names[c] for c in core_labels],
-    )
-    fig.update_yaxes(
-        title_text="Task",
-        row=2,
-        col=1,
-        tickmode="array",
-        tickvals=list(task_to_y.values()),
-        ticktext=unique_tasks,
-    )
-    fig.update_xaxes(title_text="System Ticks", row=2, col=1)
-
-    fig.update_layout(
-        title=title,
-        barmode="overlay",
-        hovermode="closest",
-        height=900,
-    )
+    fig = build_trace_figure(df, df_exec, title, view)
     fig.show()
 
 
@@ -394,14 +399,14 @@ def main():
 
     capturing = False
     trace_buffer = []
-    current_title = "FreeRTOS SMP Trace Lanes"
+    current_title = DEFAULT_TRACE_TITLE
 
     print(f"\nLooking for {selected_port} at {BAUD_RATE} baud... (Press Ctrl+C to exit)")
 
     while True:
         try:
             with serial.Serial(selected_port, BAUD_RATE, timeout=0.1) as ser:
-                print("\n[SMP Monitor] Connected to Pico!")
+                print("\n[Monitor] Connected to Pico!")
 
                 while True:
                     line = ser.readline().decode("utf-8", errors="replace").strip()
@@ -411,28 +416,26 @@ def main():
 
                     print(line)
 
-                    if "Running EDF Test" in line or "Running SRP Test" in line or "Running SMP Test" in line:
-                        current_title = f"SMP Lanes - {line.replace('Running ', '')}"
+                    banner_title = detect_run_title(line)
+                    if banner_title is not None:
+                        current_title = banner_title
 
                     if "TIMESTAMP" in line:
                         if line not in EXPECTED_HEADERS:
-                            print(f"\n[SMP Monitor] Warning: Encountered header with unknown format.\nExpected one of: {EXPECTED_HEADERS}\nGot:      {line}")
+                            print(f"\n[Monitor] Warning: Encountered header with unknown format.\nExpected one of: {EXPECTED_HEADERS}\nGot:      {line}")
                         else:
                             capturing = True
                             trace_buffer = [line]
-                            print("\n[SMP Monitor] Trace start detected. Capturing data...")
+                            print("\n[Monitor] Trace start detected. Capturing data...")
                         continue
 
                     if line == "--- END OF TRACE ---" and capturing:
                         capturing = False
                         csv_string = "\n".join(trace_buffer)
-                        print(f"\n[SMP Monitor] Trace ended. Captured {len(trace_buffer) - 1} records. Plotting...")
-                        if args.view == "combined":
-                            plot_combined_dashboard(csv_string, f"{current_title} (Combined)")
-                        else:
-                            plot_smp_lanes(csv_string, current_title)
+                        print(f"\n[Monitor] Trace ended. Captured {len(trace_buffer) - 1} records. Plotting...")
+                        render_trace_plot(csv_string, current_title, args.view)
                         trace_buffer = []
-                        current_title = "FreeRTOS SMP Trace Lanes"
+                        current_title = DEFAULT_TRACE_TITLE
                         continue
 
                     if capturing:
