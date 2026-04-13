@@ -32,6 +32,22 @@ TESTS_TO_RUN: list[str] = [  #
     # "SRP6",
 ]
 
+TRACE_RUN_BANNERS = (
+    "Running EDF Test",
+    "Running SRP Test",
+    "Running SMP Test",
+    "Running CBS Test",
+)
+
+BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
+
+SUITE_PREFIXES = (
+    ("SMP", "SMP"),
+    ("SRP", "SRP"),
+    ("EDF", "EDF"),
+    ("CBS", "CBS"),
+)
+
 
 def get_task_name(t_type, t_id, core=None):
     base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
@@ -40,6 +56,190 @@ def get_task_name(t_type, t_id, core=None):
     if core is not None and t_type in [0, 3]:
         return f"{base_name} C{core}"
     return base_name
+
+
+def infer_suite_label(test_id):
+    upper_test_id = test_id.upper()
+    for prefix, label in SUITE_PREFIXES:
+        if prefix in upper_test_id:
+            return label
+    return "EDF"
+
+
+def build_expected_boot_name(test_id, test_case):
+    suite_label = test_case.get("suite", infer_suite_label(test_id))
+    test_num = "".join(filter(str.isdigit, test_id))
+    return f"Results for {suite_label} Test {test_num}"
+
+
+def detect_run_banner(line):
+    for banner in TRACE_RUN_BANNERS:
+        if line.startswith(banner):
+            return line.replace("Running ", "", 1)
+    return None
+
+
+def parse_trace_record(line):
+    parts = line.split(",")
+    if len(parts) < 5:
+        return None
+
+    try:
+        if len(parts) >= 13:
+            core = int(parts[3])
+            task_type = int(parts[5])
+            task_id = int(parts[6])
+        else:
+            core = None
+            task_type = int(parts[3])
+            task_id = int(parts[4])
+
+        return {
+            "tick": int(parts[0]),
+            "event": TraceEvent(int(parts[1])),
+            "task_name": get_task_name(task_type, task_id, core),
+            "raw": line,
+        }
+    except ValueError:
+        return None
+
+
+def stream_test_output(port, expected_boot_name):
+    parsed_logs = []
+    output_log_raw = ""
+    capturing = False
+    found_boot_name = False
+
+    with serial.Serial(port, BAUD_RATE, timeout=1.0) as ser:
+        start_time = time.time()
+        while time.time() - start_time < 5.0:
+            elapsed = time.time() - start_time
+            state_msg = "Capturing traces..." if capturing else "Waiting for boot name..."
+            print_status(f"[Monitor] attached to {port}. {state_msg} ({elapsed:.1f}s)")
+
+            line = ser.readline().decode("utf-8", errors="ignore").strip()
+            if not line:
+                continue
+
+            output_log_raw += line + "\n"
+
+            if not found_boot_name and expected_boot_name in line:
+                found_boot_name = True
+
+            if "Assertion" in line or "failed" in line:
+                return {
+                    "status": "assertion",
+                    "line": line,
+                    "logs": parsed_logs,
+                    "capturing": capturing,
+                    "found_boot_name": found_boot_name,
+                    "raw": output_log_raw,
+                }
+
+            if "TIMESTAMP" in line:
+                capturing = True
+                continue
+
+            if line == "--- END OF TRACE ---":
+                break
+
+            if capturing:
+                parsed_record = parse_trace_record(line)
+                if parsed_record is not None:
+                    parsed_logs.append(parsed_record)
+
+    return {
+        "status": "ok",
+        "logs": parsed_logs,
+        "capturing": capturing,
+        "found_boot_name": found_boot_name,
+        "raw": output_log_raw,
+    }
+
+
+def validate_expected_boot_name(found_boot_name, expected_boot_name, mem_usage):
+    if found_boot_name:
+        return True
+
+    print(f"{C_RED}❌ FAILED: Did not detect '{expected_boot_name}' on boot.{C_RESET}")
+    return False
+
+
+def validate_admission_failure(parsed_logs, test_case, mem_usage):
+    expected_failure_task = test_case.get("expected_admission_failure")
+    actual_admission_failures = [log for log in parsed_logs if log["event"] == TraceEvent.TRACE_ADMISSION_FAILED]
+
+    if expected_failure_task:
+        if not actual_admission_failures:
+            print(f"    {C_RED}❌ FAILED: Expected admission failure for '{expected_failure_task}', but it did not occur.{C_RESET}")
+            return False
+
+        failed_task = actual_admission_failures[0]["task_name"]
+        if failed_task != expected_failure_task:
+            print(f"    {C_RED}❌ FAILED: Expected '{expected_failure_task}' to fail admission, but '{failed_task}' failed instead.{C_RESET}")
+            return False
+
+        return True
+
+    if actual_admission_failures:
+        failed_task = actual_admission_failures[0]["task_name"]
+        print(f"    {C_RED}❌ FAILED: Unexpected admission failure for task '{failed_task}'.{C_RESET}")
+        return False
+
+    return True
+
+
+def validate_trace_events(parsed_logs, test_case):
+    if test_case.get("ignore_traces", False):
+        return True
+
+    expected_set = set()
+    for exp_task, events in test_case.get("expected_events", {}).items():
+        for exp_tick, exp_event in events:
+            expected_set.add((exp_tick, exp_task, exp_event))
+
+    all_passed = True
+    sorted_expected_events = sorted(expected_set, key=lambda x: (x[0], x[1]))
+
+    for exp_tick, exp_task, exp_event in sorted_expected_events:
+        event_name = TraceEvent(exp_event).name
+        found = any(log["tick"] == exp_tick and log["task_name"] == exp_task and log["event"] == exp_event for log in parsed_logs)
+
+        if not found:
+            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {exp_task} | {event_name}{C_RESET}")
+            all_passed = False
+
+    for log in parsed_logs:
+        is_background = any(log["task_name"].startswith(name) for name in BACKGROUND_TASK_PREFIXES)
+        if not is_background and log["event"] in {TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT}:
+            actual_event_tuple = (log["tick"], log["task_name"], log["event"])
+            if actual_event_tuple not in expected_set:
+                event_name = TraceEvent(log["event"]).name
+                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {log['task_name']} | {event_name}{C_RESET}")
+                all_passed = False
+
+    return all_passed
+
+
+def print_test_result(test_id, test_name, passed, mem_usage):
+    status = f"{C_GREEN}[PASS]{C_RESET}" if passed else f"{C_RED}[FAIL]{C_RESET}"
+    text_str = f"{mem_usage['text']:,} B" if mem_usage else "N/A"
+    data_str = f"{mem_usage['data']:,} B" if mem_usage else "N/A"
+    bss_str = f"{mem_usage['bss']:,} B" if mem_usage else "N/A"
+    print(f"{status:<17} | {test_id:<6} | {text_str:<10} | {data_str:<10} | {bss_str:<10} | {test_name}")
+
+
+def summarize_results(test_results, passed_count):
+    print("\n" + "=" * 95)
+    print(f"  TEST SUITE OVERVIEW: {passed_count}/{len(test_results)} PASSED")
+    print("=" * 95)
+    print(f"{'STATUS':<8} | {'ID':<6} | {'.TEXT':<10} | {'.DATA':<10} | {'.BSS':<10} | {'TEST NAME'}")
+    print("-" * 95)
+
+    for t_id, t_name, passed, mem in test_results:
+        print_test_result(t_id, t_name, passed, mem)
+
+    print("=" * 95 + "\n")
 
 
 def run_test(test_id, test_case):
@@ -63,65 +263,10 @@ def run_test(test_id, test_case):
         time.sleep(0.5)
         port = auto_detect_port()
 
-    parsed_logs = []
-    output_log_raw = ""
-    capturing = False
-
-    test_type = "SRP" if "SRP" in test_id.upper() else "EDF"
-    test_num = "".join(filter(str.isdigit, test_id))
-    expected_boot_name = f"Results for {test_type} Test {test_num}"
-    found_boot_name = False
+    expected_boot_name = build_expected_boot_name(test_id, test_case)
 
     try:
-        with serial.Serial(port, BAUD_RATE, timeout=1.0) as ser:
-            start_time = time.time()
-            while time.time() - start_time < 5.0:
-                elapsed = time.time() - start_time
-                state_msg = "Capturing traces..." if capturing else "Waiting for boot name..."
-                print_status(f"[Monitor] attached to {port}. {state_msg} ({elapsed:.1f}s)")
-
-                line = ser.readline().decode("utf-8", errors="ignore").strip()
-                if not line:
-                    continue
-
-                output_log_raw += line + "\n"
-
-                if not found_boot_name and expected_boot_name in line:
-                    found_boot_name = True
-
-                if "Assertion" in line or "failed" in line:
-                    clear_status()
-                    print(f"    {C_RED}❌ [CRITICAL ASSERTION] {line}{C_RESET}")
-                    return False, mem_usage
-
-                if "TIMESTAMP" in line:
-                    capturing = True
-                    continue
-                elif line == "--- END OF TRACE ---":
-                    break
-                elif capturing:
-                    parts = line.split(",")
-                    if len(parts) >= 5:
-                        try:
-                            if len(parts) >= 13:
-                                core = int(parts[3])
-                                task_type = int(parts[5])
-                                task_id = int(parts[6])
-                            else:
-                                core = None
-                                task_type = int(parts[3])
-                                task_id = int(parts[4])
-
-                            parsed_logs.append(
-                                {
-                                    "tick": int(parts[0]),
-                                    "event": TraceEvent(int(parts[1])),
-                                    "task_name": get_task_name(task_type, task_id, core),
-                                    "raw": line,
-                                }
-                            )
-                        except ValueError:
-                            pass
+        trace_result = stream_test_output(port, expected_boot_name)
 
     except serial.SerialException as e:
         clear_status()
@@ -130,61 +275,20 @@ def run_test(test_id, test_case):
 
     clear_status()
 
-    if not found_boot_name:
-        print(f"{C_RED}❌ FAILED: Did not detect '{expected_boot_name}' on boot.{C_RESET}")
+    if trace_result["status"] == "assertion":
+        print(f"    {C_RED}❌ [CRITICAL ASSERTION] {trace_result['line']}{C_RESET}")
         return False, mem_usage
 
-    # Admission failure
-    expected_failure_task = test_case.get("expected_admission_failure")
-    actual_admission_failures = [log for log in parsed_logs if log["event"] == TraceEvent.TRACE_ADMISSION_FAILED]
-    if expected_failure_task:
-        if actual_admission_failures:
-            failed_task = actual_admission_failures[0]["task_name"]
-            if failed_task == expected_failure_task:
-                return True, mem_usage
-            else:
-                print(f"    {C_RED}❌ FAILED: Expected '{expected_failure_task}' to fail admission, but '{failed_task}' failed instead.{C_RESET}")
-                return False, mem_usage
-        else:
-            print(f"    {C_RED}❌ FAILED: Expected admission failure for '{expected_failure_task}', but it did not occur.{C_RESET}")
-            return False, mem_usage
-    else:
-        if actual_admission_failures:
-            failed_task = actual_admission_failures[0]["task_name"]
-            print(f"    {C_RED}❌ FAILED: Unexpected admission failure for task '{failed_task}'.{C_RESET}")
-            return False, mem_usage
+    if not validate_expected_boot_name(trace_result["found_boot_name"], expected_boot_name, mem_usage):
+        return False, mem_usage
+
+    if not validate_admission_failure(trace_result["logs"], test_case, mem_usage):
+        return False, mem_usage
 
     if test_case.get("ignore_traces", False):
         return True, mem_usage
 
-    expected_set = set()
-    for exp_task, events in test_case.get("expected_events", {}).items():
-        for exp_tick, exp_event in events:
-            expected_set.add((exp_tick, exp_task, exp_event))
-
-    all_passed = True
-    sorted_expected_events = sorted(list(expected_set), key=lambda x: (x[0], x[1]))
-
-    for exp_tick, exp_task, exp_event in sorted_expected_events:
-        event_name = TraceEvent(exp_event).name
-        found = any(log["tick"] == exp_tick and log["task_name"] == exp_task and log["event"] == exp_event for log in parsed_logs)
-
-        if not found:
-            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {exp_task} | {event_name}{C_RESET}")
-            all_passed = False
-
-    allowed_background_tasks = ["Idle Task", "System Task"]
-    strict_policed_events = {TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT}
-
-    for log in parsed_logs:
-        is_background = any(log["task_name"].startswith(name) for name in allowed_background_tasks)
-        if not is_background and log["event"] in strict_policed_events:
-            actual_event_tuple = (log["tick"], log["task_name"], log["event"])
-            if actual_event_tuple not in expected_set:
-                event_name = TraceEvent(log["event"]).name
-                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {log['task_name']} | {event_name}{C_RESET}")
-                all_passed = False
-
+    all_passed = validate_trace_events(trace_result["logs"], test_case)
     return all_passed, mem_usage
 
 
@@ -216,7 +320,8 @@ if __name__ == "__main__":
         check_port_availability()
 
         active_tests = [t.upper() for t in (args.tests if args.tests else TESTS_TO_RUN)]
-        invalid_ids = [t for t in active_tests if t not in [k.upper() for k in TEST_CASES.keys()]]
+        valid_test_ids = {k.upper() for k in TEST_CASES.keys()}
+        invalid_ids = [t for t in active_tests if t not in valid_test_ids]
 
         if invalid_ids:
             print(f"{C_RED}❌ Invalid test IDs requested: {', '.join(invalid_ids)}{C_RESET}")
@@ -262,22 +367,9 @@ if __name__ == "__main__":
 
             test_results.append((test_id, test_data["name"], test_passed, mem_usage))
 
-        print("\n" + "=" * 95)
-        print(f"  TEST SUITE OVERVIEW: {passed_count}/{len(tests_to_execute)} PASSED")
-        print("=" * 95)
-        print(f"{'STATUS':<8} | {'ID':<6} | {'.TEXT':<10} | {'.DATA':<10} | {'.BSS':<10} | {'TEST NAME'}")
-        print("-" * 95)
+        summarize_results(test_results, passed_count)
 
-        for t_id, t_name, passed, mem in test_results:
-            status = f"{C_GREEN}[PASS]{C_RESET}" if passed else f"{C_RED}[FAIL]{C_RESET}"
-            text_str = f"{mem['text']:,} B" if mem else "N/A"
-            data_str = f"{mem['data']:,} B" if mem else "N/A"
-            bss_str = f"{mem['bss']:,} B" if mem else "N/A"
-            print(f"{status:<17} | {t_id:<6} | {text_str:<10} | {data_str:<10} | {bss_str:<10} | {t_name}")
-
-        print("=" * 95 + "\n")
-
-    except KeyboardInterrupt, EOFError:
+    except (KeyboardInterrupt, EOFError):
         clear_status()
         print(f"\n\n{C_YELLOW}[Test Runner] Aborted by user. Exiting cleanly.{C_RESET}")
         sys.exit(0)
