@@ -19,11 +19,8 @@ PendingCBSTask_t pending_cbs_tasks[MAX_PENDING_CBS_TASKS];
  * @pre this function should only be called from within the context of a CBS master task
  */
 static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
-  // TODO: Might be able to remove the critical section below
-  taskENTER_CRITICAL();
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_APERIODIC, cbs_mb->tmb_handle);
   CBS_mark_task_done(cbs_mb->tmb_handle->handle);
-  taskEXIT_CRITICAL();
 }
 
 static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
@@ -48,28 +45,21 @@ static void CBS_master_task(void *pvParameters) {
       CBS_master_task_out_of_tasks(pxServer);
     }
     AperiodicTaskFunc_t fptr;
-    // NB: dequeue here should succeed
     q_top(&pxServer->aperiodic_tasks, &fptr);
     // TODO: nice-to-have: add error handling if calling the function pointer returns an error
     fptr();
+    // NB: dequeue here should succeed
     q_dequeue(&pxServer->aperiodic_tasks, NULL);
   }
 }
-// NB: if we ever want to add support for seeing which specific soft real-time aperiodic task the CBS
-// master task if running, we could create a shared mapping between function pointers (corresponding to
-// aperiodic tasks and integers). Then we can use the integer to decide which GPIO pin to flicker on and flicker off
-// as the MASTER TASK gets prioritized and deprioritized. This logic could be kept in CBS manager
-// (e.g., as a field "current_gpio_pin")
 
 BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   configASSERT(Qs > 0);
   CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
-  // NB: current implementation of CBS assues CBS servers are always initialized at beginning
-  pxServer->dsk     = 0;
-  pxServer->Qs      = Qs;
-  pxServer->Ts      = Ts;
-  pxServer->cs      = Qs;
-  pxServer->is_idle = true; // TODO might be able to remove
+  pxServer->dsk      = 0;
+  pxServer->Qs       = Qs;
+  pxServer->Ts       = Ts;
+  pxServer->cs       = Qs;
 
   q_init(
     &pxServer->aperiodic_tasks,
@@ -82,17 +72,9 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
 
   CBS_create_master_task(
-    CBS_master_task,
-    pcTaskName,
-    portMAX_DELAY,
-    0, // NB: fix release time to 0 to ensure release time <= relative deadline holds
-    pxServer->dsk,
-    &pxServer->tmb_handle,
-    (void *)pxServer,
-    false
+    CBS_master_task, pcTaskName, portMAX_DELAY, 0, pxServer->dsk, &pxServer->tmb_handle, (void *)pxServer, false
   );
-  // Newly created CBS server is considered "done" since it has no tasks to execute
-  // and should not be considered for execution
+  // Newly created CBS server should not be considered for execution
   pxServer->tmb_handle->is_done = true;
 };
 
@@ -110,14 +92,6 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
   return pdFAIL; // Buffer full
 };
 
-// NB: current design - soft real-time aperiodic tasks are very bare-bones, and are only a function pointer
-// (no extra book-kept fields like `release_time`, `completion_time`, and `deadline` like "real"
-// EDF tasks)
-// NB: enqueueing structs "wrapping around" task_function could be one way to potentially
-// integrate tracing into the data structures we enqueue themselves (e.g., add a field called
-// `gpio_pin` to determine which GPIO pin to turn on for a particular soft real-time aperiodic task)
-
-// ASSUMPTION: current_task is task GURANTEED to run this current time slice
 // ASSUMPTION: CBS_update_budget is called every time slice
 // INVARIANT: last_server->cs > 0 at entry of function (i.e., server capacity > 0 must hold)
 BaseType_t CBS_update_budget(TMB_t *current_task) {
@@ -132,7 +106,6 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
 
   if (server->cs == 0) {
     server->dsk += server->Ts;
-    // REQUIRES: CBS_update_budget must be called AFTER choosing of highest_priority_task
     server->tmb_handle->absolute_deadline = server->dsk;
     server->cs                            = server->Qs;
     TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
@@ -147,9 +120,7 @@ void CBS_release_tasks() {
     if (pending_cbs_tasks[i].is_active && current_timestamp >= pending_cbs_tasks[i].release_time) {
       int       cbs_id   = pending_cbs_tasks[i].cbs_id;
       CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
-      // --- ORIGINAL CBS LOGIC START ---
       if (q_empty(&pxServer->aperiodic_tasks)) {
-        // CBS Rule: If server is idle, check if we can reuse current deadline or must generate new one
         if (
           pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
                                                                      ((double)pxServer->Qs / (double)pxServer->Ts)
@@ -160,10 +131,7 @@ void CBS_release_tasks() {
         }
       }
       pxServer->tmb_handle->is_done = false;
-      // Enroll the task into the server's functional queue
       q_enqueue(&pxServer->aperiodic_tasks, (void *)&pending_cbs_tasks[i].task_function);
-      // --- ORIGINAL CBS LOGIC END ---
-      // Mark slot as free for future requests
       pending_cbs_tasks[i].is_active = false;
     }
   }

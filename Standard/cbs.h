@@ -50,7 +50,6 @@ typedef struct {
   TickType_t          cs; // budget
   Queue_t             aperiodic_tasks;
   AperiodicTaskFunc_t aperiodic_tasks_storage[CBS_QUEUE_CAPACITY];
-  bool                is_idle;
   TMB_t              *tmb_handle;
 } CBS_MB_t;
 
