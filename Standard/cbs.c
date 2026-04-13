@@ -6,8 +6,12 @@
 SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
 MarkTaskDone_t        CBS_mark_task_done     = EDF_mark_task_done;
 
-StackType_t cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
-CBS_MB_t    cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
+StackType_t      cbs_private_stacks_master[MAXIMUM_CBS_SERVERS][CBS_MASTER_STACK_SZ];
+CBS_MB_t         cbs_metadata_blocks[MAXIMUM_CBS_SERVERS];
+PendingCBSTask_t pending_cbs_tasks[MAX_PENDING_CBS_TASKS];
+
+// TODO: Add a CBS_init function
+// that initializes the is_active flag of `pending_cbs_tasks` to false
 
 // === HELPER FUNCTION DEFINITIONS ===
 // ================================
@@ -93,32 +97,18 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   // printf("create_cbs_server - CBS_create_master_task post \n");
 };
 
-BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_id) {
-  CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
-  if (q_empty(&pxServer->aperiodic_tasks)) {
-    // printf("CBS_create_aperiodic_task - setting pxServer->tmb_handle->aperiodic.is_runnnable to true\n");
-    // printf("CBS_create_aperiodic_task - calling vTaskResume...\n");
-    // TODO: might need to be wary about doing arithmethic with TickType_t
-    TickType_t current_timestamp = xTaskGetTickCount();
-    printf("Tick: %d: pxServer: %d\n", current_timestamp, pxServer);
-    if (
-      pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
-                                                                 ((double)pxServer->Qs / (double)pxServer->Ts)
-    ) {
-      pxServer->dsk = current_timestamp + pxServer->Ts;
-      // printf("CBS_create_aperiodic_task - set new deadline and refill pxServer->cs\n");
-
-      pxServer->cs = pxServer->Qs;
-      // TODO remove?
-      // pxServer->is_idle = false;
-      pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
+BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_id, TickType_t release_time) {
+  // Find an empty slot in the pending buffer
+  for (int i = 0; i < MAX_PENDING_CBS_TASKS; i++) {
+    if (!pending_cbs_tasks[i].is_active) {
+      pending_cbs_tasks[i].task_function = task_function;
+      pending_cbs_tasks[i].cbs_id        = cbs_id;
+      pending_cbs_tasks[i].release_time  = release_time;
+      pending_cbs_tasks[i].is_active     = true;
+      return pdPASS;
     }
-    // printf("CBS_create_aperiodic_task: set tmb_handle->absolute_deadline to %d\n", pxServer->dsk);
-    // printf("CBS_create_aperiodic_task: set is_done to false\n");
   }
-  // printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
-  pxServer->tmb_handle->is_done = false;
-  q_enqueue(&cbs_metadata_blocks[cbs_id].aperiodic_tasks, (void *)&task_function);
+  return pdFAIL; // Buffer full
 };
 
 // NB: current design - soft real-time aperiodic tasks are very bare-bones, and are only a function pointer
@@ -145,15 +135,53 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
   // printf("Tick %d: server->cs - post: %lu\n", count, server->cs);
 
   if (server->cs == 0) {
+    printf("%d += %d\n", server->dsk, server->Ts);
     server->dsk += server->Ts;
-    TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
     // REQUIRES: CBS_update_budget must be called AFTER choosing of highest_priority_task
     server->tmb_handle->absolute_deadline = server->dsk;
     server->cs                            = server->Qs;
+    TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
     return pdTRUE;
   }
   // printf("Tick %d: end\n", count);
   return pdFALSE;
 };
+
+void CBS_release_tasks() {
+  TickType_t current_timestamp = xTaskGetTickCount();
+  for (int i = 0; i < MAX_PENDING_CBS_TASKS; i++) {
+    if (pending_cbs_tasks[i].is_active && current_timestamp >= pending_cbs_tasks[i].release_time) {
+      int       cbs_id   = pending_cbs_tasks[i].cbs_id;
+      CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
+      // --- ORIGINAL CBS LOGIC START ---
+      if (q_empty(&pxServer->aperiodic_tasks)) {
+        // CBS Rule: If server is idle, check if we can reuse current deadline or must generate new one
+        if (
+          pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
+                                                                     ((double)pxServer->Qs / (double)pxServer->Ts)
+        ) {
+
+          printf(
+            "%f >= (%f - %f) * (%f / %f)\n",
+            (double)pxServer->cs,
+            (double)pxServer->dsk,
+            (double)current_timestamp,
+            (double)pxServer->Qs,
+            (double)pxServer->Ts
+          );
+          pxServer->dsk                           = current_timestamp + pxServer->Ts;
+          pxServer->cs                            = pxServer->Qs;
+          pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
+        }
+      }
+      pxServer->tmb_handle->is_done = false;
+      // Enroll the task into the server's functional queue
+      q_enqueue(&pxServer->aperiodic_tasks, (void *)&pending_cbs_tasks[i].task_function);
+      // --- ORIGINAL CBS LOGIC END ---
+      // Mark slot as free for future requests
+      pending_cbs_tasks[i].is_active = false;
+    }
+  }
+}
 
 #endif // USE_CBS
