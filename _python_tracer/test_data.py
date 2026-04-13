@@ -189,7 +189,29 @@ TEST_CASES = {
         "name": "Inadmissible drop-in",
         "flags": {"USE_MP": 0, "USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 10},
         "expected_admission_failure": "Periodic 02",
-        "expected_events": {},
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (20, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (100, TraceEvent.TRACE_RELEASE),
+                (100, TraceEvent.TRACE_SWITCH_IN),
+                (120, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (200, TraceEvent.TRACE_RELEASE),
+                (200, TraceEvent.TRACE_SWITCH_IN),
+                (220, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (300, TraceEvent.TRACE_RELEASE),
+                (300, TraceEvent.TRACE_SWITCH_IN),
+                (320, TraceEvent.TRACE_SWITCH_OUT),
+                #
+                (400, TraceEvent.TRACE_RELEASE),
+                (400, TraceEvent.TRACE_SWITCH_IN),
+                (420, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
     },
     "EDF11": {
         "name": "Missed deadline",
