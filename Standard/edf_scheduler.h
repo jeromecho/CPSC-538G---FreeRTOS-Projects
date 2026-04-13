@@ -34,7 +34,6 @@ void EDF_aperiodic_task(void *pvParameters);
 TMB_t *EDF_produce_highest_priority_task();
 TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
-void   EDF_scheduler_start();
 
 extern TaskHandle_t monitor_task_handle;
 

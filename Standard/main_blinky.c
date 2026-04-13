@@ -169,7 +169,8 @@ void main_blinky(void) {
   run_test();
 
   /* Start the tasks and timer running. */
-  EDF_scheduler_start();
+  printf("Starting scheduler.\n");
+  vTaskStartScheduler();
 
   /* If all is well, the scheduler will now be running, and the following
   line will never be reached.  If the following line does execute, then

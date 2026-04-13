@@ -47,7 +47,7 @@ static void   deprioritize_task(const TMB_t *const task);
 static void   deprioritize_other_tasks(const TMB_t *const highest_priority_task);
 static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
-void          update_priorities(bool also_elevate_priority);
+void          update_priorities();
 void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
 TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          deadline_miss(const TMB_t *const task);
@@ -66,6 +66,7 @@ void trace_task_switch(TraceEventType_t switch_event);
 ; // ==================================
 
 void vApplicationTickHook(void);
+void scheduler_started(void);
 void task_switched_out(void);
 void task_switched_in(void);
 
@@ -117,7 +118,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   SRP_pop_ceiling();
 #endif // USE_SRP
 
-  update_priorities(true);
+  update_priorities();
 
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb);
 
@@ -370,14 +371,8 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
   return NULL;
 }
 
-/// @brief Starts the scheduler. Among other things selects the initial tasks to be run, and then starts the actual
-/// FreeRTOS scheduler
-void EDF_scheduler_start() {
-  printf("Starting scheduler.\n");
-
-  update_priorities(false);
-
-  vTaskStartScheduler();
+void scheduler_started() {
+  update_priorities();
 }
 
 ; // ==================================
@@ -510,7 +505,7 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 /// priority of the next task to run. This is presented as an option so that this function can be run before the
 /// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which is
 /// very much not allowed before the scheduler has started (at least when SMP is enabled).
-void update_priorities(bool also_elevate_priority) {
+void update_priorities() {
   TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
   const bool   should_update         = should_update_priorities(highest_priority_task);
   if (!should_update) {
@@ -535,9 +530,7 @@ void update_priorities(bool also_elevate_priority) {
     }
 #endif // USE_SRP
 
-    if (also_elevate_priority) {
-      set_highest_priority(highest_priority_task);
-    }
+    set_highest_priority(highest_priority_task);
   }
 }
 
@@ -600,7 +593,7 @@ void vApplicationTickHook(void) {
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
 
-  update_priorities(true);
+  update_priorities();
 }
 
 void trace_task_switch(TraceEventType_t switch_event) {

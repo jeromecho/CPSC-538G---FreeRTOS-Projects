@@ -149,9 +149,11 @@ to exclude the API function. */
 // CUSTOM PART
 extern void task_switched_in();
 extern void task_switched_out();
+extern void scheduler_started();
 
 #define traceTASK_SWITCHED_IN()  task_switched_in()
 #define traceTASK_SWITCHED_OUT() task_switched_out()
+#define traceRETURN_vTaskStartScheduler() scheduler_started()
 
 #endif /* FREERTOS_CONFIG_H */
 
