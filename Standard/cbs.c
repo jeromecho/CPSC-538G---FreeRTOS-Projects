@@ -98,28 +98,26 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
   if (q_empty(&pxServer->aperiodic_tasks)) {
     // printf("CBS_create_aperiodic_task - setting pxServer->tmb_handle->aperiodic.is_runnnable to true\n");
     // printf("CBS_create_aperiodic_task - calling vTaskResume...\n");
-    vTaskResume(pxServer->tmb_handle->handle);
     // TODO: might need to be wary about doing arithmethic with TickType_t
     TickType_t current_timestamp = xTaskGetTickCount();
+    printf("Tick: %d: pxServer: %d\n", current_timestamp, pxServer);
     if (
       pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
                                                                  ((double)pxServer->Qs / (double)pxServer->Ts)
     ) {
       pxServer->dsk = current_timestamp + pxServer->Ts;
-      // printf("Tick: %d\n", current_timestamp);
       // printf("CBS_create_aperiodic_task - set new deadline and refill pxServer->cs\n");
 
       pxServer->cs = pxServer->Qs;
       // TODO remove?
       // pxServer->is_idle = false;
       pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
-      pxServer->tmb_handle->is_done           = false;
     }
     // printf("CBS_create_aperiodic_task: set tmb_handle->absolute_deadline to %d\n", pxServer->dsk);
     // printf("CBS_create_aperiodic_task: set is_done to false\n");
   }
-
   // printf("create_aperiodic_task: calling q_enqueue: task_function %d \n", task_function);
+  pxServer->tmb_handle->is_done = false;
   q_enqueue(&cbs_metadata_blocks[cbs_id].aperiodic_tasks, (void *)&task_function);
 };
 
@@ -140,6 +138,8 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
     return pdFALSE;
   }
   TickType_t count = xTaskGetTickCount();
+
+  printf("Tick %d: server %d\n", count, server);
   // printf("Tick %d: server->cs - pre: %lu\n", count, server->cs);
   server->cs -= 1;
   // printf("Tick %d: server->cs - post: %lu\n", count, server->cs);
