@@ -105,23 +105,30 @@ void main_blinky(void);
 /*
  * Helpers
  */
-void       initialize_gpio_pins(void);
-TickType_t run_test();
+void initialize_gpio_pins(void);
+void run_test();
 
 /*-----------------------------------------------------------*/
 
 TaskHandle_t monitor_task_handle = NULL;
 
 void vTraceMonitorTask(void *pvParameters) {
-  const TickType_t test_duration_ticks = pdMS_TO_TICKS((TickType_t)(uintptr_t)pvParameters);
-
   // Either sleeps for the specified duration, or is forced to wake by task notification due to something like a
   // deadline miss
-  ulTaskNotifyTake(pdTRUE, test_duration_ticks);
+  ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
 
   // The test is over, so output trace
   vTaskSuspendAll();
   TRACE_disable();
+
+#if USE_EDF
+#if USE_SRP
+  printf("Results for SRP Test %d\n", TEST_NR);
+#else
+  printf("Results for EDF Test %d\n", TEST_NR);
+#endif
+#endif
+
   crash_with_trace("");
 }
 
@@ -136,8 +143,6 @@ void main_blinky(void) {
   printf("Starting main_blinky.\n");
   initialize_gpio_pins();
 
-  TickType_t test_duration = run_test();
-
 #if !TRACE_WITH_LOGIC_ANALYZER
   // This creates the monitor task, which is responsible for printing all trace data after a certain amount of time has
   // passed. It doesn't interfere with the scheduling.
@@ -145,7 +150,7 @@ void main_blinky(void) {
     vTraceMonitorTask,
     "Monitor",
     configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
-    (void *)(uintptr_t)test_duration,
+    (void *)TEST_DURATION_TICKS,
     configMAX_PRIORITIES - 1,
     &monitor_task_handle
   );
@@ -160,6 +165,8 @@ void main_blinky(void) {
   vTaskCoreAffinitySet(monitor_task_handle, core_affinity_mask);
 #endif // configUSE_CORE_AFFINITY
 #endif // TRACE_WITH_LOGIC_ANALYZER
+
+  run_test();
 
   /* Start the tasks and timer running. */
   EDF_scheduler_start();
@@ -188,18 +195,18 @@ void initialize_gpio_pins(void) {
 
 #define PASTE(x, y)        x##y
 #define PASTE_EXPAND(x, y) PASTE(x, y)
-TickType_t run_test() {
+void run_test() {
   // clang-format off
 #if USE_EDF
   #if USE_SRP
     printf("Running SRP Test %d\n", TEST_NR);
     // If TEST_NR is 1, this becomes: return srp_test_1();
-    return PASTE_EXPAND(srp_test_, TEST_NR)();
+    PASTE_EXPAND(srp_test_, TEST_NR)();
     
   #else
     printf("Running EDF Test %d\n", TEST_NR);
     // If TEST_NR is 3, this becomes: edf_test_3();
-    return PASTE_EXPAND(edf_test_, TEST_NR)();
+    PASTE_EXPAND(edf_test_, TEST_NR)();
   #endif
 #endif
   // clang-format on

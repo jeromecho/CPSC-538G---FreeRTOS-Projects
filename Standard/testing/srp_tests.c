@@ -1,6 +1,8 @@
-#include "srp_tests.h"
+#include "ProjectConfig.h"
 
 #if USE_SRP
+
+#include "srp_tests.h"
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
@@ -15,21 +17,17 @@
 ; // === Local function declarations ===
 ; // ===================================
 
-static void       build_periodic_task(const char *task_name, const SRP_PeriodicTaskParams_t *config);
-static void       build_aperiodic_task(const char *task_name, const SRP_AperiodicTaskParams_t *config);
-static TickType_t build_periodic_test(
-  const char *test_name, const SRP_PeriodicTaskParams_t *config, size_t num_tasks, TickType_t duration
-);
-static TickType_t build_aperiodic_test(
-  const char *test_name, const SRP_AperiodicTaskParams_t *config, size_t num_tasks, TickType_t duration
-);
+static void build_periodic_task(const char *task_name, const SRP_PeriodicTaskParams_t *config);
+static void build_aperiodic_task(const char *task_name, const SRP_AperiodicTaskParams_t *config);
+static void build_periodic_test(const char *test_name, const SRP_PeriodicTaskParams_t *config, size_t num_tasks);
+static void build_aperiodic_test(const char *test_name, const SRP_AperiodicTaskParams_t *config, size_t num_tasks);
 static void execute_steps(const TickType_t completion_time, const TaskStep_t steps[], const size_t num_steps);
 
 ; // ========================
 ; // === Test definitions ===
 ; // ========================
 
-#if TEST_NR == 1
+#if TEST_NR == 1 || ENABLE_ALL_TESTS
 /// Test 1: Basic SRP Priority Inversion Prevention
 ///
 /// This test demonstrates how SRP prevents a medium-priority task from preempting a low-priority task holding a shared
@@ -55,22 +53,22 @@ void vSRPTest1Task3(void *pvParameters) {
   };
   execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-TickType_t srp_test_1() {
+void srp_test_1() {
   const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
     {vSRPTest1Task1,     30,  40, 100, 3, {30} },
     {EDF_aperiodic_task, 50,  20, 200, 2, {0}  },
     {vSRPTest1Task3,     120, 0,  300, 1, {100}},
   };
 
-  return build_aperiodic_test( //
+  build_aperiodic_test( //
     "SRP Test 1",
     test_config,
-    MAXIMUM_APERIODIC_TASKS,
-    300
+    MAXIMUM_APERIODIC_TASKS
   );
 }
+#endif
 
-#elif TEST_NR == 2
+#if TEST_NR == 2 || ENABLE_ALL_TESTS
 /// Test 2: Complex Multi-Resource SRP Validation
 ///
 /// Uses 4 tasks and 3 distinct resources (semaphores) to validate nested resource locking and system ceiling dynamic
@@ -126,7 +124,7 @@ void vSRPTest2Task4(void *pvParameters) {
   };
   execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-TickType_t srp_test_2() {
+void srp_test_2() {
   const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
     {vSRPTest2Task1, 363, 400, 500,  4, {45, 45, 45}},
     {vSRPTest2Task2, 295, 279, 700,  3, {0, 109, 0} },
@@ -134,15 +132,15 @@ TickType_t srp_test_2() {
     {vSRPTest2Task4, 343, 0,   1400, 1, {157, 0, 0} },
   };
 
-  return build_aperiodic_test( //
+  build_aperiodic_test( //
     "SRP Test 2",
     test_config,
-    MAXIMUM_APERIODIC_TASKS,
-    1500
+    MAXIMUM_APERIODIC_TASKS
   );
 }
+#endif
 
-#elif TEST_NR == 3 || TEST_NR == 4
+#if TEST_NR == 3 || TEST_NR == 4 || ENABLE_ALL_TESTS
 /// Test 3 & 4: Comparison of execution traces when Stack Sharing is enabled vs. disabled.
 ///
 /// Since tasks at the same preemption level cannot preempt each other under SRP, this enables stack sharing. This
@@ -157,24 +155,23 @@ const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
   {EDF_aperiodic_task, 100, 20, 230, 1, {NULL}},
   {EDF_aperiodic_task, 50,  50, 150, 2, {NULL}},
 };
-TickType_t srp_test_3() {
-  return build_aperiodic_test( //
+void srp_test_3() {
+  build_aperiodic_test( //
     "SRP Test 3",
     test_config,
-    MAXIMUM_APERIODIC_TASKS,
-    300
+    MAXIMUM_APERIODIC_TASKS
   );
 }
-TickType_t srp_test_4() {
-  return build_aperiodic_test( //
+void srp_test_4() {
+  build_aperiodic_test( //
     "SRP Test 4",
     test_config,
-    MAXIMUM_APERIODIC_TASKS,
-    300
+    MAXIMUM_APERIODIC_TASKS
   );
 }
+#endif
 
-#elif TEST_NR == 5 || TEST_NR == 6
+#if TEST_NR == 5 || TEST_NR == 6 || ENABLE_ALL_TESTS
 /// Tests 5 & 6: Quantitative Analysis of Stack Sharing RAM Usage
 ///
 /// A stress test designed to measure the memory reduction achieved by SRP.
@@ -184,7 +181,7 @@ TickType_t srp_test_4() {
 /// using `sizeof()`. Proves that stack sharing significantly reduces the `.bss`
 /// memory allocation required for the RTOS.
 ///
-TickType_t srp_test_5() {
+void srp_test_5() {
   const unsigned int NUM_TASKS            = MAXIMUM_APERIODIC_TASKS;
   const unsigned int COMPLETION_TIME_MS   = 10;
   const unsigned int RELATIVE_DEADLINE_MS = NUM_TASKS * COMPLETION_TIME_MS;
@@ -201,8 +198,7 @@ TickType_t srp_test_5() {
   build_aperiodic_test( //
     "SRP Test 5",
     test_config,
-    NUM_TASKS,
-    RELATIVE_DEADLINE_MS
+    NUM_TASKS
   );
 
   // 3. Quantitative Analysis Output
@@ -239,17 +235,12 @@ TickType_t srp_test_5() {
 #endif
 
   printf("==================================================\n\n");
-
-  // Run the test for a short duration to prove it executes without crashing
-  const TickType_t TEST_DURATION = RELATIVE_DEADLINE_MS;
-  return TEST_DURATION;
 }
 
-TickType_t srp_test_6() {
-  return srp_test_5();
-}
+void srp_test_6() { srp_test_5(); }
+#endif
 
-#elif TEST_NR == 7
+#if TEST_NR == 7 || ENABLE_ALL_TESTS
 void vSRPTest7Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
@@ -268,21 +259,21 @@ void vSRPTest7Task3(void *pvParameters) {
   };
   execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-TickType_t srp_test_7() {
+void srp_test_7() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {vSRPTest7Task1,    2,  10, 10, 3, {1}},
     {EDF_periodic_task, 4,  20, 20, 2, {0}},
     {vSRPTest7Task3,    10, 50, 50, 1, {3}},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "SRP Test 7",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    300
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
-#elif TEST_NR == 8
+#if TEST_NR == 8 || ENABLE_ALL_TESTS
 void vSRPTest8Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
@@ -301,21 +292,21 @@ void vSRPTest8Task3(void *pvParameters) {
   };
   execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-TickType_t srp_test_8() {
+void srp_test_8() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {vSRPTest8Task1,    2,  10, 10, 3, {1}},
     {EDF_periodic_task, 4,  20, 20, 2, {0}},
     {vSRPTest8Task3,    10, 50, 50, 1, {9}},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "SRP Test 8",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    300
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
-#elif TEST_NR == 9
+#if TEST_NR == 9 || ENABLE_ALL_TESTS
 void vSRPTest9Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
@@ -334,18 +325,17 @@ void vSRPTest9Task3(void *pvParameters) {
   };
   execute_steps((TickType_t)pvParameters, steps, LEN(steps));
 }
-TickType_t srp_test_9() {
+void srp_test_9() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {vSRPTest9Task1,    5, 20, 10, 3, {2}},
     {EDF_periodic_task, 4, 20, 12, 2, {0}},
     {vSRPTest9Task3,    8, 50, 50, 1, {6}}
   };
 
-  return build_periodic_test( //
+  build_periodic_test( //
     "SRP Test 9",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    300
+    MAXIMUM_PERIODIC_TASKS
   );
 }
 
@@ -384,11 +374,10 @@ static void build_aperiodic_task(const char *task_name, const SRP_AperiodicTaskP
 }
 
 /// @brief Creates all tasks from the provided test configuration for periodic tasks
-static TickType_t build_periodic_test( //
+static void build_periodic_test( //
   const char                     *test_name,
   const SRP_PeriodicTaskParams_t *config,
-  size_t                          num_tasks,
-  TickType_t                      duration
+  size_t                          num_tasks
 ) {
   configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
 
@@ -397,16 +386,13 @@ static TickType_t build_periodic_test( //
     snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
     build_periodic_task(task_name, &config[i]);
   }
-
-  return duration;
 }
 
 /// @brief Creates all tasks from the provided test configuration for aperiodic tasks
-static TickType_t build_aperiodic_test( //
+static void build_aperiodic_test( //
   const char                      *test_name,
   const SRP_AperiodicTaskParams_t *config,
-  size_t                           num_tasks,
-  TickType_t                       duration
+  size_t                           num_tasks
 ) {
   configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
 
@@ -415,8 +401,6 @@ static TickType_t build_aperiodic_test( //
     snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
     build_aperiodic_task(task_name, &config[i]);
   }
-
-  return duration;
 }
 
 /// @brief Executes a series of steps defined for a given test. Verifies that the total execution time for the task

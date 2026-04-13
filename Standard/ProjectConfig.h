@@ -4,12 +4,15 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 
 #define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
-#define USE_SRP 1
-#define TEST_NR 4
+#define USE_SRP 0
+#define TEST_NR 7
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0
+
+// Debugging
+#define ENABLE_ALL_TESTS 0
 
 // clang-format off
 
@@ -23,30 +26,35 @@
       #define N_RESOURCES             1
       #define N_PREEMPTION_LEVELS     3
       #define ENABLE_STACK_SHARING    0
+      #define TEST_DURATION_TICKS     300
     #elif TEST_NR == 2
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 4
       #define N_RESOURCES             3
       #define N_PREEMPTION_LEVELS     4
       #define ENABLE_STACK_SHARING    0
+      #define TEST_DURATION_TICKS     1500
     #elif TEST_NR == 3
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 3
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     2
       #define ENABLE_STACK_SHARING    0
+      #define TEST_DURATION_TICKS     300
     #elif TEST_NR == 4
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 3
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     2
       #define ENABLE_STACK_SHARING    1
+      #define TEST_DURATION_TICKS     300
     #elif TEST_NR == 5
       #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 25
+      #define MAXIMUM_APERIODIC_TASKS 100
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     5
       #define ENABLE_STACK_SHARING    0
+      #define TEST_DURATION_TICKS     1000
     #elif TEST_NR == 6
       #define MAXIMUM_PERIODIC_TASKS  0
       #define MAXIMUM_APERIODIC_TASKS 25
@@ -59,18 +67,20 @@
       #define N_RESOURCES             1
       #define N_PREEMPTION_LEVELS     3
       #define ENABLE_STACK_SHARING    1
+      #define TEST_DURATION_TICKS     300
     #elif TEST_NR == 8
       #define MAXIMUM_PERIODIC_TASKS  3
       #define MAXIMUM_APERIODIC_TASKS 0
       #define N_RESOURCES             1
       #define N_PREEMPTION_LEVELS     3
       #define ENABLE_STACK_SHARING    1
+      #define TEST_DURATION_TICKS     300
     #elif TEST_NR == 9
       #define MAXIMUM_PERIODIC_TASKS  3
       #define MAXIMUM_APERIODIC_TASKS 0
       #define N_RESOURCES             1
       #define N_PREEMPTION_LEVELS     3
-      #define ENABLE_STACK_SHARING    1
+      #define ENABLE_STACK_SHARING    300
 
     #else
       #error "Invalid or undefined TEST_NR"
@@ -93,9 +103,11 @@
     #if TEST_NR == 1
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
+      #define TEST_DURATION_TICKS     11
     #elif TEST_NR == 2
       #define MAXIMUM_PERIODIC_TASKS  3
       #define MAXIMUM_APERIODIC_TASKS 0
+      #define TEST_DURATION_TICKS     23
     #elif TEST_NR == 3
       #define MAXIMUM_PERIODIC_TASKS  100
       #define MAXIMUM_APERIODIC_TASKS 0
@@ -111,19 +123,23 @@
     #elif TEST_NR == 7
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
+      #define TEST_DURATION_TICKS     400
     #elif TEST_NR == 8
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
     #elif TEST_NR == 9
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
+      #define TEST_DURATION_TICKS     1200
     #elif TEST_NR == 10
       #define MAXIMUM_PERIODIC_TASKS  2
       #define MAXIMUM_APERIODIC_TASKS 0
+      #define TEST_DURATION_TICKS     1000
     #elif TEST_NR == 11
       #define MAXIMUM_PERIODIC_TASKS    2
       #define MAXIMUM_APERIODIC_TASKS   0
       #define PERFORM_ADMISSION_CONTROL 0
+      #define TEST_DURATION_TICKS       250
 
     #else
       #error "Invalid or undefined TEST_NR"
@@ -146,5 +162,9 @@
   #endif
 
 #endif // USE_EDF
+
+#ifndef TEST_DURATION_TICKS
+  #define TEST_DURATION_TICKS 500
+#endif
 
 #endif /* PROJECT_CONFIG_H */

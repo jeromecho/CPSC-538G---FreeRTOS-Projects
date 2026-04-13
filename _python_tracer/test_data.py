@@ -325,14 +325,14 @@ TEST_CASES = {
     # Haven't bothered defining the results here, as long as they compile they shoud be fine.
     # They really aren't very different from tests 3 and 4
     "SRP5": {
-        "name": "Stack Sharing Disabled - 25 Tasks w/ 5 Preemption Levels",
+        "name": "Stack Sharing Disabled - 100 Tasks w/ 5 Preemption Levels",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 5},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP6": {
-        "name": "Stack Sharing Enabled - 25 Tasks w/ 5 Preemption Levels",
+        "name": "Stack Sharing Enabled - 100 Tasks w/ 5 Preemption Levels",
         "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 6},
         "expected_admission_failure": None,
         "ignore_traces": True,

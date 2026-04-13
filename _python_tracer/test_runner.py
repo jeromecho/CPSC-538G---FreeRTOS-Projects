@@ -49,14 +49,17 @@ def run_test(test_id, test_case):
     mem_usage = get_binary_memory_usage()
 
     port = auto_detect_port()
-    if not port:
-        print_status("[Monitor] Waiting for serial port to initialize...")
-        time.sleep(2)
-        port = auto_detect_port()
-        if not port:
+    port_connection_attempts = 5
+    while not port:
+        port_connection_attempts -= 1
+        if port_connection_attempts == 0:
             clear_status()
             print(f"{C_RED}❌ Could not detect Pico serial port.{C_RESET}")
             return False, mem_usage
+
+        print_status("[Monitor] Waiting for serial port to initialize...")
+        time.sleep(0.5)
+        port = auto_detect_port()
 
     parsed_logs = []
     output_log_raw = ""
@@ -64,7 +67,7 @@ def run_test(test_id, test_case):
 
     test_type = "SRP" if "SRP" in test_id.upper() else "EDF"
     test_num = "".join(filter(str.isdigit, test_id))
-    expected_boot_name = f"Running {test_type} Test {test_num}"
+    expected_boot_name = f"Results for {test_type} Test {test_num}"
     found_boot_name = False
 
     try:

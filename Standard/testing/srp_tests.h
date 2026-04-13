@@ -30,15 +30,15 @@ typedef struct {
   int          value;
 } TaskStep_t;
 
-TickType_t srp_test_1();
-TickType_t srp_test_2();
-TickType_t srp_test_3();
-TickType_t srp_test_4();
-TickType_t srp_test_5();
-TickType_t srp_test_6();
-TickType_t srp_test_7();
-TickType_t srp_test_8();
-TickType_t srp_test_9();
+void srp_test_1();
+void srp_test_2();
+void srp_test_3();
+void srp_test_4();
+void srp_test_5();
+void srp_test_6();
+void srp_test_7();
+void srp_test_8();
+void srp_test_9();
 
 #endif // USE_SRP
 

@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if !USE_SRP
+
 #include "edf_tests.h"
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
@@ -11,52 +15,53 @@
 ; // === Local function declarations ===
 ; // ===================================
 
-static void       build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config);
-static TickType_t build_periodic_test(
-  const char *test_name, const EDF_PeriodicTaskParams_t *config, size_t num_tasks, TickType_t duration
-);
+static void build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config);
+static void build_periodic_test(const char *test_name, const EDF_PeriodicTaskParams_t *config, size_t num_tasks);
 
 ; // ====================================
 ; // === Tests for Base Functionality ===
 ; // ====================================
 
+#if TEST_NR == 1 || ENABLE_ALL_TESTS
 // Smoke Test for Periodic Tasks (relative deadline == period)
-TickType_t edf_test_1() {
+void edf_test_1() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 2, 6, 6},
     {EDF_periodic_task, 1, 2, 2},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 1",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    11
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 2 || ENABLE_ALL_TESTS
 // Test 2: Mark's Deadline DNE Period Smoke Test
-TickType_t edf_test_2() {
+void edf_test_2() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 2, 6, 4},
     {EDF_periodic_task, 2, 8, 5},
     {EDF_periodic_task, 3, 9, 7},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 2",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    23
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
 ; // ===============================
 ; // === Admission Control Tests ===
 ; // ===============================
 
+#if TEST_NR == 3 || ENABLE_ALL_TESTS
 // Note: in order to check the size of the created binary, run:
 // arm-none-eabi-size build/Standard/main_blinky.elf
 // TEST3: 100 Tasks NON-ADMISSIBLE
-TickType_t edf_test_3() {
+void edf_test_3() {
   EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
@@ -64,16 +69,17 @@ TickType_t edf_test_3() {
     test_config[i].T    = 1000;
     test_config[i].D    = 500;
   }
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 3",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    1500
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 4 || ENABLE_ALL_TESTS
 // TEST4: 100 Tasks ADMISSIBLE
-TickType_t edf_test_4() {
+void edf_test_4() {
   EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
@@ -81,17 +87,18 @@ TickType_t edf_test_4() {
     test_config[i].T    = 1000;
     test_config[i].D    = 1000;
   }
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 4",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    1500
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 5 || ENABLE_ALL_TESTS
 // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
 // Total Utilization = 1.0 (100%)
-TickType_t edf_test_5() {
+void edf_test_5() {
   EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
@@ -99,17 +106,18 @@ TickType_t edf_test_5() {
     test_config[i].T    = 100;
     test_config[i].D    = 100;
   }
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 5",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    1500
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 6 || ENABLE_ALL_TESTS
 // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
 // Total Utilization = 1.1 (110%)
-TickType_t edf_test_6() {
+void edf_test_6() {
   EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
@@ -117,46 +125,49 @@ TickType_t edf_test_6() {
     test_config[i].T    = 100;
     test_config[i].D    = 100;
   }
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 6",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    1500
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 7 || ENABLE_ALL_TESTS
 // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
-TickType_t edf_test_7() {
+void edf_test_7() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 10, 50,  50},
     {EDF_periodic_task, 40, 200, 50},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 7",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    400
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
+#if TEST_NR == 8 || ENABLE_ALL_TESTS
 // --- TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50) ---
-TickType_t edf_test_8() {
+void edf_test_8() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 11, 50,  50},
     {EDF_periodic_task, 40, 200, 50},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 8",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    1500
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
 ; // ==========================================================
 ; // === Tests for Drop-in of Tasks while System is Running ===
 ; // ==========================================================
 
+#if TEST_NR == 9 || ENABLE_ALL_TESTS
 // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
 //       good design. Should maybe create both tasks at the same time, and add a release time parameter so that the
 //       scheduler can be responsible for running the tests
@@ -174,7 +185,7 @@ void vTestRunner9() {
 
   vTaskDelete(NULL);
 }
-TickType_t edf_test_9() {
+void edf_test_9() {
   const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 160, 800, 800};
   build_periodic_task("EDF Test 9, Task 1", &task_config);
 
@@ -194,11 +205,10 @@ TickType_t edf_test_9() {
     vTaskCoreAffinitySet(test_runner_handle, core_affinity_mask);
   }
 #endif
-
-  const TickType_t TEST_DURATION = 1200;
-  return TEST_DURATION;
 }
+#endif
 
+#if TEST_NR == 10 || ENABLE_ALL_TESTS
 // TEST 10: Inadmissible Drop-in
 void vTestRunner10() {
   // --- TEST B: Inadmissible Drop-in ---
@@ -211,7 +221,7 @@ void vTestRunner10() {
 
   vTaskDelete(NULL);
 }
-TickType_t edf_test_10() {
+void edf_test_10() {
   const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 20, 100, 100};
   build_periodic_task("EDF Test 10, Task 1", &task_config);
 
@@ -231,28 +241,27 @@ TickType_t edf_test_10() {
     vTaskCoreAffinitySet(test_runner_handle, core_affinity_mask);
   }
 #endif
-
-  const TickType_t TEST_DURATION = 1000;
-  return TEST_DURATION;
 }
+#endif
 
 ; // =================================
 ; // === Tests for Missed Deadline ===
 ; // =================================
 
+#if TEST_NR == 11 || ENABLE_ALL_TESTS
 // TEST 11: Missed Deadline (Total Utilization: 105%)
-TickType_t edf_test_11() {
+void edf_test_11() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 50,  120, 50 },
     {EDF_periodic_task, 130, 200, 200},
   };
-  return build_periodic_test( //
+  build_periodic_test( //
     "EDF Test 11",
     test_config,
-    MAXIMUM_PERIODIC_TASKS,
-    250
+    MAXIMUM_PERIODIC_TASKS
   );
 }
+#endif
 
 
 ; // ==================================
@@ -272,11 +281,10 @@ static void build_periodic_task(const char *task_name, const EDF_PeriodicTaskPar
 }
 
 /// @brief Creates all tasks from the provided test configuration for periodic tasks
-static TickType_t build_periodic_test( //
+static void build_periodic_test( //
   const char                     *test_name,
   const EDF_PeriodicTaskParams_t *config,
-  size_t                          num_tasks,
-  TickType_t                      duration
+  size_t                          num_tasks
 ) {
   configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
 
@@ -285,6 +293,6 @@ static TickType_t build_periodic_test( //
     snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
     build_periodic_task(task_name, &config[i]);
   }
-
-  return duration;
 }
+
+#endif // USE_SRP

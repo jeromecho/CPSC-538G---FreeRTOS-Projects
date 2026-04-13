@@ -290,6 +290,7 @@ BaseType_t EDF_create_periodic_task(
   if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
     TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
     TRACE_disable();
+    xTaskNotifyGive(monitor_task_handle);
     return pdFALSE;
   }
 #endif // PERFORM_ADMISSION_CONTROL

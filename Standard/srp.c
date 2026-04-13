@@ -130,6 +130,7 @@ BaseType_t SRP_create_periodic_task(
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
     TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
     TRACE_disable();
+    xTaskNotifyGive(monitor_task_handle);
     return pdFALSE;
   }
 #endif // PERFORM_ADMISSION_CONTROL
@@ -252,7 +253,7 @@ void srp_specific_initialization(
 ) {
   task->preemption_level = preemption_level;
   task->has_started      = false;
-  memcpy(task->resource_hold_times, resource_hold_times, N_RESOURCES);
+  memcpy(task->resource_hold_times, resource_hold_times, sizeof(task->resource_hold_times));
   SRP_update_resource_ceilings(preemption_level, resource_hold_times, resource_ceilings);
 }
 
