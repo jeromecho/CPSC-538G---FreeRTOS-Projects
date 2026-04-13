@@ -24,12 +24,25 @@ from pico_env import (  # ty:ignore[unresolved-import]
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
-    # "SRP1",
-    # "SRP2",
-    # "SRP3",
-    # "SRP4",
-    # "SRP5",
-    # "SRP6",
+    # "EDF1"
+    "CBS1",
+    "CBS2",
+    "CBS3",
+    "CBS4",
+    "CBS5",
+    "CBS6",
+    "CBS7",
+    "CBS8",
+    "CBS9",
+    "CBS10",
+    "CBS11",
+    "CBS12",
+    "CBS13",
+    "CBS14",
+    "CBS15",
+    "CBS16",
+    "CBS17",
+    "CBS18",
 ]
 
 
@@ -62,7 +75,14 @@ def run_test(test_id, test_case):
     output_log_raw = ""
     capturing = False
 
-    test_type = "SRP" if "SRP" in test_id.upper() else "EDF"
+    test_type = None
+    if "CBS" in test_id.upper():
+        test_type = "CBS"
+    elif "SRP" in test_id.upper():
+        test_type = "SRP"
+    else: 
+        test_type = "EDF"
+
     test_num = "".join(filter(str.isdigit, test_id))
     expected_boot_name = f"Running {test_type} Test {test_num}"
     found_boot_name = False

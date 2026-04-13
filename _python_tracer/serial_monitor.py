@@ -32,6 +32,7 @@ class TraceEvent(IntEnum):
     TRACE_SRP_BLOCK = 9
     TRACE_SEMAPHORE_TAKE = 10
     TRACE_SEMAPHORE_GIVE = 11
+    TRACE_BUDGET_RUN_OUT = 12
 
 
 TASK_TYPES = {
@@ -77,6 +78,9 @@ EVENT_CONFIG = {
     TraceEvent.TRACE_SRP_BLOCK: ("SRP Blocked", "x", "orange", True, 0.0),
     TraceEvent.TRACE_SEMAPHORE_TAKE: ("Take Semaphore", "triangle-down", "red", True, -0.2),
     TraceEvent.TRACE_SEMAPHORE_GIVE: ("Give Semaphore", "triangle-up", "blue", True, -0.2),
+
+    # CBS Events
+    TraceEvent.TRACE_BUDGET_RUN_OUT: ("CBS Budget Run Out", "hourglass", "teal", True, 0.0 )
 }
 # fmt: on
 
