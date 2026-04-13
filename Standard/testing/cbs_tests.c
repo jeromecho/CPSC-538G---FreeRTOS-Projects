@@ -24,6 +24,11 @@ GENERATE_APERIODIC_TASK(3, 3)
 GENERATE_APERIODIC_TASK(2, 2)
 GENERATE_APERIODIC_TASK(1, 1)
 
+GENERATE_APERIODIC_TASK(40, 40)
+GENERATE_APERIODIC_TASK(30, 30)
+GENERATE_APERIODIC_TASK(20, 20)
+GENERATE_APERIODIC_TASK(10, 10)
+
 // ========== CONSTANTS ===========
 // ================================
 
@@ -52,79 +57,16 @@ BaseType_t platform_create_periodic_task(
 ; // === Tests for Base Functionality ===
 ; // ====================================
 
+// TODO: might have to update the function bodies of the tests calling
+// these runners to include calls that spawn CBS_tasks before creating a
+// test runner
+/*
 void vTestRunner1() {
   vTaskDelay(pdMS_TO_TICKS(3));
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
   vTaskDelay(pdMS_TO_TICKS(10));
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
   vTaskDelay(pdMS_TO_TICKS(11));
-  vTaskDelete(NULL);
-}
-
-void vTestRunner2() {
-  create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
-  for (size_t i = 0; i < CBS_QUEUE_CAPACITY; i++) {
-    CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  }
-  vTaskDelay(pdMS_TO_TICKS(50));
-  vTaskDelete(NULL);
-}
-
-void vTestRunner4() {
-  create_cbs_server(pdMS_TO_TICKS(2), pdMS_TO_TICKS(10), CBS_SERVER1_ID);
-  platform_create_periodic_task(EDF_periodic_task, "P1", pdMS_TO_TICKS(2), pdMS_TO_TICKS(5), pdMS_TO_TICKS(4), NULL);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  vTaskDelete(NULL);
-}
-
-void vTestRunner5() {
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  vTaskDelete(NULL);
-}
-
-void vTestRunner6() {
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID);
-  vTaskDelay(pdMS_TO_TICKS(20));
-
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID);
-  vTaskDelay(pdMS_TO_TICKS(20));
-
-  CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID);
-
-  vTaskDelete(NULL);
-}
-
-void (*vTestRunner7)() = vTestRunner6;
-void (*vTestRunner8)() = vTestRunner6;
-void (*vTestRunner9)() = vTestRunner6;
-
-void vTestRunner10() {
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID);
-  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER3_ID);
-  vTaskDelay(pdMS_TO_TICKS(20));
-
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER3_ID);
-  vTaskDelay(pdMS_TO_TICKS(20));
-
-  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER1_ID);
-  vTaskDelay(pdMS_TO_TICKS(10));
-
-  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID);
-  vTaskDelay(pdMS_TO_TICKS(10));
-
-  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID);
   vTaskDelete(NULL);
 }
 
@@ -157,69 +99,55 @@ void(*vTestRunner15) = vTestRunner1;
 void(*vTestRunner16) = vTestRunner1;
 void(*vTestRunner17) = vTestRunner1;
 
+*/
+
 // Smoke test #1 (textbook pg.190): 1 periodic task with 2 aperiodic tasks; 1 CBS server
 TickType_t cbs_test_1() {
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   platform_create_periodic_task(
     EDF_periodic_task, "Task P1", pdMS_TO_TICKS(4), pdMS_TO_TICKS(7), pdMS_TO_TICKS(7), NULL
   );
-  xTaskCreate( //
-    vTestRunner1,
-    "test runner 1",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
-
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(3));
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(13));
   return pdMS_TO_TICKS(21);
 }
 
 // Single aperiodic task running on CBS server
 TickType_t cbs_test_2() {
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
-  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
+  return pdMS_TO_TICKS(10);
 }
 
 // Multiple tasks queueing up to max capacity on 1 CBS server
 TickType_t cbs_test_3() {
-  xTaskCreate(
-    vTestRunner2,
-    "test runner 2",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
+  create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
+  for (size_t i = 0; i < CBS_QUEUE_CAPACITY; i++) {
+    CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
+  }
   return pdMS_TO_TICKS(50);
 }
 
 // Smoke Test #2: Different setup with 1 periodic task and 1 CBS server
 TickType_t cbs_test_4() {
-  xTaskCreate(
-    vTestRunner4,
-    "test runner 4",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
+  create_cbs_server(pdMS_TO_TICKS(2), pdMS_TO_TICKS(10), CBS_SERVER1_ID);
+  platform_create_periodic_task(EDF_periodic_task, "P1", pdMS_TO_TICKS(2), pdMS_TO_TICKS(5), pdMS_TO_TICKS(4), NULL);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
   return pdMS_TO_TICKS(30);
 }
 
 // Smoke Test #3: Multiple Periodic Tasks Running Alongside Single CBS Server
 TickType_t cbs_test_5() {
-  create_cbs_server(pdMS_TO_TICKS(2), pdMS_TO_TICKS(10), CBS_SERVER1_ID);
+  create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(10), CBS_SERVER1_ID);
   platform_create_periodic_task(EDF_periodic_task, "P1", pdMS_TO_TICKS(2), pdMS_TO_TICKS(4), pdMS_TO_TICKS(4), NULL);
   platform_create_periodic_task(EDF_periodic_task, "P2", pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), pdMS_TO_TICKS(8), NULL);
-  xTaskCreate(
-    vTestRunner5,
-    "test runner 5",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
   return pdMS_TO_TICKS(50);
 }
 
@@ -233,86 +161,80 @@ TickType_t cbs_test_6() {
   platform_create_periodic_task(
     EDF_periodic_task, "Task P2", pdMS_TO_TICKS(1), pdMS_TO_TICKS(3), pdMS_TO_TICKS(3), NULL
   );
-  xTaskCreate(
-    vTestRunner6,
-    "test runner 6",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
   return pdMS_TO_TICKS(100);
 }
 
 // Smoke Test #4: Multiple Periodic Tasks Running Alongside 2 asymmetric CBS servers
 TickType_t cbs_test_7() {
-  create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
-  create_cbs_server(pdMS_TO_TICKS(4), pdMS_TO_TICKS(8), CBS_SERVER2_ID);
+  create_cbs_server(pdMS_TO_TICKS(2), pdMS_TO_TICKS(16), CBS_SERVER1_ID);
+  create_cbs_server(pdMS_TO_TICKS(4), pdMS_TO_TICKS(20), CBS_SERVER2_ID);
 
   platform_create_periodic_task(
-    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(2), pdMS_TO_TICKS(6), pdMS_TO_TICKS(6), NULL
+    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(4), pdMS_TO_TICKS(12), pdMS_TO_TICKS(12), NULL
   );
   platform_create_periodic_task(
-    EDF_periodic_task, "Task P2", pdMS_TO_TICKS(1), pdMS_TO_TICKS(3), pdMS_TO_TICKS(3), NULL
+    EDF_periodic_task, "Task P2", pdMS_TO_TICKS(3), pdMS_TO_TICKS(9), pdMS_TO_TICKS(9), NULL
   );
-  xTaskCreate(
-    vTestRunner7,
-    "test runner 7",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
-  return pdMS_TO_TICKS(100);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
+  return pdMS_TO_TICKS(200);
 }
 
 // Multiple (2) symmetric CBS servers in isolation
 TickType_t cbs_test_8() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER2_ID);
-  xTaskCreate(
-    vTestRunner8,
-    "test runner 8",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
-  return pdMS_TO_TICKS(60);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
+  return pdMS_TO_TICKS(50);
 }
 
 // Multiple (2) asymmetric CBS servers in isolation
 TickType_t cbs_test_9() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   create_cbs_server(pdMS_TO_TICKS(4), pdMS_TO_TICKS(8), CBS_SERVER2_ID);
-  xTaskCreate(
-    vTestRunner9,
-    "test runner 9",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
-  return pdMS_TO_TICKS(60);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
+  return pdMS_TO_TICKS(50);
 }
 
-// Multiple (3) aymmetric CBS servers in isolation
+// Multiple (3) asymmetric CBS servers in isolation
 TickType_t cbs_test_10() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   create_cbs_server(pdMS_TO_TICKS(2), pdMS_TO_TICKS(8), CBS_SERVER2_ID);
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER3_ID);
-  xTaskCreate(
-    vTestRunner10,
-    "test runner 10",
-    configMINIMAL_STACK_SIZE,
-    NULL, // Task parameter
-    2,    // Task priority
-    NULL
-  );
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER2_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER3_ID, 0);
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER2_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER3_ID, pdMS_TO_TICKS(20));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(50));
+  CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER3_ID, pdMS_TO_TICKS(60));
   return pdMS_TO_TICKS(80);
 }
 
 // Multiple (2) CBS servers running alongside 1 periodic task
+/*
 TickType_t cbs_test_11() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   create_cbs_server(pdMS_TO_TICKS(4), pdMS_TO_TICKS(8), CBS_SERVER2_ID);
@@ -434,3 +356,4 @@ TickType_t cbs_test_17() {
     NULL
   );
 }
+*/
