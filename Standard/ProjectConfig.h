@@ -57,7 +57,7 @@
       #define TEST_DURATION_TICKS     1000
     #elif TEST_NR == 6
       #define MAXIMUM_PERIODIC_TASKS  0
-      #define MAXIMUM_APERIODIC_TASKS 25
+      #define MAXIMUM_APERIODIC_TASKS 100
       #define N_RESOURCES             0
       #define N_PREEMPTION_LEVELS     5
       #define ENABLE_STACK_SHARING    1
