@@ -33,10 +33,12 @@ TESTS_TO_RUN: list[str] = [  #
 ]
 
 
-def get_task_name(t_type, t_id):
+def get_task_name(t_type, t_id, core=None):
     base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
     if t_type in [1, 2]:
         return f"{base_name} {(t_id + 1):02d}"
+    if core is not None and t_type in [0, 3]:
+        return f"{base_name} C{core}"
     return base_name
 
 
@@ -101,11 +103,20 @@ def run_test(test_id, test_case):
                     parts = line.split(",")
                     if len(parts) >= 5:
                         try:
+                            if len(parts) >= 13:
+                                core = int(parts[3])
+                                task_type = int(parts[5])
+                                task_id = int(parts[6])
+                            else:
+                                core = None
+                                task_type = int(parts[3])
+                                task_id = int(parts[4])
+
                             parsed_logs.append(
                                 {
                                     "tick": int(parts[0]),
                                     "event": TraceEvent(int(parts[1])),
-                                    "task_name": get_task_name(int(parts[3]), int(parts[4])),
+                                    "task_name": get_task_name(task_type, task_id, core),
                                     "raw": line,
                                 }
                             )
@@ -166,7 +177,8 @@ def run_test(test_id, test_case):
     strict_policed_events = {TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT}
 
     for log in parsed_logs:
-        if log["task_name"] not in allowed_background_tasks and log["event"] in strict_policed_events:
+        is_background = any(log["task_name"].startswith(name) for name in allowed_background_tasks)
+        if not is_background and log["event"] in strict_policed_events:
             actual_event_tuple = (log["tick"], log["task_name"], log["event"])
             if actual_event_tuple not in expected_set:
                 event_name = TraceEvent(log["event"]).name

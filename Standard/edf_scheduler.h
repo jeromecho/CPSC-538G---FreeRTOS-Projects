@@ -8,8 +8,6 @@
 #define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE        (tskIDLE_PRIORITY)
 
-#define errADMISSION_FAILED (-6)
-
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,

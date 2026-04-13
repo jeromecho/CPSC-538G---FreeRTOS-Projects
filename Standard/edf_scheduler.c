@@ -605,17 +605,11 @@ void trace_task_switch(TraceEventType_t switch_event) {
   }
 
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
-  const unsigned int current_core = portGET_CORE_ID();
 
   bool current_task_is_idle = false;
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
     if (current_task == xTaskGetIdleTaskHandleForCore(core))
       current_task_is_idle = true;
-  }
-
-  // Keep tracing constrained to the designated EDF execution core in SMP mode.
-  if (current_core != configTICK_CORE) {
-    return;
   }
 
   if (current_task == NULL)

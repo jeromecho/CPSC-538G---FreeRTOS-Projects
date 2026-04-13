@@ -1,11 +1,12 @@
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
-#define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
-#define USE_SRP 1
-#define USE_MP  1
-#define TEST_NR 2
-
+#define USE_EDF         1 // TODO: Ensure that this configuration constant actually affects execution
+#define USE_SRP         0
+#define USE_MP          1
+#define USE_PARTITIONED 1
+#define USE_GLOBAL      0
+#define TEST_NR         2
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
@@ -168,3 +169,26 @@
 #endif
 
 #endif /* PROJECT_CONFIG_H */
+
+
+; // =====================
+; // === SANITY CHECKS ===
+; // =====================
+
+#if USE_MP
+  #if USE_PARTITIONED && USE_GLOBAL
+  #error "Only one of the partitioning strategies can be active at a time"
+  #endif
+
+  #if USE_SRP
+  #error "SRP and multiprocessing are not compatible"
+  #endif
+#else
+  #if USE_PARTITIONED || USE_GLOBAL
+  #error "None of the partitioning strategies can be active without multiprocessing"
+  #endif
+#endif // USE_MP
+
+#if USE_SRP && !USE_EDF
+#error "SRP relies on the EDF scheduler, and must not be active without it"
+#endif

@@ -13,7 +13,10 @@ from test_data import TraceEvent
 
 # --- CONFIGURATION ---
 BAUD_RATE = 115200
-EXPECTED_HEADERS = "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE"
+EXPECTED_HEADERS = {
+    "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
+    "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
+}
 
 # C-Header Maximums for N/A masking
 UINT32_MAX = 4294967295
@@ -115,6 +118,11 @@ def plot_rtos_trace(csv_data, plot_title):
     try:
         df = pd.read_csv(io.StringIO(csv_data))
 
+        if "CORE" not in df.columns:
+            df["CORE"] = 0
+        if "CORE_SEQ" not in df.columns:
+            df["CORE_SEQ"] = range(len(df))
+
         try:
             df["EVENT"] = df["EVENT"].map(TraceEvent)
         except ValueError as e:
@@ -124,10 +132,13 @@ def plot_rtos_trace(csv_data, plot_title):
             t_type = row["TASK_TYPE"]
             t_id = row["TASK_ID"] + 1
             base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
+            core = row["CORE"]
 
             # Append ID only for periodic/aperiodic tasks
             if t_type in [1, 2]:
                 return f"{base_name} {t_id:03}"
+            if t_type in [0, 3]:
+                return f"{base_name} C{core}"
             return base_name
 
         df["TASK_NAME"] = df.apply(get_task_name, axis=1)
@@ -138,7 +149,7 @@ def plot_rtos_trace(csv_data, plot_title):
 
         # 1. Calculate Execution Bars
         # We rely on the original file order so SWITCH_OUT correctly precedes SWITCH_IN on identical ticks
-        df_sorted = df.copy()
+        df_sorted = df.sort_values(by=["ABS_TIME", "CORE", "CORE_SEQ"], kind="stable").copy()
         exec_bars = []
         active_task = None
         current_segment_start = None
@@ -439,8 +450,11 @@ def main():
                         # ---------------------------
 
                         if "TIMESTAMP" in line:
-                            if line != EXPECTED_HEADERS:
-                                print(f"\n[Monitor] Warning: Encountered header with unknown format.\nExpected: {EXPECTED_HEADERS}\nGot:      {line}")
+                            if line not in EXPECTED_HEADERS:
+                                print(
+                                    "\n[Monitor] Warning: Encountered header with unknown format.\n"
+                                    f"Expected one of: {EXPECTED_HEADERS}\nGot:      {line}"
+                                )
                             else:
                                 capturing = True
                                 trace_buffer = [line]

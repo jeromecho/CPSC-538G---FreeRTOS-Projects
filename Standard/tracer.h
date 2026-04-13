@@ -52,6 +52,8 @@ typedef struct {
   TickType_t      FreeRTOS_tick;
   TraceEvent_t    event;
   absolute_time_t time; // Absolute time for better resolution in visualization
+  uint8_t         core_id;
+  uint32_t        core_seq; // Monotonic sequence local to one core; used for deterministic host-side merges.
 
   TraceTaskType_t task_type;
   uint8_t         task_id;    // e.g., 0, 1, 2 for the specific task array index
