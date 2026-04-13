@@ -66,7 +66,7 @@ void trace_task_switch(TraceEventType_t switch_event);
 ; // ==================================
 
 void vApplicationTickHook(void);
-void scheduler_started(void);
+void starting_scheduler(void *);
 void task_switched_out(void);
 void task_switched_in(void);
 
@@ -371,7 +371,8 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
   return NULL;
 }
 
-void scheduler_started() {
+void starting_scheduler(void *xIdleTaskHandles) {
+  TaskHandle_t *idle_task_handles = (TaskHandle_t *)xIdleTaskHandles;
   update_priorities();
 }
 
