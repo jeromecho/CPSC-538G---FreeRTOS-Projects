@@ -22,7 +22,7 @@ static void build_periodic_test(const char *test_name, const EDF_PeriodicTaskPar
 ; // === Tests for Base Functionality ===
 ; // ====================================
 
-#if TEST_NR == 1 || ENABLE_ALL_TESTS
+#if TEST_NR == 1
 // Smoke Test for Periodic Tasks (relative deadline == period)
 void edf_test_1() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -37,7 +37,7 @@ void edf_test_1() {
 }
 #endif
 
-#if TEST_NR == 2 || ENABLE_ALL_TESTS
+#if TEST_NR == 2
 // Test 2: Mark's Deadline DNE Period Smoke Test
 void edf_test_2() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -57,7 +57,7 @@ void edf_test_2() {
 ; // === Admission Control Tests ===
 ; // ===============================
 
-#if TEST_NR == 3 || ENABLE_ALL_TESTS
+#if TEST_NR == 3
 // Note: in order to check the size of the created binary, run:
 // arm-none-eabi-size build/Standard/main_blinky.elf
 // TEST3: 100 Tasks NON-ADMISSIBLE
@@ -77,7 +77,7 @@ void edf_test_3() {
 }
 #endif
 
-#if TEST_NR == 4 || ENABLE_ALL_TESTS
+#if TEST_NR == 4
 // TEST4: 100 Tasks ADMISSIBLE
 void edf_test_4() {
   EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
@@ -95,7 +95,7 @@ void edf_test_4() {
 }
 #endif
 
-#if TEST_NR == 5 || ENABLE_ALL_TESTS
+#if TEST_NR == 5
 // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
 // Total Utilization = 1.0 (100%)
 void edf_test_5() {
@@ -114,7 +114,7 @@ void edf_test_5() {
 }
 #endif
 
-#if TEST_NR == 6 || ENABLE_ALL_TESTS
+#if TEST_NR == 6
 // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
 // Total Utilization = 1.1 (110%)
 void edf_test_6() {
@@ -133,7 +133,7 @@ void edf_test_6() {
 }
 #endif
 
-#if TEST_NR == 7 || ENABLE_ALL_TESTS
+#if TEST_NR == 7
 // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
 void edf_test_7() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -148,7 +148,7 @@ void edf_test_7() {
 }
 #endif
 
-#if TEST_NR == 8 || ENABLE_ALL_TESTS
+#if TEST_NR == 8
 // --- TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50) ---
 void edf_test_8() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -167,7 +167,7 @@ void edf_test_8() {
 ; // === Tests for Drop-in of Tasks while System is Running ===
 ; // ==========================================================
 
-#if TEST_NR == 9 || ENABLE_ALL_TESTS
+#if TEST_NR == 9
 // TODO: Not sure if vTaskCreate calling xTaskCreatePeriodic, which calls vTaskCreate is a
 //       good design. Should maybe create both tasks at the same time, and add a release time parameter so that the
 //       scheduler can be responsible for running the tests
@@ -208,7 +208,7 @@ void edf_test_9() {
 }
 #endif
 
-#if TEST_NR == 10 || ENABLE_ALL_TESTS
+#if TEST_NR == 10
 // TEST 10: Inadmissible Drop-in
 void vTestRunner10() {
   // --- TEST B: Inadmissible Drop-in ---
@@ -248,7 +248,7 @@ void edf_test_10() {
 ; // === Tests for Missed Deadline ===
 ; // =================================
 
-#if TEST_NR == 11 || ENABLE_ALL_TESTS
+#if TEST_NR == 11
 // TEST 11: Missed Deadline (Total Utilization: 105%)
 void edf_test_11() {
   const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {

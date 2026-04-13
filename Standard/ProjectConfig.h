@@ -1,22 +1,44 @@
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
-#define USE_EDF 1 // Base EDF mode (set USE_SRP for SRP-on-EDF)
+#define TEST_SUITE_EDF 1
+#define TEST_SUITE_SRP 2
+#define TEST_SUITE_CBS 3
+#define TEST_SUITE_MP  4
+
+#define TEST_SUITE 2
+#define TEST_NR    9
+
+#if TEST_SUITE == TEST_SUITE_EDF
+#define USE_EDF 1
+#define USE_SRP 0
+#define USE_CBS 0
+#define USE_MP  0
+#elif TEST_SUITE == TEST_SUITE_SRP
+#define USE_EDF 1
 #define USE_SRP 1
 #define USE_CBS 0
 #define USE_MP  0
+#elif TEST_SUITE == TEST_SUITE_CBS
+#define USE_EDF 1
+#define USE_SRP 0
+#define USE_CBS 1
+#define USE_MP  0
+#elif TEST_SUITE == TEST_SUITE_MP
+#define USE_EDF 1
+#define USE_SRP 0
+#define USE_CBS 0
+#define USE_MP  1
+#else
+#error "Invalid TEST_SUITE in ProjectConfig.h"
+#endif
 
 #define USE_PARTITIONED 1 // Only relevant when USE_MP=1
 #define USE_GLOBAL      0 // Only relevant when USE_MP=1
 
-#define TEST_NR 9
-
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0
-
-// Debugging
-#define ENABLE_ALL_TESTS 0
 
 ; // =====================
 ; // === SANITY CHECKS ===
@@ -52,20 +74,20 @@
 ; // === TEST PROFILE TABLES ===
 ; // ==========================
 
-#if USE_EDF && !USE_SRP && !USE_CBS && !USE_MP
+#if TEST_SUITE == TEST_SUITE_EDF
 #include "config/test_profiles_edf.h"
 
-#elif USE_EDF && USE_SRP && !USE_CBS && !USE_MP
+#elif TEST_SUITE == TEST_SUITE_SRP
 #include "config/test_profiles_srp.h"
 
-#elif USE_EDF && USE_CBS && !USE_MP && !USE_SRP
+#elif TEST_SUITE == TEST_SUITE_CBS
 #include "config/test_profiles_cbs.h"
 
-#elif USE_EDF && USE_MP && !USE_SRP && !USE_CBS
+#elif TEST_SUITE == TEST_SUITE_MP
 #include "config/test_profiles_mp.h"
 
 #else
-#error "Invalid scheduler mode combination in ProjectConfig.h"
+#error "Invalid TEST_SUITE in ProjectConfig.h"
 #endif
 
 ; // =============================

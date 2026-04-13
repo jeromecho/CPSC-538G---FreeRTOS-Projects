@@ -27,7 +27,7 @@ static void execute_steps(const TickType_t completion_time, const TaskStep_t ste
 ; // === Test definitions ===
 ; // ========================
 
-#if TEST_NR == 1 || ENABLE_ALL_TESTS
+#if TEST_NR == 1
 /// Test 1: Basic SRP Priority Inversion Prevention
 ///
 /// This test demonstrates how SRP prevents a medium-priority task from preempting a low-priority task holding a shared
@@ -68,7 +68,7 @@ void srp_test_1() {
 }
 #endif
 
-#if TEST_NR == 2 || ENABLE_ALL_TESTS
+#if TEST_NR == 2
 /// Test 2: Complex Multi-Resource SRP Validation
 ///
 /// Uses 4 tasks and 3 distinct resources (semaphores) to validate nested resource locking and system ceiling dynamic
@@ -140,7 +140,7 @@ void srp_test_2() {
 }
 #endif
 
-#if TEST_NR == 3 || TEST_NR == 4 || ENABLE_ALL_TESTS
+#if TEST_NR == 3 || TEST_NR == 4
 /// Test 3 & 4: Comparison of execution traces when Stack Sharing is enabled vs. disabled.
 ///
 /// Since tasks at the same preemption level cannot preempt each other under SRP, this enables stack sharing. This
@@ -171,7 +171,7 @@ void srp_test_4() {
 }
 #endif
 
-#if TEST_NR == 5 || TEST_NR == 6 || ENABLE_ALL_TESTS
+#if TEST_NR == 5 || TEST_NR == 6
 /// Tests 5 & 6: Quantitative Analysis of Stack Sharing RAM Usage
 ///
 /// A stress test designed to measure the memory reduction achieved by SRP.
@@ -240,7 +240,7 @@ void srp_test_5() {
 void srp_test_6() { srp_test_5(); }
 #endif
 
-#if TEST_NR == 7 || ENABLE_ALL_TESTS
+#if TEST_NR == 7
 void vSRPTest7Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
@@ -273,7 +273,7 @@ void srp_test_7() {
 }
 #endif
 
-#if TEST_NR == 8 || ENABLE_ALL_TESTS
+#if TEST_NR == 8
 void vSRPTest8Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
@@ -306,7 +306,7 @@ void srp_test_8() {
 }
 #endif
 
-#if TEST_NR == 9 || ENABLE_ALL_TESTS
+#if TEST_NR == 9
 void vSRPTest9Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {TASK_TAKE_SEMAPHORE, 0},
