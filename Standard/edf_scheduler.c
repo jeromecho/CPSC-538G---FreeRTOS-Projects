@@ -278,6 +278,7 @@ BaseType_t _create_aperiodic_task_internal(
   return pdPASS;
 }
 
+#if !USE_SRP
 /// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
@@ -330,6 +331,7 @@ BaseType_t EDF_create_aperiodic_task(
     is_hard_rt
   );
 }
+#endif // !USE_SRP
 
 /// @brief Dummy task function for periodic tasks. It will run until it has executed for a number of time
 /// slices equal to its completion time, at which point it will mark itself as done and suspend
