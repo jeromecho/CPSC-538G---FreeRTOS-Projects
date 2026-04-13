@@ -1,11 +1,11 @@
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
+#define USE_EDF 1 // TODO: Ensure that this configuration constant actually affects execution
+#define USE_SRP 1
+#define TEST_NR 9
 
-#define USE_EDF 1     // TODO: Ensure that this configuration constant actually affects execution
-#define USE_SRP 0
-#define TEST_NR 7
+#define ENABLE_SMP 0
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
