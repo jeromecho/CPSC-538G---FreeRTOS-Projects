@@ -94,7 +94,6 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   // Newly created CBS server is considered "done" since it has no tasks to execute
   // and should not be considered for execution
   pxServer->tmb_handle->is_done = true;
-  // printf("create_cbs_server - CBS_create_master_task post \n");
 };
 
 BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_id, TickType_t release_time) {
@@ -129,13 +128,9 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
   }
   TickType_t count = xTaskGetTickCount();
 
-  printf("Tick %d: server %d\n", count, server);
-  // printf("Tick %d: server->cs - pre: %lu\n", count, server->cs);
   server->cs -= 1;
-  // printf("Tick %d: server->cs - post: %lu\n", count, server->cs);
 
   if (server->cs == 0) {
-    printf("%d += %d\n", server->dsk, server->Ts);
     server->dsk += server->Ts;
     // REQUIRES: CBS_update_budget must be called AFTER choosing of highest_priority_task
     server->tmb_handle->absolute_deadline = server->dsk;
@@ -143,7 +138,6 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
     TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
     return pdTRUE;
   }
-  // printf("Tick %d: end\n", count);
   return pdFALSE;
 };
 
@@ -160,15 +154,6 @@ void CBS_release_tasks() {
           pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
                                                                      ((double)pxServer->Qs / (double)pxServer->Ts)
         ) {
-
-          printf(
-            "%f >= (%f - %f) * (%f / %f)\n",
-            (double)pxServer->cs,
-            (double)pxServer->dsk,
-            (double)current_timestamp,
-            (double)pxServer->Qs,
-            (double)pxServer->Ts
-          );
           pxServer->dsk                           = current_timestamp + pxServer->Ts;
           pxServer->cs                            = pxServer->Qs;
           pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
