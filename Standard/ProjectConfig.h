@@ -183,10 +183,6 @@
   #if USE_SRP
   #error "SRP and multiprocessing are not compatible"
   #endif
-#else
-  #if USE_PARTITIONED || USE_GLOBAL
-  #error "None of the partitioning strategies can be active without multiprocessing"
-  #endif
 #endif // USE_MP
 
 #if USE_SRP && !USE_EDF

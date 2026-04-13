@@ -1,9 +1,8 @@
 import os
 import sys
-import time
-import shutil
 import subprocess
 import re
+import shutil
 import serial
 import serial.tools.list_ports
 import tty
@@ -20,7 +19,11 @@ BAUD_RATE = 115200
 PROJECT_CONFIG_PATH = "Standard/ProjectConfig.h"
 BUILD_CMD = ["cmake", "--build", "build"]
 UF2_OUTPUT = "build/Standard/main_blinky.uf2"
-PICO_DRIVE = "/Volumes/RPI-RP2"
+PICOTOOL_CANDIDATES = [
+    "build/_deps/picotool-build/picotool",
+    "build/_deps/picotool/picotool",
+    "picotool",
+]
 
 
 # --- STATUS HELPERS ---
@@ -114,7 +117,7 @@ def patch_config_file(flags):
 
 
 def compile_and_flash():
-    """Compiles the project and copies the UF2 to the Pico."""
+    """Compiles the project and flashes the UF2 using picotool."""
     print_status("[Build] Running CMake...")
     result = subprocess.run(BUILD_CMD, capture_output=True, text=True)
     if result.returncode != 0:
@@ -122,44 +125,56 @@ def compile_and_flash():
         print(f"{C_RED}❌ Build Failed:\n{result.stderr}{C_RESET}")
         return False
 
-    wait_for_keypress(
-        "[Action Required] Hold BOOTSEL, press RUN, release BOOTSEL, then press ANY KEY..."
-    )
+    if not os.path.exists(UF2_OUTPUT):
+        clear_status()
+        print(f"{C_RED}❌ UF2 file not found at '{UF2_OUTPUT}'.{C_RESET}")
+        return False
 
-    timeout = 10.0
-    start_wait = time.time()
-    while not os.path.exists(PICO_DRIVE):
-        elapsed = time.time() - start_wait
-        print_status(f"[Flash] Waiting for Pico drive to mount... ({elapsed:.1f}s)")
-        if elapsed > timeout:
-            clear_status()
-            print(
-                f"{C_RED}❌ Pico drive did not appear after {timeout} seconds!{C_RESET}"
-            )
-            return False
-        time.sleep(0.1)
+    candidate_list = []
+    env_picotool = os.getenv("PICOTOOL_PATH")
+    if env_picotool:
+        candidate_list.append(env_picotool)
+    candidate_list.extend(PICOTOOL_CANDIDATES)
 
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            print_status(
-                f"[Flash] Copying UF2 to Pico... (Attempt {attempt + 1}/{max_retries})"
-            )
-            shutil.copy(UF2_OUTPUT, PICO_DRIVE)
+    picotool_path = None
+    for candidate in candidate_list:
+        resolved = candidate
+        if os.sep not in candidate:
+            resolved = shutil.which(candidate)
+        if not resolved or not os.path.exists(resolved):
+            continue
+
+        # Only use binaries that support USB flashing via `load`.
+        capability = subprocess.run(
+            [resolved, "help", "load"],
+            capture_output=True,
+            text=True,
+        )
+        if capability.returncode == 0:
+            picotool_path = resolved
             break
-        except PermissionError as e:
-            if attempt < max_retries - 1:
-                time.sleep(0.2)
-            else:
-                clear_status()
-                print(
-                    f"{C_RED}❌ Failed to copy after {max_retries} attempts: {e}{C_RESET}"
-                )
-                return False
-        except IOError as e:
-            clear_status()
-            print(f"{C_RED}❌ Error during copy (Drive disconnected): {e}{C_RESET}")
-            return False
+
+    if not picotool_path:
+        clear_status()
+        print(
+            f"{C_RED}❌ No usable picotool with `load` support found. Set PICOTOOL_PATH or install picotool with USB support.{C_RESET}"
+        )
+        return False
+
+    print_status("[Flash] Flashing UF2 using picotool...")
+    flash_result = subprocess.run(
+        [picotool_path, "load", "-f", UF2_OUTPUT],
+        capture_output=True,
+        text=True,
+    )
+    if flash_result.returncode != 0:
+        clear_status()
+        print(f"{C_RED}❌ Flash Failed:{C_RESET}")
+        if flash_result.stdout.strip():
+            print(f"{C_YELLOW}{flash_result.stdout}{C_RESET}")
+        if flash_result.stderr.strip():
+            print(f"{C_RED}{flash_result.stderr}{C_RESET}")
+        return False
 
     clear_status()
     return True

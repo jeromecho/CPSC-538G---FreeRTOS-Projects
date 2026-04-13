@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
         summarize_results(test_results, passed_count)
 
-    except (KeyboardInterrupt, EOFError):
+    except KeyboardInterrupt, EOFError:
         clear_status()
         print(f"\n\n{C_YELLOW}[Test Runner] Aborted by user. Exiting cleanly.{C_RESET}")
         sys.exit(0)
