@@ -18,9 +18,8 @@ typedef enum {
   TRACE_DEADLINE_MISS,
   TRACE_SRP_BLOCK, // When a task is ready but denied CPU due to ceiling
 
-  TRACE_ADMISSION_FAILED,
-
   // Non-basic events, which are used when there is additional data provided (like semaphore index)
+  TRACE_ADMISSION_FAILED,
   TRACE_SEMAPHORE_TAKE,
   TRACE_SEMAPHORE_GIVE,
 } TraceEventType_t;
@@ -29,7 +28,7 @@ typedef struct {
   TraceEventType_t type;
   union {
     uint8_t semaphore_index;
-    size_t  task_index;
+    uint8_t task_index;
   } data;
 } TraceEvent_t;
 

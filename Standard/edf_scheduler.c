@@ -57,7 +57,7 @@ void update_gpio_pin(
   const TaskHandle_t idle_task_handle, const TaskHandle_t current_task_handle, const bool gpio_state
 );
 #else
-static void trace_task_switch(TraceEventType_t switch_event);
+void trace_task_switch(TraceEventType_t switch_event);
 #endif // TRACE_WITH_LOGIC_ANALYZER
 
 
@@ -615,22 +615,27 @@ void vApplicationTickHook(void) {
   update_priorities();
 }
 
-static void trace_task_switch(TraceEventType_t switch_event) {
+void trace_task_switch(TraceEventType_t switch_event) {
+  // For some reason, when there is only one core, it is illegal to call xTaskGetIdleTaskHandle before the scheduler
+  // starts. This check makes sure that never happens (could probably be wrapped in a )
+  const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
+  if (!scheduler_started) {
+    return;
+  }
+
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
   const unsigned int current_core = portGET_CORE_ID();
 
-  TaskHandle_t idle_tasks[configNUMBER_OF_CORES];
-  bool         current_task_is_idle = false;
+  bool current_task_is_idle = false;
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
-    idle_tasks[core] = xTaskGetIdleTaskHandleForCore(core);
-    if (current_task == idle_tasks[core])
+    if (current_task == xTaskGetIdleTaskHandleForCore(core))
       current_task_is_idle = true;
   }
 
   // Keep tracing constrained to the designated EDF execution core in SMP mode.
-  // if (current_core != configTICK_CORE) {
-  //   return;
-  // }
+  if (current_core != configTICK_CORE) {
+    return;
+  }
 
   if (current_task == NULL)
     return;
