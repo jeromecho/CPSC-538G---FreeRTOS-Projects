@@ -25,6 +25,7 @@ typedef struct TMB_t {
   TaskHandle_t handle;
   bool         is_done;
   bool         is_hard_rt;
+  bool         is_suspended; // State flag reflecting calls to suspend in real-time
 
   // --- Common Scheduling Data ---
   TickType_t release_time;

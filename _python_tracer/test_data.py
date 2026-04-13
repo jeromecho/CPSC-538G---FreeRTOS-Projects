@@ -29,7 +29,7 @@ TEST_CASES = {
     # EDF TESTS
     "EDF1": {
         "name": "Smoke Test for Periodic Tasks",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 1},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 1},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -74,7 +74,7 @@ TEST_CASES = {
     },
     "EDF2": {
         "name": "Mark's Proposed EDF Smoke Test",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 2},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 2},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -124,46 +124,46 @@ TEST_CASES = {
     },
     "EDF3": {
         "name": "100 Tasks NON-ADMISSIBLE",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 3},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 3},
         "expected_admission_failure": "Admission failed for: EDF Test 3, Task 34",
         "expected_events": {},
     },
     "EDF4": {
         "name": "100 Tasks ADMISSIBLE",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 4},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 4},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF5": {
         "name": "Admissible by utilization",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 5},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 5},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF6": {
         "name": "Non-admissible by utilization",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 6},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 6},
         "expected_admission_failure": "Admission failed for: EDF Test 6, Task 10",
         "expected_events": {},
     },
     "EDF7": {
         "name": "Admissible by processor demand",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 7},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 7},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF8": {
         "name": "Non-admissible by processor demand",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 8},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 8},
         "expected_admission_failure": "Admission failed for: EDF Test 8, Task 2",
         "expected_events": {},
     },
     "EDF9": {
         "name": "Admissible drop-in",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 9},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 9},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -184,13 +184,13 @@ TEST_CASES = {
     },
     "EDF10": {
         "name": "Inadmissible drop-in",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 10},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 10},
         "expected_admission_failure": "Admission failed for: EDF Test 10, Task 2",
         "expected_events": {},
     },
     "EDF11": {
         "name": "Missed deadline",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "TEST_NR": 11},
+        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 0, "TEST_NR": 11},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -214,7 +214,7 @@ TEST_CASES = {
     # SRP TESTS
     "SRP1": {
         "name": "Simple Single-Resource SRP Validation",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 1},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 1},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -238,7 +238,7 @@ TEST_CASES = {
     },
     "SRP2": {
         "name": "Complex Multi-Resource SRP Validation",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 2},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 2},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -271,7 +271,7 @@ TEST_CASES = {
     },
     "SRP3": {
         "name": "Stack Sharing Disabled - Simple Execution",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 3},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 3},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -295,7 +295,7 @@ TEST_CASES = {
     },
     "SRP4": {
         "name": "Stack Sharing Enabled - Simple Execution",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 4},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 4},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -323,14 +323,14 @@ TEST_CASES = {
     # They really aren't very different from tests 3 and 4
     "SRP5": {
         "name": "Stack Sharing Disabled - 25 Tasks w/ 5 Preemption Levels",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 5},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 5},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP6": {
         "name": "Stack Sharing Enabled - 25 Tasks w/ 5 Preemption Levels",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 6},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 6},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
@@ -338,20 +338,20 @@ TEST_CASES = {
     },
     "SRP7": {
         "name": "Admission Control - Pass (Implicit Deadlines)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 7},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 7},
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP8": {
         "name": "Admission Control - Fail (Implicit Deadlines)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 8},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 8},
         "expected_admission_failure": "Admission failed for: SRP Test 8, Task 3",
         "expected_events": {},
     },
     "SRP9": {
         "name": "Admission Control - Fail (Constrained Deadlines)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 1, "TEST_NR": 9},
+        "flags": {"USE_EDF": 1, "USE_SRP": 1, "USE_CBS": 0, "TEST_NR": 9},
         "expected_admission_failure": "Admission failed for: SRP Test 9, Task 3",
         "expected_events": {},
     },

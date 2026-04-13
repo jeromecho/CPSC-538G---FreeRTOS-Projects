@@ -347,7 +347,7 @@ void EDF_periodic_task(void *pvParameters) {
 /// slices equal to its completion time, at which point it will mark itself as done and suspend
 /// itself.
 void EDF_aperiodic_task(void *pvParameters) {
-  const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
+  const BaseType_t xCompletionTime = *(BaseType_t *)pvParameters;
   execute_for_ticks(xCompletionTime);
   EDF_mark_task_done(NULL);
 }

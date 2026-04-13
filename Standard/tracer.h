@@ -21,6 +21,9 @@ typedef enum {
   // Non-basic events, which are used when there is additional data provided (like semaphore index)
   TRACE_SEMAPHORE_TAKE,
   TRACE_SEMAPHORE_GIVE,
+
+  // CBS Events
+  TRACE_BUDGET_RUN_OUT
 } TraceEventType_t;
 
 typedef struct {

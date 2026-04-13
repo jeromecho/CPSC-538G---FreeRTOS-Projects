@@ -184,6 +184,7 @@ TickType_t run_test() {
     return PASTE_EXPAND(srp_test_, TEST_NR)();
   #else
     // If TEST_NR is 3, this becomes: edf_test_3();
+    printf("Running EDF Test %d\n", TEST_NR);
     return PASTE_EXPAND(edf_test_, TEST_NR)();
   #endif
 #endif

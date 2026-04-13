@@ -1,8 +1,10 @@
 #ifndef CBS_TESTS_H
 #define CBS_TESTS_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
+#include "FreeRTOS.h"      // IWYU pragma: keep
+#include "ProjectConfig.h" // IWYU pragma: keep
 
+#if USE_CBS
 TickType_t cbs_test_1();
 TickType_t cbs_test_2();
 TickType_t cbs_test_3();
@@ -20,5 +22,7 @@ TickType_t cbs_test_14();
 TickType_t cbs_test_15();
 TickType_t cbs_test_16();
 TickType_t cbs_test_17();
+TickType_t cbs_test_18();
+#endif // USE_CBS
 
 #endif // CBS_TESTS_H
