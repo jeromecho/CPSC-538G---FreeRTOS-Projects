@@ -516,9 +516,10 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
     return current_task_tmb != NULL;
   }
 
-  // Prevent context switch between two tasks with the same deadline
+  // Prevent context switch between two tasks with the same deadline for hard-real time tasks
+  // NB: Design decision was made to match textbook expected traces and RTSim expected traces respectively
   const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
-  if (equal_deadlines && !current_task_tmb->is_done) {
+  if (equal_deadlines && !current_task_tmb->is_done && current_task_tmb->is_hard_rt) {
     return false;
   }
 
@@ -540,19 +541,10 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 /// @brief Updates priorities of the (potentially) currently running task, as well as the (potentially) new highest
 /// priority task.
 void update_priorities() {
-  TMB_t       *highest_priority_task = EDF_produce_highest_priority_task();
   TaskHandle_t current_task_handle   = xTaskGetCurrentTaskHandle();
   TMB_t       *current_task          = EDF_get_task_by_handle(current_task_handle);
-
-  TickType_t count = xTaskGetTickCount();
-
-  const bool should_update = should_update_priorities(highest_priority_task);
-
-#if USE_CBS
-  // NB: Ordering matters here - CBS_update_budget should be called after
-  // should_update_priorities is called
-  CBS_update_budget(highest_priority_task);
-#endif // USE_CBS
+  TMB_t       *highest_priority_task = EDF_produce_highest_priority_task();
+  const bool   should_update         = should_update_priorities(highest_priority_task);
 
   if (!should_update) {
     // printf("Tick: %d - nothing to update!\n", count);
@@ -662,25 +654,16 @@ void vApplicationTickHook(void) {
 
   reschedule_periodic_tasks();
 
-  /*
-  if (xTaskGetTickCount() % pdMS_TO_TICKS(1) == 0 && xTaskGetTickCount() > 0) {
-    printf("------------------------------------------\n");
-    printf("------------------------------------------\n");
-    printf("current tick count %d\n", xTaskGetTickCount());
-    const UBaseType_t task_priority = uxTaskPriorityGet(aperiodic_tasks[0].handle);
-    TaskHandle_t      handle        = xTaskGetCurrentTaskHandle();
-    printf("current task handle: %d\n", handle);
-    printf("aperiodic_tasks[0].handle: %d\n", aperiodic_tasks[0].handle);
-    printf("uxTaskPriorityGet(aperiodic_tasks[0].handle) %d\n", task_priority);
-    printf("------------------------------------------\n");
-    TaskHandle_t idle_handle = xTaskGetIdleTaskHandle();
-    printf("idle_handle: %d\n", idle_handle);
-    printf("uxTaskPriorityGet(idle_handle): %d\n", uxTaskPriorityGet(idle_handle));
-  }
-   */
+#if USE_CBS
+  CBS_release_tasks();
+  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
+  // INVARIANT: current_task was the task that ran for the last tick
+  CBS_update_budget(current_task);
+#endif // USE_CBS
+
   check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
   check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
-
   update_priorities();
   // TRACE_record(EVENT_SEMAPHORE_GIVE(0), TRACE_TASK_SYSTEM, NULL);
 }
