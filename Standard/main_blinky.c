@@ -124,7 +124,9 @@ void vTraceMonitorTask(void *pvParameters) {
   printf("Results for EDF Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_SRP
   printf("Results for SRP Test %d\n", TEST_NR);
-#elif TEST_SUITE == TEST_SUITE_MP
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+  printf("Results for SMP Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
   printf("Results for SMP Test %d\n", TEST_NR);
 #endif
 
@@ -158,6 +160,10 @@ void main_blinky(void) {
     vTaskSuspendAll();
     crash_without_trace("Failed to create monitor task; trace output will be unavailable.");
   }
+
+#if USE_MP
+  pin_task_to_core(monitor_task_handle, 0);
+#endif
 
 #if (configUSE_CORE_AFFINITY == 1)
   const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;

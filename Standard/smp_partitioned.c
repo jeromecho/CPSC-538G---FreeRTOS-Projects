@@ -5,24 +5,19 @@
 #if USE_MP && USE_PARTITIONED
 
 #include "edf_scheduler.h"
+#include "helpers.h"
+#include "tracer.h"
 
-static BaseType_t SMP_pin_to_core(const TMB_t *const task, const UBaseType_t core) {
-  if (task == NULL || task->handle == NULL) {
-    return pdFAIL;
+static bool
+SMP_can_admit_periodic_task_on_core(const TickType_t completion_time, const TickType_t period, const UBaseType_t core) {
+  double U = (double)completion_time / period;
+  for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+    const double Ci = (double)periodic_tasks[core][i].completion_time;
+    const double Ti = (double)periodic_tasks[core][i].periodic.period;
+    U += Ci / Ti;
   }
 
-#if (configUSE_CORE_AFFINITY == 1)
-  if (core >= configNUMBER_OF_CORES) {
-    return pdFAIL;
-  }
-
-  const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << core;
-  vTaskCoreAffinitySet(task->handle, core_affinity_mask);
-  return pdPASS;
-#else
-  (void)core;
-  return pdFAIL;
-#endif
+  return U < 1.0;
 }
 
 BaseType_t SMP_create_periodic_task_on_core(
@@ -31,33 +26,41 @@ BaseType_t SMP_create_periodic_task_on_core(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  const UBaseType_t core
+  const UBaseType_t core,
+  TMB_t **const     TMB_handle
 ) {
-  TMB_t     *task = NULL;
-  BaseType_t result =
-    EDF_create_periodic_task(task_function, task_name, completion_time, period, relative_deadline, &task);
+  configASSERT(core <= configNUMBER_OF_CORES);
 
-  if (result != pdPASS || task == NULL) {
+#if PERFORM_ADMISSION_CONTROL
+  if (!SMP_can_admit_periodic_task_on_core(completion_time, period, core)) {
+    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count[core]), TRACE_TASK_PERIODIC, NULL);
+    TRACE_disable();
+    xTaskNotifyGive(monitor_task_handle);
+    return pdFALSE;
+  }
+#endif
+
+  TMB_t     *handle = NULL;
+  BaseType_t result = _create_periodic_task_internal(
+    task_function,
+    task_name,
+    periodic_tasks[core],
+    &periodic_task_count[core],
+    private_stacks_periodic[core][periodic_task_count[core]],
+    completion_time,
+    period,
+    relative_deadline,
+    TMB_handle
+  );
+
+  if (result == pdPASS) {
+    pin_task_to_core(handle->handle, core);
     if (TMB_handle != NULL) {
-      *TMB_handle = NULL;
+      *TMB_handle = handle;
     }
-    return result;
   }
 
-  result = SMP_pin_to_core(task, core);
-  if (result != pdPASS) {
-    if (TMB_handle != NULL) {
-      *TMB_handle = NULL;
-    }
-    return pdFAIL;
-  }
-
-  if (TMB_handle != NULL) {
-    *TMB_handle = task;
-  }
-
-  return pdPASS;
+  return result;
 }
 
 BaseType_t SMP_create_aperiodic_task_on_core(
@@ -66,33 +69,95 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  const UBaseType_t core
+  const UBaseType_t core,
+  TMB_t **const     TMB_handle
 ) {
-  TMB_t     *task = NULL;
-  BaseType_t result =
-    EDF_create_aperiodic_task(task_function, task_name, completion_time, release_time, relative_deadline, &task);
+  configASSERT(core <= configNUMBER_OF_CORES);
 
-  if (result != pdPASS || task == NULL) {
+  TMB_t     *handle = NULL;
+  BaseType_t result = _create_aperiodic_task_internal(
+    task_function,
+    task_name,
+    aperiodic_tasks[core],
+    &aperiodic_task_count[core],
+    private_stacks_aperiodic[core][aperiodic_task_count[core]],
+    completion_time,
+    release_time,
+    relative_deadline,
+    &handle
+  );
+
+  if (result == pdPASS) {
+    pin_task_to_core(handle->handle, core);
     if (TMB_handle != NULL) {
-      *TMB_handle = NULL;
+      *TMB_handle = handle;
     }
-    return result;
   }
 
-  result = SMP_pin_to_core(task, core);
-  if (result != pdPASS) {
-    if (TMB_handle != NULL) {
-      *TMB_handle = NULL;
+  return result;
+}
+
+TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core) {
+  TMB_t *periodic_candidate  = scheduler_highest_priority_candidate(periodic_tasks[core], periodic_task_count[core]);
+  TMB_t *aperiodic_candidate = scheduler_highest_priority_candidate(aperiodic_tasks[core], aperiodic_task_count[core]);
+
+  if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
+    return NULL;
+  }
+
+  const TickType_t periodic_deadline =
+    (periodic_candidate != NULL) ? periodic_candidate->absolute_deadline : portMAX_DELAY;
+  const TickType_t aperiodic_deadline =
+    (aperiodic_candidate != NULL) ? aperiodic_candidate->absolute_deadline : portMAX_DELAY;
+
+  return (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
+}
+
+void SMP_partitioned_reschedule_periodic_tasks(void) {
+  const TickType_t current_tick = xTaskGetTickCountFromISR();
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+      TMB_t *const task = &periodic_tasks[core][i];
+
+      if (task->is_done && current_tick >= task->periodic.next_period) {
+        task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
+        task->release_time      = task->periodic.next_period;
+        task->periodic.next_period += task->periodic.period;
+        task->is_done = false;
+      }
     }
-    return pdFAIL;
   }
+}
 
-  if (TMB_handle != NULL) {
-    *TMB_handle = task;
+void SMP_partitioned_check_deadlines_and_release_times(void) {
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    scheduler_check_deadlines_and_release_tasks(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_check_deadlines_and_release_tasks(aperiodic_tasks[core], aperiodic_task_count[core]);
   }
+}
 
-  return pdPASS;
+void SMP_partitioned_update_priorities(void) {
+  for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
+
+    for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+      TMB_t *const task = &periodic_tasks[core][i];
+      if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+        scheduler_deprioritize_task(task);
+      }
+    }
+
+    for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
+      TMB_t *const task = &aperiodic_tasks[core][i];
+      if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+        scheduler_deprioritize_task(task);
+      }
+    }
+
+    if (highest_priority_task != NULL) {
+      scheduler_set_highest_priority(highest_priority_task);
+    }
+  }
 }
 
 #endif

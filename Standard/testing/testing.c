@@ -43,8 +43,8 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->T),
     pdMS_TO_TICKS(config->D),
-    NULL,
-    config->core
+    config->core,
+    NULL
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"
@@ -78,8 +78,8 @@ void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *co
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->r),
     pdMS_TO_TICKS(config->D),
-    NULL,
-    config->core
+    config->core,
+    NULL
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"

@@ -2,7 +2,10 @@
 
 #include "helpers.h"
 #include "scheduler_internal.h"
+
+#if USE_SRP
 #include "srp.h"
+#endif // USE_SRP
 
 #include <math.h>
 #include <stdbool.h>
@@ -12,15 +15,32 @@
 ; // === LOCAL FUNCTION DECLARATIONS ===
 ; // ===================================
 
-static double dbf(const TickType_t L, const TickType_t C_new, const TickType_t T_new, const TickType_t D_new);
-static double calculate_l_star(const TickType_t C_new, const TickType_t T_new, const TickType_t D_new, const double U);
-static TickType_t calculate_d_max(const TickType_t D_new);
-static bool       check_deadlines_edf( //
+static double dbf(
+  const TickType_t L,
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new,
+  const TMB_t     *tasks,
+  const size_t     count
+);
+static double calculate_l_star(
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new,
+  const double     U,
+  const TMB_t     *tasks,
+  const size_t     count
+);
+static TickType_t calculate_d_max(const TickType_t relative_deadline, const TMB_t *tasks, const size_t count);
+
+#if TEST_SUITE == TEST_SUITE_EDF
+static bool check_deadlines_edf( //
   const TickType_t C_new,
   const TickType_t T_new,
   const TickType_t D_new,
   const TickType_t upper
 );
+#endif // TEST_SUITE == TEST_SUITE_EDF
 
 #if USE_SRP
 static TickType_t calculate_blocking_time(
@@ -57,15 +77,19 @@ static double dbf( //
   const TickType_t L,
   const TickType_t C_new,
   const TickType_t T_new,
-  const TickType_t D_new
+  const TickType_t D_new,
+  const TMB_t     *tasks,
+  const size_t     count
 ) {
   double demand = 0.0;
 
   // Existing tasks
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    const TickType_t Ci = periodic_tasks[i].completion_time;
-    const TickType_t Ti = periodic_tasks[i].periodic.period;
-    const TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
+  for (size_t i = 0; i < count; i++) {
+    configASSERT(tasks[i].type == TASK_PERIODIC);
+
+    const TickType_t Ci = tasks[i].completion_time;
+    const TickType_t Ti = tasks[i].periodic.period;
+    const TickType_t Di = tasks[i].periodic.relative_deadline;
 
     // Only calculate if L is past the first deadline to avoid negative floor results
     if (L >= Di) {
@@ -85,14 +109,18 @@ static double calculate_l_star( //
   const TickType_t completion_time,
   const TickType_t period,
   const TickType_t relative_deadline,
-  const double     utilization
+  const double     utilization,
+  const TMB_t     *tasks,
+  const size_t     count
 ) {
   double numerator = 0.0;
 
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    const double Ci = (double)periodic_tasks[i].completion_time;
-    const double Ti = (double)periodic_tasks[i].periodic.period;
-    const double Di = (double)periodic_tasks[i].periodic.relative_deadline;
+  for (size_t i = 0; i < count; i++) {
+    configASSERT(tasks[i].type == TASK_PERIODIC);
+
+    const double Ci = (double)tasks[i].completion_time;
+    const double Ti = (double)tasks[i].periodic.period;
+    const double Di = (double)tasks[i].periodic.relative_deadline;
     const double Ui = Ci / Ti;
 
     numerator += (Ti - Di) * Ui;
@@ -105,11 +133,13 @@ static double calculate_l_star( //
 }
 
 /// @brief Finds the largest relative deadline between the one provided, and the already existing periodic tasks.
-static TickType_t calculate_d_max(const TickType_t relative_deadline) {
+static TickType_t calculate_d_max(const TickType_t relative_deadline, const TMB_t *tasks, const size_t count) {
   TickType_t D_max = relative_deadline;
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    if (periodic_tasks[i].periodic.relative_deadline > D_max) {
-      D_max = periodic_tasks[i].periodic.relative_deadline;
+  for (size_t i = 0; i < count; i++) {
+    configASSERT(tasks[i].type == TASK_PERIODIC);
+
+    if (tasks[i].periodic.relative_deadline > D_max) {
+      D_max = tasks[i].periodic.relative_deadline;
     }
   }
   return D_max;
@@ -118,6 +148,8 @@ static TickType_t calculate_d_max(const TickType_t relative_deadline) {
 ; // ==================================
 ; // === PURE EDF ADMISSION CONTROL ===
 ; // ==================================
+
+#if TEST_SUITE == TEST_SUITE_EDF
 
 /// @brief checks if demand bound functions evaluates to leq L at points of interest
 static bool
@@ -131,7 +163,7 @@ check_deadlines_edf(const TickType_t C_new, const TickType_t T_new, const TickTy
       if (t > upper)
         break;
 
-      if (dbf(t, C_new, T_new, D_new) > (double)t) {
+      if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) > (double)t) {
         return false;
       }
     }
@@ -142,7 +174,7 @@ check_deadlines_edf(const TickType_t C_new, const TickType_t T_new, const TickTy
     if (t > upper)
       break;
 
-    if (dbf(t, C_new, T_new, D_new) > (double)t) {
+    if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) > (double)t) {
       return false;
     }
   }
@@ -171,13 +203,15 @@ bool EDF_can_admit_periodic_task( //
     return false;
   }
 
-  const double     l_star = calculate_l_star(C_new, T_new, D_new, U);
+  const double     l_star = calculate_l_star(C_new, T_new, D_new, U, periodic_tasks, periodic_task_count);
   const TickType_t H      = compute_hyperperiod(T_new, periodic_tasks, periodic_task_count);
-  const TickType_t D_max  = calculate_d_max(D_new);
+  const TickType_t D_max  = calculate_d_max(D_new, periodic_tasks, periodic_task_count);
   const TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
 
   return check_deadlines_edf(C_new, T_new, D_new, upper);
 }
+
+#endif // TEST_SUITE == TEST_SUITE_EDF
 
 ; // =============================
 ; // === SRP ADMISSION CONTROL ===
@@ -290,7 +324,7 @@ static bool check_deadlines_srp(
         break;
 
       TickType_t B_t = calculate_B_L(t, simulated_ceilings, preemption_level, resource_hold_times, D_new);
-      if (dbf(t, C_new, T_new, D_new) + (double)B_t > (double)t)
+      if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) + (double)B_t > (double)t)
         return false;
     }
   }
@@ -301,7 +335,7 @@ static bool check_deadlines_srp(
       break;
 
     TickType_t B_t = calculate_B_L(t, simulated_ceilings, preemption_level, resource_hold_times, D_new);
-    if (dbf(t, C_new, T_new, D_new) + (double)B_t > (double)t)
+    if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) + (double)B_t > (double)t)
       return false;
   }
 
@@ -360,10 +394,11 @@ bool SRP_can_admit_periodic_task(
     U += (double)periodic_tasks[i].completion_time / periodic_tasks[i].periodic.period;
   }
 
-  const double     l_star = calculate_l_star(completion_time, period, relative_deadline, U);
-  const TickType_t H      = compute_hyperperiod(period, periodic_tasks, periodic_task_count);
-  const TickType_t D_max  = calculate_d_max(relative_deadline);
-  const TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
+  const double l_star =
+    calculate_l_star(completion_time, period, relative_deadline, U, periodic_tasks, periodic_task_count);
+  const TickType_t H     = compute_hyperperiod(period, periodic_tasks, periodic_task_count);
+  const TickType_t D_max = calculate_d_max(relative_deadline, periodic_tasks, periodic_task_count);
+  const TickType_t upper = (TickType_t)fmin(H, fmax(D_max, l_star));
 
   return check_deadlines_srp(
     completion_time, period, relative_deadline, upper, preemption_level, resource_hold_times, simulated_ceilings

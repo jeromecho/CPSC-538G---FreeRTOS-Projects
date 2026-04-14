@@ -14,17 +14,27 @@
 #include "srp.h"
 #endif
 
+#if USE_MP && USE_PARTITIONED
+#include "smp_partitioned.h"
+#endif
+
 #include <stdio.h>
 
-static void pin_task_to_scheduler_core(TaskHandle_t task_handle) {
-#if (configUSE_CORE_AFFINITY == 1)
-  const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
-  vTaskCoreAffinitySet(task_handle, core_affinity_mask);
-#else
-  (void)task_handle;
-#endif
-}
 
+; // ==========================
+; // === GLOBAL TASK ARRAYS ===
+; // ==========================
+
+#if USE_MP && USE_PARTITIONED
+TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+size_t periodic_task_count[configNUMBER_OF_CORES] = {0};
+
+TMB_t  aperiodic_tasks[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
+size_t aperiodic_task_count[configNUMBER_OF_CORES] = {0};
+
+StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
+StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+#else // USE_MP && USE_PARTITIONED
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count = 0;
 
@@ -34,7 +44,9 @@ size_t aperiodic_task_count = 0;
 #if !(USE_SRP && ENABLE_STACK_SHARING)
 StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
-#endif
+#endif // !(USE_SRP && ENABLE_STACK_SHARING)
+#endif // USE_MP && USE_PARTITIONED
+
 
 ; // ===================================
 ; // === LOCAL FUNCTION DECLARATIONS ===
@@ -42,15 +54,15 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 
 void          reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
-static void   set_highest_priority(const TMB_t *const task);
-static void   deprioritize_task(const TMB_t *const task);
 static void   deprioritize_other_tasks(const TMB_t *const highest_priority_task);
 static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
-void          check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count);
-TickType_t    calculate_release_time_for_new_task(const TickType_t new_period);
 void          deadline_miss(const TMB_t *const task);
+
+#if !(USE_MP && USE_PARTITIONED)
+TickType_t calculate_release_time_for_new_task(const TickType_t new_period);
+#endif
 
 #if TRACE_WITH_LOGIC_ANALYZER
 void update_gpio_pin(
@@ -76,8 +88,11 @@ void task_switched_in(void);
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *EDF_produce_highest_priority_task() {
-  TMB_t *periodic_candidate  = candidate_highest_priority(periodic_tasks, periodic_task_count);
-  TMB_t *aperiodic_candidate = candidate_highest_priority(aperiodic_tasks, aperiodic_task_count);
+#if USE_MP && USE_PARTITIONED
+  return SMP_partitioned_produce_highest_priority_task((UBaseType_t)portGET_CORE_ID());
+#else
+  TMB_t *periodic_candidate  = scheduler_highest_priority_candidate(periodic_tasks, periodic_task_count);
+  TMB_t *aperiodic_candidate = scheduler_highest_priority_candidate(aperiodic_tasks, aperiodic_task_count);
 
   // // Early return if there are no tasks available
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
@@ -91,6 +106,7 @@ TMB_t *EDF_produce_highest_priority_task() {
   TMB_t *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
 
   return candidate;
+#endif
 }
 
 // TODO: This should accept the TMB instead of the task handle.
@@ -149,8 +165,6 @@ BaseType_t _create_task_internal(
     return pdFAIL;
   }
 
-  pin_task_to_scheduler_core(task_handle);
-
   new_task->handle        = task_handle;
   new_task->task_function = task_function;
   new_task->stack_buffer  = stack_buffer;
@@ -168,24 +182,26 @@ BaseType_t _create_task_internal(
 BaseType_t _create_periodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
+  TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
+  size_t *const     task_count,
   StackType_t      *stack_buffer,
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
-  if (periodic_task_count >= MAXIMUM_PERIODIC_TASKS) {
+  if (*task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
   configASSERT(relative_deadline <= period);
 
-  TMB_t *const new_task = &periodic_tasks[periodic_task_count];
+  TMB_t *const new_task = &task_array[*task_count];
 
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
     TASK_PERIODIC,
-    periodic_task_count,
+    *task_count,
     new_task,
     completion_time,
     stack_buffer,
@@ -196,7 +212,7 @@ BaseType_t _create_periodic_task_internal(
       *TMB_handle = NULL;
     return result;
   }
-  periodic_task_count++;
+  (*task_count)++;
 
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
@@ -209,12 +225,17 @@ BaseType_t _create_periodic_task_internal(
     new_task->absolute_deadline    = current_tick + relative_deadline;
     TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_PERIODIC, new_task);
   } else {
+    // const TickType_t H            = compute_hyperperiod(period, task_array, *task_count);
+    // const TickType_t current_tick = xTaskGetTickCount();
+    // const TickType_t remainder    = (current_tick == 0 || H == 0) ? 0 : (current_tick % H);
+    // TickType_t release_time = (current_tick == 0 || remainder == 0) ? current_tick : (current_tick + (H -
+    // remainder));
     TickType_t release_time        = calculate_release_time_for_new_task(period);
     new_task->release_time         = release_time;
     new_task->periodic.next_period = release_time + period;
     new_task->absolute_deadline    = release_time + relative_deadline;
     vTaskSuspend(new_task->handle);
-    deprioritize_task(new_task);
+    scheduler_deprioritize_task(new_task);
   }
 
   if (TMB_handle != NULL) {
@@ -228,26 +249,28 @@ BaseType_t _create_periodic_task_internal(
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
+  TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
+  size_t *const     task_count,
   StackType_t      *stack_buffer,
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
-  if (aperiodic_task_count >= MAXIMUM_APERIODIC_TASKS) {
+  if (*task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
   const TickType_t current_tick = xTaskGetTickCount();
   configASSERT(release_time >= current_tick);
 
-  TMB_t *const new_task = &aperiodic_tasks[aperiodic_task_count];
+  TMB_t *const new_task = &task_array[*task_count];
 
   BaseType_t result = _create_task_internal( //
     task_function,
     task_name,
     TASK_APERIODIC,
-    aperiodic_task_count,
+    *task_count,
     new_task,
     completion_time,
     stack_buffer,
@@ -258,7 +281,7 @@ BaseType_t _create_aperiodic_task_internal(
       *TMB_handle = NULL;
     return result;
   }
-  aperiodic_task_count++;
+  (*task_count)++;
 
   new_task->release_time      = release_time;
   new_task->absolute_deadline = release_time + relative_deadline;
@@ -267,7 +290,7 @@ BaseType_t _create_aperiodic_task_internal(
     TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_APERIODIC, new_task);
   } else {
     vTaskSuspend(new_task->handle);
-    deprioritize_task(new_task);
+    scheduler_deprioritize_task(new_task);
   }
 
   if (TMB_handle != NULL) {
@@ -277,7 +300,7 @@ BaseType_t _create_aperiodic_task_internal(
   return pdPASS;
 }
 
-#if !USE_SRP
+#if TEST_SUITE == TEST_SUITE_EDF
 /// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
@@ -287,6 +310,7 @@ BaseType_t EDF_create_periodic_task(
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
+#if MAXIMUM_PERIODIC_TASKS > 0
 #if PERFORM_ADMISSION_CONTROL
   if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
     TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
@@ -299,17 +323,27 @@ BaseType_t EDF_create_periodic_task(
   return _create_periodic_task_internal(
     task_function,
     task_name,
+    periodic_tasks,
+    &periodic_task_count,
     edf_private_stacks_periodic[periodic_task_count],
     completion_time,
     period,
     relative_deadline,
     TMB_handle
   );
+#else
+  // Fallback if no periodic tasks are allowed in this config
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)period;
+  (void)relative_deadline;
+  (void)TMB_handle;
+  return pdFAIL;
+#endif // MAXIMUM_PERIODIC_TASKS > 0
 }
 
-// TODO: Implement the xTaskDeleteAperiodic function, which will be responsible for deleting
-// aperiodic tasks once they are done executing.  This is necessary to prevent memory leaks, since
-// aperiodic tasks are not reused like periodic tasks.
+// TODO: Implement the xTaskDeleteAperiodic function
 BaseType_t EDF_create_aperiodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,
@@ -318,17 +352,49 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
-  return _create_aperiodic_task_internal( //
+#if MAXIMUM_APERIODIC_TASKS > 0
+  return _create_aperiodic_task_internal(
     task_function,
     task_name,
+    aperiodic_tasks,
+    &aperiodic_task_count,
     edf_private_stacks_aperiodic[aperiodic_task_count],
     completion_time,
     release_time,
     relative_deadline,
     TMB_handle
   );
+#else
+  // Fallback if no aperiodic tasks are allowed in this config
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)release_time;
+  (void)relative_deadline;
+  (void)TMB_handle;
+  return pdFAIL;
+#endif // MAXIMUM_APERIODIC_TASKS > 0
 }
-#endif // !USE_SRP
+#endif // TEST_SUITE == TEST_SUITE_EDF
+
+#if USE_MP
+/// @brief Assign a task to a specific core
+BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core) {
+  if (task_handle == NULL) {
+    return pdFAIL;
+  }
+
+#if (configUSE_CORE_AFFINITY == 1)
+  if (core >= configNUMBER_OF_CORES) {
+    return pdFAIL;
+  }
+
+  const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << core;
+  vTaskCoreAffinitySet(task_handle, core_affinity_mask);
+  return pdPASS;
+#endif
+}
+#endif
 
 /// @brief Dummy task function for periodic tasks. It will run until it has executed for a number of time
 /// slices equal to its completion time, at which point it will mark itself as done and suspend
@@ -352,21 +418,40 @@ void EDF_aperiodic_task(void *pvParameters) {
   vTaskDelete(NULL);
 }
 
+TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    if (tasks[i].handle == handle) {
+      return &tasks[i];
+    }
+  }
+  return NULL;
+}
+
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only
 // looking for aperiodic tasks?
 /// @brief Helper function to get the TMB of a task by its task handle
 TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    if (periodic_tasks[i].handle == handle) {
-      return &periodic_tasks[i];
-    }
-  }
+  TMB_t *candidate = NULL;
 
-  for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    if (aperiodic_tasks[i].handle == handle) {
-      return &aperiodic_tasks[i];
-    }
+#if USE_MP && USE_PARTITIONED
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    candidate = scheduler_search_array_for_handle(handle, periodic_tasks[core], periodic_task_count[core]);
+    if (candidate)
+      return candidate;
+
+    candidate = scheduler_search_array_for_handle(handle, aperiodic_tasks[core], aperiodic_task_count[core]);
+    if (candidate)
+      return candidate;
   }
+#else
+  candidate = scheduler_search_array_for_handle(handle, periodic_tasks, periodic_task_count);
+  if (candidate)
+    return candidate;
+
+  candidate = scheduler_search_array_for_handle(handle, aperiodic_tasks, aperiodic_task_count);
+  if (candidate)
+    return candidate;
+#endif
 
   return NULL;
 }
@@ -382,6 +467,9 @@ void starting_scheduler(void *xIdleTaskHandles) {
 
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 void reschedule_periodic_tasks() {
+#if USE_MP && USE_PARTITIONED
+  SMP_partitioned_reschedule_periodic_tasks();
+#else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const     task         = &periodic_tasks[i];
     const TickType_t current_tick = xTaskGetTickCountFromISR();
@@ -393,10 +481,53 @@ void reschedule_periodic_tasks() {
       task->is_done = false;
     }
   }
+#endif
+}
+
+/// @brief Increases the priority of a task to the highest possible/maximum, which should force it to be chosen to run
+/// by the FreeRTOS scheduler
+void scheduler_deprioritize_task(const TMB_t *const task) {
+  configASSERT(task != NULL);
+  configASSERT(task->handle != NULL);
+
+  vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
+  TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
+}
+
+/// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
+void scheduler_set_highest_priority(const TMB_t *const task) {
+  configASSERT(task != NULL);
+  configASSERT(task->handle != NULL);
+
+  vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
+  TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
+}
+
+/// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
+/// should be released.
+void scheduler_check_deadlines_and_release_tasks(const TMB_t *const tasks, const size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const TMB_t *const task         = &tasks[i];
+    const bool         task_done    = task->is_done;
+    const TickType_t   current_tick = xTaskGetTickCountFromISR();
+
+    // Checks if the task has missed its deadline
+    const bool deadline_missed = (current_tick > task->absolute_deadline);
+    if (!task_done && deadline_missed) {
+      deadline_miss(task);
+    }
+
+    // Checks if a task should be released
+    const bool task_released  = (task->release_time <= current_tick);
+    const bool task_suspended = (eTaskGetState(task->handle) == eSuspended);
+    if (!task_done && task_released && task_suspended) {
+      release_task(task);
+    }
+  }
 }
 
 /// @brief Helper function to find the pending task with the nearest deadline
-static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
+TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count) {
   const TickType_t current_tick      = xTaskGetTickCountFromISR();
   TMB_t           *candidate         = NULL;
   TickType_t       earliest_deadline = portMAX_DELAY;
@@ -427,42 +558,39 @@ static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count) {
   return candidate;
 }
 
-/// @brief Increases the priority of a task to the highest possible/maximum, which should force it to be chosen to run
-/// by the FreeRTOS scheduler
-static void set_highest_priority(const TMB_t *const task) {
-  configASSERT(task != NULL);
-  configASSERT(task->handle != NULL);
-
-  vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
-
-  TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task);
-}
-
-/// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
-static void deprioritize_task(const TMB_t *const task) {
-  configASSERT(task != NULL);
-  configASSERT(task->handle != NULL);
-
-  vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
-
-  TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task);
-}
-
 /// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
 static void deprioritize_other_tasks(const TMB_t *const highest_priority_task) {
+#if USE_MP && USE_PARTITIONED
+  const UBaseType_t core = (UBaseType_t)portGET_CORE_ID();
+
+  for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+    TMB_t *const task = &periodic_tasks[core][i];
+    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+      scheduler_deprioritize_task(task);
+    }
+  }
+
+  for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
+    TMB_t *const task = &aperiodic_tasks[core][i];
+    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
+      scheduler_deprioritize_task(task);
+    }
+  }
+#else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const task = &periodic_tasks[i];
     if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      deprioritize_task(task);
+      scheduler_deprioritize_task(task);
     }
   }
 
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
     TMB_t *const task = &aperiodic_tasks[i];
     if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      deprioritize_task(task);
+      scheduler_deprioritize_task(task);
     }
   }
+#endif
 }
 
 /// @brief Resumes a task
@@ -477,6 +605,10 @@ static void release_task(const TMB_t *const task) {
 
 /// @brief produce true if currently running task is different from the highest priority task
 bool should_update_priorities(const TMB_t *const highest_priority_task) {
+#if USE_MP && USE_PARTITIONED
+  (void)highest_priority_task;
+  return true;
+#else
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t             *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
 
@@ -500,13 +632,17 @@ bool should_update_priorities(const TMB_t *const highest_priority_task) {
 
   // An EDF task wants to run. Only return true if it is not already running?
   return highest_priority_task->handle != current_task_handle;
+#endif
 }
 
 /// @brief Deprioritizes all tasks which are not currently running. If the boolean flag is set, also elevates the
 /// priority of the next task to run. This is presented as an option so that this function can be run before the
-/// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which is
-/// very much not allowed before the scheduler has started (at least when SMP is enabled).
+/// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which
+/// is very much not allowed before the scheduler has started (at least when SMP is enabled).
 void update_priorities() {
+#if USE_MP && USE_PARTITIONED
+  SMP_partitioned_update_priorities();
+#else
   TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
   const bool   should_update         = should_update_priorities(highest_priority_task);
   if (!should_update) {
@@ -529,35 +665,14 @@ void update_priorities() {
       highest_priority_task->has_started = true;
       SRP_push_ceiling(highest_priority_task->preemption_level);
     }
-#endif // USE_SRP
+#endif                   // USE_SRP
 
-    set_highest_priority(highest_priority_task);
+    scheduler_set_highest_priority(highest_priority_task);
   }
+#endif
 }
 
-/// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
-/// should be released.
-void check_deadlines_and_release_times(const TMB_t *const tasks, const size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    const TMB_t *const task         = &tasks[i];
-    const bool         task_done    = task->is_done;
-    const TickType_t   current_tick = xTaskGetTickCountFromISR();
-
-    // Checks if the task has missed its deadline
-    const bool deadline_missed = (current_tick > task->absolute_deadline);
-    if (!task_done && deadline_missed) {
-      deadline_miss(task);
-    }
-
-    // Checks if a task should be released
-    const bool task_released  = (task->release_time <= current_tick);
-    const bool task_suspended = (eTaskGetState(task->handle) == eSuspended);
-    if (!task_done && task_released && task_suspended) {
-      release_task(task);
-    }
-  }
-}
-
+#if !(USE_MP && USE_PARTITIONED)
 /// @brief Calculates release time for dropped task
 TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
   const TickType_t H            = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
@@ -572,6 +687,7 @@ TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
     return current_tick + (H - remainder);
   }
 }
+#endif
 
 /// @brief Logic for whatever should happen when a deadline is missed
 void deadline_miss(const TMB_t *const task) {
@@ -591,8 +707,12 @@ void deadline_miss(const TMB_t *const task) {
 void vApplicationTickHook(void) {
   reschedule_periodic_tasks();
 
-  check_deadlines_and_release_times(periodic_tasks, periodic_task_count);
-  check_deadlines_and_release_times(aperiodic_tasks, aperiodic_task_count);
+#if USE_MP && USE_PARTITIONED
+  SMP_partitioned_check_deadlines_and_release_tasks();
+#else
+  scheduler_check_deadlines_and_release_tasks(periodic_tasks, periodic_task_count);
+  scheduler_check_deadlines_and_release_tasks(aperiodic_tasks, aperiodic_task_count);
+#endif
 
   update_priorities();
 }

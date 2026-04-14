@@ -57,6 +57,8 @@ BaseType_t _create_task_internal(
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
+  TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
+  size_t *const     task_count,
   StackType_t      *stack_buffer,
   const TickType_t  completion_time,
   const TickType_t  release_time,
@@ -66,6 +68,8 @@ BaseType_t _create_aperiodic_task_internal(
 BaseType_t _create_periodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
+  TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
+  size_t *const     task_count,
   StackType_t      *stack_buffer,
   const TickType_t  completion_time,
   const TickType_t  period,
@@ -73,6 +77,24 @@ BaseType_t _create_periodic_task_internal(
   TMB_t **const     TMB_handle
 );
 
+void   scheduler_deprioritize_task(const TMB_t *const task);
+void   scheduler_set_highest_priority(const TMB_t *const task);
+void   scheduler_check_deadlines_and_release_tasks(const TMB_t *const tasks, const size_t count);
+TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count);
+TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
+
+BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
+
+#if USE_MP && USE_PARTITIONED
+extern TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+extern size_t periodic_task_count[configNUMBER_OF_CORES];
+
+extern TMB_t  aperiodic_tasks[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
+extern size_t aperiodic_task_count[configNUMBER_OF_CORES];
+
+extern StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
+extern StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+#else // USE_MP && USE_PARTITIONED
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
 
@@ -85,5 +107,6 @@ extern StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
 extern StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 #endif // USE_SRP && ENABLE_STACK_SHARING
+#endif // USE_MP && USE_PARTITIONED
 
 #endif // SCHEDULER_INTERNAL_H

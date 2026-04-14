@@ -1,6 +1,10 @@
 #ifndef SMP_PARTITIONED_H
 #define SMP_PARTITIONED_H
 
+#include "ProjectConfig.h"
+
+#if USE_MP
+
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "scheduler_internal.h"
 
@@ -10,8 +14,8 @@ BaseType_t SMP_create_periodic_task_on_core(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  const UBaseType_t core
+  const UBaseType_t core,
+  TMB_t **const     TMB_handle
 );
 
 BaseType_t SMP_create_aperiodic_task_on_core(
@@ -20,8 +24,15 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle,
-  const UBaseType_t core
+  const UBaseType_t core,
+  TMB_t **const     TMB_handle
 );
+
+TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core);
+void   SMP_partitioned_reschedule_periodic_tasks(void);
+void   SMP_partitioned_check_deadlines_and_release_tasks(void);
+void   SMP_partitioned_update_priorities(void);
+
+#endif // USE_MP
 
 #endif // SMP_PARTITIONED_H

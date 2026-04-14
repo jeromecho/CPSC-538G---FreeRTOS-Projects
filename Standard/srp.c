@@ -120,20 +120,19 @@ BaseType_t SRP_create_periodic_task(
   const BaseType_t  preemption_level,
   const TickType_t  resource_hold_times[N_RESOURCES]
 ) {
-  configASSERT(USE_SRP == 1);
+#if MAXIMUM_PERIODIC_TASKS > 0
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
   configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
 #if PERFORM_ADMISSION_CONTROL
-  // TODO: Should admission control be extended to aperiodic tasks?
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
     TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
     TRACE_disable();
     xTaskNotifyGive(monitor_task_handle);
     return pdFALSE;
   }
-#endif // PERFORM_ADMISSION_CONTROL
+#endif
 
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
@@ -142,9 +141,11 @@ BaseType_t SRP_create_periodic_task(
 #endif
 
   TMB_t     *handle = NULL;
-  BaseType_t result = _create_periodic_task_internal( //
+  BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
+    periodic_tasks,
+    &periodic_task_count,
     stack_buffer,
     completion_time,
     period,
@@ -160,6 +161,18 @@ BaseType_t SRP_create_periodic_task(
   }
 
   return result;
+#else
+  // Fallback for configurations with 0 periodic tasks
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)period;
+  (void)relative_deadline;
+  (void)TMB_handle;
+  (void)preemption_level;
+  (void)resource_hold_times;
+  return pdFAIL;
+#endif
 }
 
 /// @brief Creates an aperiodic task, making sure all the fields required for SRP are set
@@ -173,21 +186,23 @@ BaseType_t SRP_create_aperiodic_task(
   const BaseType_t  preemption_level,
   const TickType_t  resource_hold_times[N_RESOURCES]
 ) {
-  configASSERT(USE_SRP == 1);
+#if MAXIMUM_APERIODIC_TASKS > 0
   configASSERT(preemption_level <= N_PREEMPTION_LEVELS);
   configASSERT(preemption_level > 0);
   configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
-#if USE_SRP && ENABLE_STACK_SHARING
+#if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
 #else
   StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_count];
 #endif
 
   TMB_t     *handle = NULL;
-  BaseType_t result = _create_aperiodic_task_internal( //
+  BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
+    aperiodic_tasks,
+    &aperiodic_task_count,
     stack_buffer,
     completion_time,
     release_time,
@@ -203,6 +218,18 @@ BaseType_t SRP_create_aperiodic_task(
   }
 
   return result;
+#else
+  // Fallback for configurations with 0 aperiodic tasks
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)release_time;
+  (void)relative_deadline;
+  (void)TMB_handle;
+  (void)preemption_level;
+  (void)resource_hold_times;
+  return pdFAIL;
+#endif
 }
 
 /// @brief Resets a FreeRTOS task's TCB, so that it can safely use shared stack memory even if it has used it
