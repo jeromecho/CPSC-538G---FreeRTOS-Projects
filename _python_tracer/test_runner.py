@@ -24,36 +24,6 @@ from pico_env import (  # ty:ignore[unresolved-import]
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
-    # "EDF1",
-    # "EDF2",
-    "SRP1",
-    "SRP2",
-    "SRP3",
-    "SRP4",
-    "SRP5",
-    "SRP6",
-    "SRP7",
-    "SRP8",
-    "SRP9",
-
-    # "CBS1",
-    # "CBS2",
-    # "CBS3",
-    # "CBS4",
-    # "CBS5",
-    # "CBS6",
-    # "CBS7",
-    # "CBS8",
-    # "CBS9",
-    # "CBS10",
-    # "CBS11",
-    # "CBS12",
-    # "CBS13",
-    # "CBS14",
-    # "CBS15",
-    # "CBS16",
-    # "CBS17",
-    # "CBS18",
 ]
 
 
