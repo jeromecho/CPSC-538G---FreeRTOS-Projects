@@ -59,10 +59,7 @@ static void   release_task(const TMB_t *const task);
 bool          should_update_priorities(const TMB_t *const highest_priority_task);
 void          update_priorities();
 void          deadline_miss(const TMB_t *const task);
-
-#if !(USE_MP && USE_PARTITIONED)
-TickType_t calculate_release_time_for_new_task(const TickType_t new_period);
-#endif
+TickType_t    calculate_release_time_for_new_task(const TickType_t new_period, const TMB_t *tasks, const size_t count);
 
 #if TRACE_WITH_LOGIC_ANALYZER
 void update_gpio_pin(
@@ -225,12 +222,7 @@ BaseType_t _create_periodic_task_internal(
     new_task->absolute_deadline    = current_tick + relative_deadline;
     TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_PERIODIC, new_task);
   } else {
-    // const TickType_t H            = compute_hyperperiod(period, task_array, *task_count);
-    // const TickType_t current_tick = xTaskGetTickCount();
-    // const TickType_t remainder    = (current_tick == 0 || H == 0) ? 0 : (current_tick % H);
-    // TickType_t release_time = (current_tick == 0 || remainder == 0) ? current_tick : (current_tick + (H -
-    // remainder));
-    TickType_t release_time        = calculate_release_time_for_new_task(period);
+    TickType_t release_time        = calculate_release_time_for_new_task(period, task_array, *task_count);
     new_task->release_time         = release_time;
     new_task->periodic.next_period = release_time + period;
     new_task->absolute_deadline    = release_time + relative_deadline;
@@ -393,6 +385,8 @@ BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t co
   vTaskCoreAffinitySet(task_handle, core_affinity_mask);
   return pdPASS;
 #endif
+
+  return pdPASS;
 }
 #endif
 
@@ -672,10 +666,9 @@ void update_priorities() {
 #endif
 }
 
-#if !(USE_MP && USE_PARTITIONED)
 /// @brief Calculates release time for dropped task
-TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
-  const TickType_t H            = compute_hyperperiod(new_period, periodic_tasks, periodic_task_count);
+TickType_t calculate_release_time_for_new_task(const TickType_t new_period, const TMB_t *tasks, const size_t count) {
+  const TickType_t H            = compute_hyperperiod(new_period, tasks, count);
   const TickType_t current_tick = xTaskGetTickCount(); // TODO: Should this be xTaskGetTickCountFromISR?
 
   if (current_tick == 0)
@@ -687,7 +680,6 @@ TickType_t calculate_release_time_for_new_task(const TickType_t new_period) {
     return current_tick + (H - remainder);
   }
 }
-#endif
 
 /// @brief Logic for whatever should happen when a deadline is missed
 void deadline_miss(const TMB_t *const task) {
@@ -720,10 +712,10 @@ void vApplicationTickHook(void) {
 void trace_task_switch(TraceEventType_t switch_event) {
   // For some reason, when there is only one core, it is illegal to call xTaskGetIdleTaskHandle before the scheduler
   // starts. This check makes sure that never happens (could probably be wrapped in a )
-  const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
-  if (!scheduler_started) {
-    return;
-  }
+  // const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
+  // if (!scheduler_started) {
+  //   return;
+  // }
 
   const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
 

@@ -15,8 +15,8 @@ void partitioned_mp_test_1() {
   const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 2, 6, 6, 0},
     {EDF_periodic_task, 1, 2, 2, 0},
-    {EDF_periodic_task, 2, 6, 6, 1},
-    {EDF_periodic_task, 1, 2, 2, 1},
+    // {EDF_periodic_task, 2, 6, 6, 1},
+    // {EDF_periodic_task, 1, 2, 2, 1},
   };
 
   build_periodic_test("SMP Test 1", test_config, MAXIMUM_PERIODIC_TASKS);

@@ -29,7 +29,8 @@ BaseType_t SMP_create_periodic_task_on_core(
   const UBaseType_t core,
   TMB_t **const     TMB_handle
 ) {
-  configASSERT(core <= configNUMBER_OF_CORES);
+#if MAXIMUM_PERIODIC_TASKS > 0
+  configASSERT(core < configNUMBER_OF_CORES);
 
 #if PERFORM_ADMISSION_CONTROL
   if (!SMP_can_admit_periodic_task_on_core(completion_time, period, core)) {
@@ -50,17 +51,31 @@ BaseType_t SMP_create_periodic_task_on_core(
     completion_time,
     period,
     relative_deadline,
-    TMB_handle
+    &handle // Use local handle to ensure pin_task_to_core works
   );
 
-  if (result == pdPASS) {
-    pin_task_to_core(handle->handle, core);
+  if (result == pdPASS && handle != NULL) {
+    if (pin_task_to_core(handle->handle, core) != pdPASS) {
+      return pdFAIL;
+    }
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
+  } else if (result == pdPASS) {
+    return pdFAIL;
   }
 
   return result;
+#else
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)period;
+  (void)relative_deadline;
+  (void)core;
+  (void)TMB_handle;
+  return pdFAIL;
+#endif
 }
 
 BaseType_t SMP_create_aperiodic_task_on_core(
@@ -72,7 +87,8 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   const UBaseType_t core,
   TMB_t **const     TMB_handle
 ) {
-  configASSERT(core <= configNUMBER_OF_CORES);
+#if MAXIMUM_APERIODIC_TASKS > 0
+  configASSERT(core < configNUMBER_OF_CORES);
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal(
@@ -87,14 +103,28 @@ BaseType_t SMP_create_aperiodic_task_on_core(
     &handle
   );
 
-  if (result == pdPASS) {
-    pin_task_to_core(handle->handle, core);
+  if (result == pdPASS && handle != NULL) {
+    if (pin_task_to_core(handle->handle, core) != pdPASS) {
+      return pdFAIL;
+    }
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
+  } else if (result == pdPASS) {
+    return pdFAIL;
   }
 
   return result;
+#else
+  (void)task_function;
+  (void)task_name;
+  (void)completion_time;
+  (void)release_time;
+  (void)relative_deadline;
+  (void)core;
+  (void)TMB_handle;
+  return pdFAIL;
+#endif
 }
 
 TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core) {
@@ -129,7 +159,7 @@ void SMP_partitioned_reschedule_periodic_tasks(void) {
   }
 }
 
-void SMP_partitioned_check_deadlines_and_release_times(void) {
+void SMP_partitioned_check_deadlines_and_release_tasks(void) {
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
     scheduler_check_deadlines_and_release_tasks(periodic_tasks[core], periodic_task_count[core]);
     scheduler_check_deadlines_and_release_tasks(aperiodic_tasks[core], aperiodic_task_count[core]);
@@ -155,9 +185,11 @@ void SMP_partitioned_update_priorities(void) {
     }
 
     if (highest_priority_task != NULL) {
+      if (uxTaskPriorityGet(highest_priority_task->handle) != PRIORITY_RUNNING) {
       scheduler_set_highest_priority(highest_priority_task);
     }
   }
+}
 }
 
 #endif

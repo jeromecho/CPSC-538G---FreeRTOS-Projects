@@ -103,7 +103,10 @@ void TRACE_print_buffer() {
 #error "Only two cores are supported"
 #endif
 
-  const size_t trace_total_count = trace_count[0] + trace_count[1];
+  size_t trace_total_count = 0;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    trace_total_count += trace_count[core];
+  }
 
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);

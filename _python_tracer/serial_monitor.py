@@ -101,7 +101,8 @@ def get_task_name(row):
 
     base_name = TASK_TYPES.get(task_type, f"Unknown ({task_type})")
     if task_type in [1, 2]:
-        return f"{base_name} {task_id + 1:03d}"
+        # Keep same logical task ID split by core so task-centric lanes stay independent in SMP.
+        return f"{base_name} {task_id + 1:03d} C{core}"
     if task_type in [0, 3]:
         return f"{base_name} C{core}"
     return base_name
@@ -190,15 +191,39 @@ def parse_trace_dataframe(csv_data):
 
 
 def ordered_task_names(df, df_exec):
-    if df_exec.empty:
-        fallback = sorted(df["TASK_NAME"].unique())
-    else:
-        first_seen = df_exec.groupby("TASK_NAME", sort=False)["START_TICK"].min().to_dict()
-        fallback = sorted(df["TASK_NAME"].unique(), key=lambda name: (first_seen.get(name, UINT32_MAX), name))
+    task_meta = (
+        df.groupby("TASK_NAME", as_index=False)
+        .agg(
+            CORE_MIN=("CORE", "min"),
+            TASK_TYPE_MIN=("TASK_TYPE", "min"),
+            TASK_ID_MIN=("TASK_ID", "min"),
+            FIRST_TICK=("TIMESTAMP", "min"),
+        )
+        .set_index("TASK_NAME")
+        .to_dict("index")
+    )
 
-    foreground = [name for name in fallback if not (name.startswith("Idle Task") or name.startswith("System Task"))]
-    background = [name for name in fallback if (name.startswith("Idle Task") or name.startswith("System Task"))]
+    task_type_rank = {
+        1: 0,  # periodic
+        2: 1,  # aperiodic
+        3: 2,  # system
+        0: 3,  # idle
+    }
 
+    def sort_key(name):
+        meta = task_meta.get(name, {})
+        t_type = int(meta.get("TASK_TYPE_MIN", 99))
+        return (
+            int(meta.get("CORE_MIN", 99)),
+            task_type_rank.get(t_type, 9),
+            int(meta.get("TASK_ID_MIN", 9999)),
+            int(meta.get("FIRST_TICK", UINT32_MAX)),
+            name,
+        )
+
+    names = sorted(df["TASK_NAME"].unique(), key=sort_key)
+    foreground = [name for name in names if not (name.startswith("Idle Task") or name.startswith("System Task"))]
+    background = [name for name in names if (name.startswith("Idle Task") or name.startswith("System Task"))]
     return foreground + background
 
 
