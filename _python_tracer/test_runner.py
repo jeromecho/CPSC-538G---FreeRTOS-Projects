@@ -30,6 +30,9 @@ TESTS_TO_RUN: list[str] = [  #
     # "SRP4",
     # "SRP5",
     # "SRP6",
+    # "SRP7",
+    # "SRP8",
+    # "SRP9",
 ]
 
 TRACE_RUN_BANNERS = (

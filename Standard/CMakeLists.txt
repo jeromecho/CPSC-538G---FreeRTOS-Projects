@@ -29,12 +29,16 @@ add_executable(main_blinky
         
         edf_scheduler.c
         srp.c
+        smp_partitioned.c
+        smp_global.c
         admission_control.c
         
         tracer.c
         helpers.c
         
+        testing/testing.c
         testing/edf_tests.c
+        testing/smp_tests.c
         testing/srp_tests.c
         )
     

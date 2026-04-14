@@ -9,6 +9,13 @@
 #define TEST_SUITE 2
 #define TEST_NR    9
 
+#define USE_PARTITIONED 0 // Only relevant when USE_MP=1
+#define USE_GLOBAL      0 // Only relevant when USE_MP=1
+
+#define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
+#define MAX_TRACE_RECORDS         1000
+#define TRACE_WITH_LOGIC_ANALYZER 0
+
 #if TEST_SUITE == TEST_SUITE_EDF
 #define USE_EDF 1
 #define USE_SRP 0
@@ -32,13 +39,6 @@
 #else
 #error "Invalid TEST_SUITE in ProjectConfig.h"
 #endif
-
-#define USE_PARTITIONED 1 // Only relevant when USE_MP=1
-#define USE_GLOBAL      0 // Only relevant when USE_MP=1
-
-#define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
-#define MAX_TRACE_RECORDS         1000
-#define TRACE_WITH_LOGIC_ANALYZER 0
 
 ; // =====================
 ; // === SANITY CHECKS ===

@@ -70,7 +70,6 @@
 
 /* Library includes. */
 #include "hardware/gpio.h"
-#include <stdint.h>
 #include <stdio.h>
 
 // Custom scheduler includes
@@ -78,13 +77,15 @@
 #include "helpers.h"
 #include "tracer.h"
 
-#if !USE_SRP
+#if TEST_SUITE == TEST_SUITE_EDF
 #include "testing/edf_tests.h" // IWYU pragma: keep
-#endif                         // USE_SRP
-
-#if USE_SRP
+#elif TEST_SUITE == TEST_SUITE_SRP
 #include "testing/srp_tests.h" // IWYU pragma: keep
-#endif                         // USE_SRP
+#elif TEST_SUITE == TEST_SUITE_CBS
+// #include "testing/cbs_tests.h" // IWYU pragma: keep
+#elif TEST_SUITE == TEST_SUITE_MP
+#include "testing/smp_tests.h" // IWYU pragma: keep
+#endif
 
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
@@ -121,12 +122,12 @@ void vTraceMonitorTask(void *pvParameters) {
   vTaskSuspendAll();
   TRACE_disable();
 
-#if USE_EDF
-#if USE_SRP
-  printf("Results for SRP Test %d\n", TEST_NR);
-#else
+#if TEST_SUITE == TEST_SUITE_EDF
   printf("Results for EDF Test %d\n", TEST_NR);
-#endif
+#elif TEST_SUITE == TEST_SUITE_SRP
+  printf("Results for SRP Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_MP
+  printf("Results for SMP Test %d\n", TEST_NR);
 #endif
 
   crash_with_trace("");
@@ -196,19 +197,16 @@ void initialize_gpio_pins(void) {
 
 #define PASTE(x, y)        x##y
 #define PASTE_EXPAND(x, y) PASTE(x, y)
+/// @brief Uses the PASTE_EXPAND macro to dynamically dispatch the correct test based on the current TEST_NR
 void run_test() {
-  // clang-format off
-#if USE_EDF
-  #if USE_SRP
-    printf("Running SRP Test %d\n", TEST_NR);
-    // If TEST_NR is 1, this becomes: return srp_test_1();
-    PASTE_EXPAND(srp_test_, TEST_NR)();
-    
-  #else
-    printf("Running EDF Test %d\n", TEST_NR);
-    // If TEST_NR is 3, this becomes: edf_test_3();
-    PASTE_EXPAND(edf_test_, TEST_NR)();
-  #endif
+#if TEST_SUITE == TEST_SUITE_EDF
+  printf("Running EDF Test %d\n", TEST_NR);
+  PASTE_EXPAND(edf_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_SRP
+  printf("Running SRP Test %d\n", TEST_NR);
+  PASTE_EXPAND(srp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_MP
+  printf("Running SMP Test %d\n", TEST_NR);
+  PASTE_EXPAND(smp_test_, TEST_NR)();
 #endif
-  // clang-format on
 }

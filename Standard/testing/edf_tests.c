@@ -1,22 +1,13 @@
 #include "ProjectConfig.h"
 
-#if !USE_SRP
+#if TEST_SUITE == TEST_SUITE_EDF
 
 #include "edf_tests.h"
+#include "testing.h"
 
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
-
-#include <stdio.h>
-
-; // ===================================
-; // === Local function declarations ===
-; // ===================================
-
-static void build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config);
-static void build_periodic_test(const char *test_name, const EDF_PeriodicTaskParams_t *config, size_t num_tasks);
 
 ; // ====================================
 ; // === Tests for Base Functionality ===
@@ -25,7 +16,7 @@ static void build_periodic_test(const char *test_name, const EDF_PeriodicTaskPar
 #if TEST_NR == 1
 // Smoke Test for Periodic Tasks (relative deadline == period)
 void edf_test_1() {
-  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 2, 6, 6},
     {EDF_periodic_task, 1, 2, 2},
   };
@@ -40,7 +31,7 @@ void edf_test_1() {
 #if TEST_NR == 2
 // Test 2: Mark's Deadline DNE Period Smoke Test
 void edf_test_2() {
-  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 2, 6, 4},
     {EDF_periodic_task, 2, 8, 5},
     {EDF_periodic_task, 3, 9, 7},
@@ -62,7 +53,7 @@ void edf_test_2() {
 // arm-none-eabi-size build/Standard/main_blinky.elf
 // TEST3: 100 Tasks NON-ADMISSIBLE
 void edf_test_3() {
-  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
     test_config[i].C    = 15;
@@ -80,7 +71,7 @@ void edf_test_3() {
 #if TEST_NR == 4
 // TEST4: 100 Tasks ADMISSIBLE
 void edf_test_4() {
-  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
     test_config[i].C    = 8;
@@ -99,7 +90,7 @@ void edf_test_4() {
 // TEST 5: BARELY ADMISSIBLE BY UTILIZATION (10 tasks * 10ms = 100ms demand every 100ms)
 // Total Utilization = 1.0 (100%)
 void edf_test_5() {
-  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
     test_config[i].C    = 10;
@@ -118,7 +109,7 @@ void edf_test_5() {
 // TEST 6: BARELY NON-ADMISSIBLE BY UTILIZATION (10 tasks * 11ms = 110ms demand every 100ms)
 // Total Utilization = 1.1 (110%)
 void edf_test_6() {
-  EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
+  PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS];
   for (int i = 0; i < MAXIMUM_PERIODIC_TASKS; i++) {
     test_config[i].func = EDF_periodic_task;
     test_config[i].C    = 11;
@@ -136,7 +127,7 @@ void edf_test_6() {
 #if TEST_NR == 7
 // TEST 7: BARELY ADMISSIBLE BY PROCESSOR DEMAND (both U and demand are below upper bounds)
 void edf_test_7() {
-  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 10, 50,  50},
     {EDF_periodic_task, 40, 200, 50},
   };
@@ -151,7 +142,7 @@ void edf_test_7() {
 #if TEST_NR == 8
 // --- TEST 8: BARELY NON-ADMISSIBLE BY DEMAND (U is only 42% but demand > 1 at L = 50) ---
 void edf_test_8() {
-  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 11, 50,  50},
     {EDF_periodic_task, 40, 200, 50},
   };
@@ -180,13 +171,13 @@ void vTestRunner9() {
   // Drop-in Task: 400ms work, 800ms period.
   // Total Demand: 560ms < 800ms. Should pass PDC.
   // TODO: show why total demand is not exceeded
-  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 400, 800, 800};
+  const PeriodicTaskParams_t task_config = {EDF_periodic_task, 400, 800, 800};
   build_periodic_task("EDF Test 9, Task 2", &task_config);
 
   vTaskDelete(NULL);
 }
 void edf_test_9() {
-  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 160, 800, 800};
+  const PeriodicTaskParams_t task_config = {EDF_periodic_task, 160, 800, 800};
   build_periodic_task("EDF Test 9, Task 1", &task_config);
 
   TaskHandle_t test_runner_handle = NULL;
@@ -216,13 +207,13 @@ void vTestRunner10() {
 
   // Drop-in Task: 90ms work, 200ms period (U=0.45)
   // At L=100, Demand = 20 + 90 = 110ms. PDC Violation!
-  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 90, 200, 100};
+  const PeriodicTaskParams_t task_config = {EDF_periodic_task, 90, 200, 100};
   build_periodic_task("EDF Test 10, Task 2", &task_config);
 
   vTaskDelete(NULL);
 }
 void edf_test_10() {
-  const EDF_PeriodicTaskParams_t task_config = {EDF_periodic_task, 20, 100, 100};
+  const PeriodicTaskParams_t task_config = {EDF_periodic_task, 20, 100, 100};
   build_periodic_task("EDF Test 10, Task 1", &task_config);
 
   TaskHandle_t test_runner_handle = NULL;
@@ -251,7 +242,7 @@ void edf_test_10() {
 #if TEST_NR == 11
 // TEST 11: Missed Deadline (Total Utilization: 105%)
 void edf_test_11() {
-  const EDF_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 50,  120, 50 },
     {EDF_periodic_task, 130, 200, 200},
   };
@@ -263,36 +254,4 @@ void edf_test_11() {
 }
 #endif
 
-
-; // ==================================
-; // === Local function definitions ===
-; // ==================================
-
-/// @brief Creates a periodic task from a provided task configuration
-static void build_periodic_task(const char *task_name, const EDF_PeriodicTaskParams_t *config) {
-  EDF_create_periodic_task( //
-    config->func,
-    task_name,
-    pdMS_TO_TICKS(config->C),
-    pdMS_TO_TICKS(config->T),
-    pdMS_TO_TICKS(config->D),
-    NULL
-  );
-}
-
-/// @brief Creates all tasks from the provided test configuration for periodic tasks
-static void build_periodic_test( //
-  const char                     *test_name,
-  const EDF_PeriodicTaskParams_t *config,
-  size_t                          num_tasks
-) {
-  configASSERT(num_tasks == (MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS));
-
-  for (size_t i = 0; i < num_tasks; i++) {
-    char task_name[22]; // Exactly enough for "EDF Test XX, Task YYY", plus a null terminator byte
-    snprintf(task_name, sizeof(task_name), "%s, Task %d", test_name, (int)(i + 1));
-    build_periodic_task(task_name, &config[i]);
-  }
-}
-
-#endif // USE_SRP
+#endif // TEST_SUITE == TEST_SUITE_EDF
