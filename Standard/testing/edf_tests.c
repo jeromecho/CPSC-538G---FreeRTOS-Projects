@@ -1,7 +1,6 @@
 #include "edf_tests.h"
 
 
-#if USE_EDF && !USE_SRP
 // TODO: EDF test 5 needs updated logic for the admission (u=1)
 
 #include "FreeRTOS.h" // IWYU pragma: keep
@@ -274,5 +273,3 @@ static TickType_t build_periodic_test( //
 
   return duration;
 }
-
-#endif // USE_EDF && !USE_SRP
