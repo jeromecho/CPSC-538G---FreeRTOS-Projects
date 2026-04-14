@@ -39,21 +39,23 @@ static void execute_steps(const TickType_t completion_time, const TaskStep_t ste
 /// - Task 2 (Medium) arrives but is blocked by the ceiling, preventing priority inversion.
 /// - Task 1 (High) arrives, preempts, and interacts with the resource.
 void vSRPTest1Task1(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0 },
     {TASK_EXECUTE,        30},
     {TASK_GIVE_SEMAPHORE, 0 },
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest1Task3(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0  },
     {TASK_EXECUTE,        100},
     {TASK_GIVE_SEMAPHORE, 0  },
     {TASK_EXECUTE,        20 },
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 TickType_t srp_test_1() {
   const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
@@ -79,7 +81,8 @@ TickType_t srp_test_1() {
 ///
 /// This test is taken from https://cpen432.github.io/resources/bader-slides/8-ResourceSharing.pdf, Page 49
 void vSRPTest2Task1(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_EXECUTE,        93},
     {TASK_TAKE_SEMAPHORE, 0 }, // Take Red (R0)
     {TASK_EXECUTE,        45},
@@ -94,37 +97,40 @@ void vSRPTest2Task1(void *pvParameters) {
     {TASK_GIVE_SEMAPHORE, 2 }, // Give Yellow (R2)
     {TASK_EXECUTE,        45},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest2Task2(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_EXECUTE,        93 },
     {TASK_TAKE_SEMAPHORE, 1  }, // Take Blue (R1)
     {TASK_EXECUTE,        109},
     {TASK_GIVE_SEMAPHORE, 1  }, // Give Blue (R1)
     {TASK_EXECUTE,        93 },
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest2Task3(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_EXECUTE,        90 },
     {TASK_TAKE_SEMAPHORE, 2  }, // Take Yellow (R2)
     {TASK_EXECUTE,        109},
     {TASK_GIVE_SEMAPHORE, 2  }, // Give Yellow (R2)
     {TASK_EXECUTE,        93 },
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest2Task4(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_EXECUTE,        93 },
     {TASK_TAKE_SEMAPHORE, 0  }, // Take Red (R0)
     {TASK_EXECUTE,        157},
     {TASK_GIVE_SEMAPHORE, 0  }, // Give Red (R0)
     {TASK_EXECUTE,        93 },
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 TickType_t srp_test_2() {
   const SRP_AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
@@ -251,22 +257,24 @@ TickType_t srp_test_6() {
 
 #elif TEST_NR == 7
 void vSRPTest7Task1(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        1},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        1},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest7Task3(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        3},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        7},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 TickType_t srp_test_7() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -284,22 +292,24 @@ TickType_t srp_test_7() {
 
 #elif TEST_NR == 8
 void vSRPTest8Task1(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        1},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        1},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest8Task3(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        9},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        1},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 TickType_t srp_test_8() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -317,22 +327,24 @@ TickType_t srp_test_8() {
 
 #elif TEST_NR == 9
 void vSRPTest9Task1(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        2},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        3},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 void vSRPTest9Task3(void *pvParameters) {
-  const TaskStep_t steps[] = {
+  const TickType_t xCompletionTime = *(TickType_t *)pvParameters;
+  const TaskStep_t steps[]         = {
     {TASK_TAKE_SEMAPHORE, 0},
     {TASK_EXECUTE,        6},
     {TASK_GIVE_SEMAPHORE, 0},
     {TASK_EXECUTE,        2},
   };
-  execute_steps((TickType_t)pvParameters, steps, LEN(steps));
+  execute_steps(xCompletionTime, steps, LEN(steps));
 }
 TickType_t srp_test_9() {
   const SRP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
