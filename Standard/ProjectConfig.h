@@ -68,6 +68,9 @@
     #elif TEST_NR == 17
       #define MAXIMUM_PERIODIC_TASKS  1
       #define MAXIMUM_APERIODIC_TASKS 1
+    #elif TEST_NR == 18
+      #define MAXIMUM_PERIODIC_TASKS  1
+      #define MAXIMUM_APERIODIC_TASKS 1
     #else
       #error "Invalid or undefined TEST_NR"
     #endif // TEST_NR
