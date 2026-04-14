@@ -1,16 +1,14 @@
 #ifndef PROJECT_CONFIG_H
 #define PROJECT_CONFIG_H
 
-#define TEST_SUITE_EDF 1
-#define TEST_SUITE_SRP 2
-#define TEST_SUITE_CBS 3
-#define TEST_SUITE_MP  4
+#define TEST_SUITE_EDF            1
+#define TEST_SUITE_SRP            2
+#define TEST_SUITE_CBS            3
+#define TEST_SUITE_PARTITIONED_MP 4
+#define TEST_SUITE_GLOBAL_MP      5
 
 #define TEST_SUITE 2
 #define TEST_NR    9
-
-#define USE_PARTITIONED 0 // Only relevant when USE_MP=1
-#define USE_GLOBAL      0 // Only relevant when USE_MP=1
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
@@ -31,14 +29,32 @@
 #define USE_SRP 0
 #define USE_CBS 1
 #define USE_MP  0
-#elif TEST_SUITE == TEST_SUITE_MP
-#define USE_EDF 1
-#define USE_SRP 0
-#define USE_CBS 0
-#define USE_MP  1
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+#define USE_EDF         1
+#define USE_SRP         0
+#define USE_CBS         0
+#define USE_MP          1
+#define USE_PARTITIONED 1
+#define USE_GLOBAL      0
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+#define USE_EDF         1
+#define USE_SRP         0
+#define USE_CBS         0
+#define USE_MP          1
+#define USE_PARTITIONED 0
+#define USE_GLOBAL      1
 #else
 #error "Invalid TEST_SUITE in ProjectConfig.h"
 #endif
+
+#ifndef USE_PARTITIONED
+#define USE_PARTITIONED 0
+#endif // USE_PARTITIONED
+
+#ifndef USE_GLOBAL
+#define USE_GLOBAL 0
+#endif // USE_GLOBAL
+
 
 ; // =====================
 ; // === SANITY CHECKS ===
@@ -70,6 +86,7 @@
 #endif
 #endif
 
+
 ; // ==========================
 ; // === TEST PROFILE TABLES ===
 ; // ==========================
@@ -83,8 +100,11 @@
 #elif TEST_SUITE == TEST_SUITE_CBS
 #include "config/test_profiles_cbs.h"
 
-#elif TEST_SUITE == TEST_SUITE_MP
-#include "config/test_profiles_mp.h"
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+#include "config/test_profiles_partitioned_mp.h"
+
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+#include "config/test_profiles_global_mp.h"
 
 #else
 #error "Invalid TEST_SUITE in ProjectConfig.h"

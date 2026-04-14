@@ -1,20 +1,18 @@
 #include "ProjectConfig.h"
 
-#if TEST_SUITE == TEST_SUITE_MP
+#if TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 
-#include "smp_tests.h"
+#include "partitioned_mp_tests.h"
 #include "testing.h"
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
-#include "scheduler_internal.h"
-#include "smp_partitioned.h"
 
 #if TEST_NR == 1
 /// @brief Dual-core EDF smoke test with one core running two tasks and the other running one task.
 /// The shorter-period task on core 0 should preempt the longer-period task on the same core.
-void smp_test_1() {
-  const SMP_PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+void partitioned_mp_test_1() {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
     {EDF_periodic_task, 20, 80, 80, 0},
     {EDF_periodic_task, 10, 40, 40, 0},
     {EDF_periodic_task, 15, 60, 60, 1},

@@ -7,12 +7,10 @@
 
 #if TEST_SUITE == TEST_SUITE_SRP
 #include "srp.h"
-#elif TEST_SUITE == TEST_SUITE_MP
-#if USE_PARTITIONED
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 #include "smp_partitioned.h"
-#elif USE_GLOBAL
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #include "smp_global.h"
-#endif
 #endif
 
 /// @brief Creates a periodic task from a provided task configuration.
@@ -38,20 +36,19 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
     pdMS_TO_TICKS(config->D),
     NULL
   );
-#elif TEST_SUITE == TEST_SUITE_MP
-#if USE_PARTITIONED
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   SMP_create_periodic_task_on_core( //
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->T),
     pdMS_TO_TICKS(config->D),
-    config->core,
-    NULL
+    NULL,
+    config->core
   );
-#elif USE_GLOBAL
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"
-#endif
+
 #else
 #error "Scheduler type not defined! Define USE_SRP or USE_EDF."
 #endif
@@ -74,20 +71,19 @@ void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *co
   EDF_create_aperiodic_task(
     config->func, task_name, pdMS_TO_TICKS(config->C), pdMS_TO_TICKS(config->r), pdMS_TO_TICKS(config->D), NULL
   );
-#elif TEST_SUITE == TEST_SUITE_MP
-#if USE_PARTITIONED
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   SMP_create_aperiodic_task_on_core(
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->r),
     pdMS_TO_TICKS(config->D),
-    config->core,
-    NULL
+    NULL,
+    config->core
   );
-#elif USE_GLOBAL
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"
-#endif
+
 #else
 #error "Scheduler type not defined! Define TEST_SUITE_SRP, TEST_SUITE_EDF, or TEST_SUITE_MP."
 #endif

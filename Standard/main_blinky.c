@@ -79,21 +79,19 @@
 
 #if TEST_SUITE == TEST_SUITE_EDF
 #include "testing/edf_tests.h" // IWYU pragma: keep
+
 #elif TEST_SUITE == TEST_SUITE_SRP
 #include "testing/srp_tests.h" // IWYU pragma: keep
+
 #elif TEST_SUITE == TEST_SUITE_CBS
 // #include "testing/cbs_tests.h" // IWYU pragma: keep
-#elif TEST_SUITE == TEST_SUITE_MP
-#include "testing/smp_tests.h" // IWYU pragma: keep
+
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+#include "testing/partitioned_mp_tests.h" // IWYU pragma: keep
 #endif
 
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
-
-// Compile-time assertions
-#if configNUMBER_OF_CORES <= 0
-#error "configNUMBER_OF_CORES should always be a positive integer!"
-#endif // configNUMBER_OF_CORES
 
 /*-----------------------------------------------------------*/
 
@@ -205,8 +203,8 @@ void run_test() {
 #elif TEST_SUITE == TEST_SUITE_SRP
   printf("Running SRP Test %d\n", TEST_NR);
   PASTE_EXPAND(srp_test_, TEST_NR)();
-#elif TEST_SUITE == TEST_SUITE_MP
-  printf("Running SMP Test %d\n", TEST_NR);
-  PASTE_EXPAND(smp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+  printf("Running Partitioned MP Test %d\n", TEST_NR);
+  PASTE_EXPAND(partitioned_mp_test_, TEST_NR)();
 #endif
 }

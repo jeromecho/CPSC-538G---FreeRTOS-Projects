@@ -38,7 +38,7 @@ add_executable(main_blinky
         
         testing/testing.c
         testing/edf_tests.c
-        testing/smp_tests.c
+        testing/partitioned_mp_tests.c
         testing/srp_tests.c
         )
     
