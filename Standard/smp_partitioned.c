@@ -55,6 +55,9 @@ BaseType_t SMP_create_periodic_task_on_core(
   );
 
   if (result == pdPASS && handle != NULL) {
+#if USE_MP
+    handle->assigned_core = (uint8_t)core;
+#endif
     if (pin_task_to_core(handle->handle, core) != pdPASS) {
       return pdFAIL;
     }
@@ -104,6 +107,9 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   );
 
   if (result == pdPASS && handle != NULL) {
+#if USE_MP
+    handle->assigned_core = (uint8_t)core;
+#endif
     if (pin_task_to_core(handle->handle, core) != pdPASS) {
       return pdFAIL;
     }
@@ -161,8 +167,8 @@ void SMP_partitioned_reschedule_periodic_tasks(void) {
 
 void SMP_partitioned_check_deadlines_and_release_tasks(void) {
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    scheduler_check_deadlines_and_release_tasks(periodic_tasks[core], periodic_task_count[core]);
-    scheduler_check_deadlines_and_release_tasks(aperiodic_tasks[core], aperiodic_task_count[core]);
+    scheduler_check_deadlines_and_record_releases(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_check_deadlines_and_record_releases(aperiodic_tasks[core], aperiodic_task_count[core]);
   }
 }
 
@@ -174,22 +180,20 @@ void SMP_partitioned_update_priorities(void) {
 
     for (size_t i = 0; i < periodic_task_count[core]; ++i) {
       TMB_t *const task = &periodic_tasks[core][i];
-      if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-        scheduler_deprioritize_task(task);
+      if (task != highest_priority_task) {
+        scheduler_suspend_task(task);
       }
     }
 
     for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
       TMB_t *const task = &aperiodic_tasks[core][i];
-      if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-        scheduler_deprioritize_task(task);
+      if (task != highest_priority_task) {
+        scheduler_suspend_task(task);
       }
     }
 
     if (highest_priority_task != NULL) {
-      if (uxTaskPriorityGet(highest_priority_task->handle) != PRIORITY_RUNNING) {
-        scheduler_set_highest_priority(highest_priority_task);
-      }
+      scheduler_resume_task(highest_priority_task);
     }
   }
 }

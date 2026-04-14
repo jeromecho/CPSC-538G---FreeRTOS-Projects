@@ -24,6 +24,10 @@ typedef struct TMB_t {
   TickType_t absolute_deadline;
   TickType_t completion_time;
 
+#if USE_MP
+  uint8_t assigned_core;
+#endif
+
   // --- SRP-specific Data ---
 #if USE_SRP
   unsigned int preemption_level;
@@ -77,14 +81,15 @@ BaseType_t _create_periodic_task_internal(
   TMB_t **const     TMB_handle
 );
 
-void   scheduler_deprioritize_task(const TMB_t *const task);
-void   scheduler_set_highest_priority(const TMB_t *const task);
-void   scheduler_check_deadlines_and_release_tasks(const TMB_t *const tasks, const size_t count);
+void   scheduler_suspend_task(const TMB_t *const task);
+void   scheduler_resume_task(const TMB_t *const task);
+void   scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, const size_t count);
 TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count);
 TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
 void   scheduler_update_priorities();
-void   scheduler_release_task(const TMB_t *const task);
+void   scheduler_record_release(const TMB_t *const task);
 void   scheduler_register_deadline_miss(const TMB_t *const task);
+void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task);
 
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 

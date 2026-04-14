@@ -29,16 +29,19 @@ void TRACE_record( //
     return;
   }
 
-  const uint8_t core_id = (uint8_t)portGET_CORE_ID();
-  if (core_id >= configNUMBER_OF_CORES) {
-    return;
-  }
-
   if (!in_ISR) {
     taskENTER_CRITICAL();
   }
 
-  if (trace_count[core_id] >= MAX_TRACE_RECORDS) {
+  const uint8_t emitting_core_id = (uint8_t)portGET_CORE_ID();
+  uint8_t       reported_core_id = emitting_core_id;
+#if USE_MP
+  if (task != NULL) {
+    reported_core_id = task->assigned_core;
+  }
+#endif
+
+  if (trace_count[reported_core_id] >= MAX_TRACE_RECORDS) {
     if (!in_ISR) {
       taskEXIT_CRITICAL();
     }
@@ -74,19 +77,19 @@ void TRACE_record( //
   }
 #endif // USE_SRP
 
-  if (task == NULL && task_type == TRACE_TASK_IDLE) {
+  if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
-    task_id = core_id;
+    task_id = emitting_core_id;
   }
 
-  const size_t slot = trace_count[core_id];
+  const size_t slot = trace_count[reported_core_id];
 
   const TickType_t trace_tick = in_ISR ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
 
-  trace_buffer[core_id][slot] = (TraceRecord_t){
+  trace_buffer[reported_core_id][slot] = (TraceRecord_t){
     .FreeRTOS_tick  = trace_tick,
     .time           = get_absolute_time(),
-    .core_id        = core_id,
+    .core_id        = reported_core_id,
     .core_seq       = (uint32_t)slot,
     .event          = event,
     .task_type      = task_type,
@@ -98,7 +101,7 @@ void TRACE_record( //
     .preempt_level  = preempt_level,
   };
 
-  trace_count[core_id]++;
+  trace_count[reported_core_id]++;
   if (!in_ISR) {
     taskEXIT_CRITICAL();
   }

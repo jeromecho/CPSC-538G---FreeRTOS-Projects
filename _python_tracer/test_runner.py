@@ -24,6 +24,7 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
+    "EDF9",
     # "SRP1",
     # "SRP2",
     # "SRP3",

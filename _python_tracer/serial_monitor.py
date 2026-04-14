@@ -8,6 +8,7 @@ import argparse
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from plotly.colors import qualitative
 import serial
 import serial.tools.list_ports
 
@@ -28,6 +29,13 @@ EXPECTED_HEADERS = {
 DEFAULT_TRACE_TITLE = "FreeRTOS Scheduling Trace"
 
 UINT32_MAX = 4294967295
+
+BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
+
+MIN_EXECUTION_BAR_WIDTH = 0.6
+END_ALIGNED_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SWITCH_OUT, TraceEvent.TRACE_DEPRIORITIZED}
+
+TASK_COLOR_PALETTE = qualitative.Plotly + qualitative.Dark24 + qualitative.Alphabet
 
 EVENT_STYLE = {
     TraceEvent.TRACE_RELEASE: ("Release", "star", "#2ca02c"),
@@ -154,23 +162,47 @@ def build_execution_segments(df):
     return pd.DataFrame(segments)
 
 
-def task_color(task_name):
-    if task_name.startswith("Idle Task"):
-        return "#b0bec5"
-    if task_name.startswith("System Task"):
-        return "#78909c"
+def is_background_task_name(task_name):
+    return task_name.startswith(BACKGROUND_TASK_PREFIXES)
 
-    palette = [
-        "#1b9e77",
-        "#d95f02",
-        "#7570b3",
-        "#e7298a",
-        "#66a61e",
-        "#e6ab02",
-        "#a6761d",
-        "#666666",
-    ]
-    return palette[hash(task_name) % len(palette)]
+
+def build_task_color_map(task_names):
+    task_colors = {}
+    foreground_names = [name for name in task_names if not is_background_task_name(name)]
+
+    for index, task_name in enumerate(foreground_names):
+        task_colors[task_name] = TASK_COLOR_PALETTE[index % len(TASK_COLOR_PALETTE)]
+
+    for task_name in task_names:
+        if task_name.startswith("Idle Task"):
+            task_colors[task_name] = "#b0bec5"
+        elif task_name.startswith("System Task"):
+            task_colors[task_name] = "#78909c"
+
+    return task_colors
+
+
+def build_marker_display_x(df, df_exec):
+    display_x = df["TIMESTAMP"].astype(float).copy()
+
+    if df_exec.empty:
+        return display_x
+
+    zero_duration_segments = df_exec[(df_exec["DURATION"] == 0) & (~df_exec["TASK_NAME"].map(is_background_task_name))]
+    if zero_duration_segments.empty:
+        return display_x
+
+    offset_keys = {(int(row_data["CORE"]), row_data["TASK_NAME"], int(row_data["END_TICK"])) for _, row_data in zero_duration_segments.iterrows()}
+
+    for index, row_data in df.iterrows():
+        if row_data["EVENT"] not in END_ALIGNED_EVENTS:
+            continue
+
+        key = (int(row_data["CORE"]), row_data["TASK_NAME"], int(row_data["TIMESTAMP"]))
+        if key in offset_keys:
+            display_x.at[index] = float(row_data["TIMESTAMP"]) + MIN_EXECUTION_BAR_WIDTH
+
+    return display_x
 
 
 def parse_trace_dataframe(csv_data):
@@ -269,7 +301,7 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
         y_values = df_evt.apply(lambda r: y_map_func(r) + marker_offsets.get(event, 0.0), axis=1)
 
         trace = go.Scatter(
-            x=df_evt["TIMESTAMP"],
+            x=df_evt["DISPLAY_X"],
             y=y_values,
             mode="markers",
             name=event_label,
@@ -285,12 +317,20 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
             fig.add_trace(trace, row=row, col=col)
 
 
-def _add_execution_bars(fig, df_exec, y_map_func, row=None, col=None):
+def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=None):
     if df_exec.empty:
         return
 
-    for _, row_data in df_exec.iterrows():
+    exec_rows = list(df_exec.iterrows())
+    background_rows = [item for item in exec_rows if is_background_task_name(item[1]["TASK_NAME"])]
+    foreground_rows = [item for item in exec_rows if not is_background_task_name(item[1]["TASK_NAME"])]
+
+    for _, row_data in background_rows + foreground_rows:
         us_duration = row_data["ABS_END"] - row_data["ABS_START"]
+        duration = int(row_data["DURATION"])
+        rendered_duration = float(duration)
+        if duration == 0 and not is_background_task_name(row_data["TASK_NAME"]):
+            rendered_duration = MIN_EXECUTION_BAR_WIDTH
         hover_lines = [
             f"<b>{row_data['TASK_NAME']}</b>",
             f"Core: {row_data['CORE']}",
@@ -305,10 +345,10 @@ def _add_execution_bars(fig, df_exec, y_map_func, row=None, col=None):
 
         trace = go.Bar(
             base=[row_data["START_TICK"]],
-            x=[row_data["DURATION"]],
+            x=[rendered_duration],
             y=[y_map_func(row_data)],
             orientation="h",
-            marker=dict(color=task_color(row_data["TASK_NAME"]), line=dict(color="black", width=1)),
+            marker=dict(color=task_colors[row_data["TASK_NAME"]], line=dict(color="black", width=1)),
             hovertext=["<br>".join(hover_lines)],
             hoverinfo="text",
             showlegend=False,
@@ -325,9 +365,12 @@ def build_trace_figure(df, df_exec, title, view):
     lane_names = {core: f"Core {int(core)}" for core in core_labels}
     core_to_y = {core: idx for idx, core in enumerate(core_labels)}
     marker_offsets = _build_marker_offset_map(df)
+    df_plot = df.copy()
+    df_plot["DISPLAY_X"] = build_marker_display_x(df_plot, df_exec)
+    task_colors = build_task_color_map(ordered_task_names(df, df_exec))
 
     if view == "combined":
-        unique_tasks = ordered_task_names(df, df_exec)
+        unique_tasks = list(task_colors.keys())
         task_to_y = {task: idx for idx, task in enumerate(unique_tasks)}
 
         fig = make_subplots(
@@ -338,10 +381,17 @@ def build_trace_figure(df, df_exec, title, view):
             subplot_titles=("Core Lanes", "Task-Centric Timeline"),
         )
 
-        _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]], row=1, col=1)
+        _add_execution_bars(
+            fig,
+            df_exec,
+            y_map_func=lambda r: core_to_y[r["CORE"]],
+            task_colors=task_colors,
+            row=1,
+            col=1,
+        )
         _add_event_markers(
             fig,
-            df,
+            df_plot,
             y_map_func=lambda r: core_to_y[int(r["CORE"])],
             marker_offsets=marker_offsets,
             row=1,
@@ -349,10 +399,17 @@ def build_trace_figure(df, df_exec, title, view):
             showlegend=True,
         )
 
-        _add_execution_bars(fig, df_exec, y_map_func=lambda r: task_to_y[r["TASK_NAME"]], row=2, col=1)
+        _add_execution_bars(
+            fig,
+            df_exec,
+            y_map_func=lambda r: task_to_y[r["TASK_NAME"]],
+            task_colors=task_colors,
+            row=2,
+            col=1,
+        )
         _add_event_markers(
             fig,
-            df,
+            df_plot,
             y_map_func=lambda r: task_to_y[r["TASK_NAME"]],
             marker_offsets=marker_offsets,
             row=2,
@@ -382,8 +439,8 @@ def build_trace_figure(df, df_exec, title, view):
         return fig
 
     fig = go.Figure()
-    _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]])
-    _add_event_markers(fig, df, y_map_func=lambda r: core_to_y[int(r["CORE"])], marker_offsets=marker_offsets)
+    _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]], task_colors=task_colors)
+    _add_event_markers(fig, df_plot, y_map_func=lambda r: core_to_y[int(r["CORE"])], marker_offsets=marker_offsets)
 
     fig.update_layout(
         title=title,

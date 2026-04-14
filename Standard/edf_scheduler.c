@@ -54,7 +54,6 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 
 static void   reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
-static void   deprioritize_other_tasks(const TMB_t *const highest_priority_task);
 static bool   should_update_priorities(const TMB_t *const highest_priority_task);
 static TickType_t
 calculate_release_time_for_new_task(const TickType_t new_period, const TMB_t *tasks, const size_t count);
@@ -120,16 +119,13 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
-  vTaskSuspend(task_handle); // Suspension is needed so that idle task will run when no tasks are ready
   task_tmb->is_done = true;
+  scheduler_suspend_task(task_tmb);
 
 #if USE_SRP
   task_tmb->has_started = false;
   SRP_pop_ceiling();
 #endif // USE_SRP
-
-  scheduler_update_priorities();
-  // scheduler_deprioritize_task(task_tmb);
 
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb, false);
 
@@ -224,9 +220,9 @@ BaseType_t _create_periodic_task_internal(
     new_task->release_time         = release_time;
     new_task->periodic.next_period = release_time + period;
     new_task->absolute_deadline    = release_time + relative_deadline;
-    vTaskSuspend(new_task->handle);
-    scheduler_deprioritize_task(new_task);
   }
+
+  scheduler_suspend_task(new_task);
 
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
@@ -278,10 +274,9 @@ BaseType_t _create_aperiodic_task_internal(
 
   if (release_time == current_tick) {
     TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_APERIODIC, new_task, false);
-  } else {
-    vTaskSuspend(new_task->handle);
-    scheduler_deprioritize_task(new_task);
   }
+
+  scheduler_suspend_task(new_task);
 
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;
@@ -478,26 +473,28 @@ static void reschedule_periodic_tasks() {
 
 /// @brief Increases the priority of a task to the highest possible/maximum, which should force it to be chosen to run
 /// by the FreeRTOS scheduler
-void scheduler_deprioritize_task(const TMB_t *const task) {
+void scheduler_suspend_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
+  // vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
+  vTaskSuspend(task->handle);
   TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task, true);
 }
 
 /// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
-void scheduler_set_highest_priority(const TMB_t *const task) {
+void scheduler_resume_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
+  // vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
+  xTaskResumeFromISR(task->handle);
   TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task, true);
 }
 
 /// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
 /// should be released.
-void scheduler_check_deadlines_and_release_tasks(const TMB_t *const tasks, const size_t count) {
+void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, const size_t count) {
   for (size_t i = 0; i < count; ++i) {
     const TMB_t *const task         = &tasks[i];
     const bool         task_done    = task->is_done;
@@ -509,11 +506,10 @@ void scheduler_check_deadlines_and_release_tasks(const TMB_t *const tasks, const
       scheduler_register_deadline_miss(task);
     }
 
-    // Checks if a task should be released
-    const bool task_released  = (task->release_time <= current_tick);
-    const bool task_suspended = (eTaskGetState(task->handle) == eSuspended);
-    if (!task_done && task_released && task_suspended) {
-      scheduler_release_task(task);
+    // Checks if the release time for a task has arrived
+    const bool released_this_tick = (task->release_time == current_tick);
+    if (released_this_tick) {
+      scheduler_record_release(task);
     }
   }
 }
@@ -551,47 +547,47 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count) {
 }
 
 /// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
-static void deprioritize_other_tasks(const TMB_t *const highest_priority_task) {
+void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task) {
 #if USE_MP && USE_PARTITIONED
   const UBaseType_t core = (UBaseType_t)portGET_CORE_ID();
 
   for (size_t i = 0; i < periodic_task_count[core]; ++i) {
     TMB_t *const task = &periodic_tasks[core][i];
-    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      scheduler_deprioritize_task(task);
+    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
+      scheduler_suspend_task(task);
     }
   }
 
   for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
     TMB_t *const task = &aperiodic_tasks[core][i];
-    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      scheduler_deprioritize_task(task);
+    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
+      scheduler_suspend_task(task);
     }
   }
 #else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const task = &periodic_tasks[i];
-    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      scheduler_deprioritize_task(task);
+    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
+      scheduler_suspend_task(task);
     }
   }
 
   for (size_t i = 0; i < aperiodic_task_count; ++i) {
     TMB_t *const task = &aperiodic_tasks[i];
-    if (task != highest_priority_task && uxTaskPriorityGet(task->handle) == PRIORITY_RUNNING) {
-      scheduler_deprioritize_task(task);
+    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
+      scheduler_suspend_task(task);
     }
   }
 #endif
 }
 
 /// @brief Resumes a task
-void scheduler_release_task(const TMB_t *const task) {
+void scheduler_record_release(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
   TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task, true);
-  xTaskResumeFromISR(task->handle);
+  // xTaskResumeFromISR(task->handle);
 }
 
 /// @brief produce true if currently running task is different from the highest priority task
@@ -641,7 +637,7 @@ void scheduler_update_priorities() {
   }
 
   TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL, true);
-  deprioritize_other_tasks(highest_priority_task);
+  scheduler_suspend_lower_priority_tasks(highest_priority_task);
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
   // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
@@ -657,7 +653,7 @@ void scheduler_update_priorities() {
     }
 #endif                   // USE_SRP
 
-    scheduler_set_highest_priority(highest_priority_task);
+    scheduler_resume_task(highest_priority_task);
   }
 #endif
 }
@@ -699,8 +695,8 @@ void vApplicationTickHook(void) {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_check_deadlines_and_release_tasks();
 #else
-  scheduler_check_deadlines_and_release_tasks(periodic_tasks, periodic_task_count);
-  scheduler_check_deadlines_and_release_tasks(aperiodic_tasks, aperiodic_task_count);
+  scheduler_check_deadlines_and_record_releases(periodic_tasks, periodic_task_count);
+  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
 #endif
 
   scheduler_update_priorities();
