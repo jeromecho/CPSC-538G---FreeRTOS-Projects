@@ -34,7 +34,7 @@ BaseType_t SMP_create_periodic_task_on_core(
 
 #if PERFORM_ADMISSION_CONTROL
   if (!SMP_can_admit_periodic_task_on_core(completion_time, period, core)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count[core]), TRACE_TASK_PERIODIC, NULL);
+    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count[core]), TRACE_TASK_PERIODIC, NULL, false);
     TRACE_disable();
     xTaskNotifyGive(monitor_task_handle);
     return pdFALSE;
@@ -167,6 +167,8 @@ void SMP_partitioned_check_deadlines_and_release_tasks(void) {
 }
 
 void SMP_partitioned_update_priorities(void) {
+  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL, true);
+
   for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
     TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
 
@@ -186,10 +188,10 @@ void SMP_partitioned_update_priorities(void) {
 
     if (highest_priority_task != NULL) {
       if (uxTaskPriorityGet(highest_priority_task->handle) != PRIORITY_RUNNING) {
-      scheduler_set_highest_priority(highest_priority_task);
+        scheduler_set_highest_priority(highest_priority_task);
+      }
     }
   }
-}
 }
 
 #endif

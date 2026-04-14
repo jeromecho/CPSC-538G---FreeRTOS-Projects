@@ -51,7 +51,7 @@ typedef enum {
 typedef struct {
   TickType_t      FreeRTOS_tick;
   TraceEvent_t    event;
-  absolute_time_t time; // Absolute time for better resolution in visualization
+  absolute_time_t time;     // Absolute time for better resolution in visualization
   uint8_t         core_id;
   uint32_t        core_seq; // Monotonic sequence local to one core; used for deterministic host-side merges.
 
@@ -70,7 +70,8 @@ typedef struct {
 void TRACE_record( //
   const TraceEvent_t event,
   TraceTaskType_t    task_type,
-  const TMB_t *const task
+  const TMB_t *const task,
+  const bool         in_ISR
 );
 
 void TRACE_print_buffer();

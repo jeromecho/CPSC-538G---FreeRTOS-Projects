@@ -74,7 +74,7 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
 
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-  TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
+  TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task, false);
 
   taskEXIT_CRITICAL();
   return pdTRUE;
@@ -90,7 +90,7 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
 
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
-  TRACE_record(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task);
+  TRACE_record(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task, false);
 
   // Figure out the highest priority task from EDF scheduler
   // TaskHandle_t highest_task = produce_highest_priority_task();
@@ -127,7 +127,7 @@ BaseType_t SRP_create_periodic_task(
 
 #if PERFORM_ADMISSION_CONTROL
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL);
+    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL, false);
     TRACE_disable();
     xTaskNotifyGive(monitor_task_handle);
     return pdFALSE;

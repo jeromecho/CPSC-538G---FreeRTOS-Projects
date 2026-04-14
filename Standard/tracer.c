@@ -22,7 +22,8 @@ static bool tracing_enabled = true;
 void TRACE_record( //
   const TraceEvent_t event,
   TraceTaskType_t    task_type,
-  const TMB_t *const task
+  const TMB_t *const task,
+  const bool         in_ISR
 ) {
   if (!tracing_enabled) {
     return;
@@ -33,10 +34,14 @@ void TRACE_record( //
     return;
   }
 
-  taskENTER_CRITICAL();
+  if (!in_ISR) {
+    taskENTER_CRITICAL();
+  }
 
   if (trace_count[core_id] >= MAX_TRACE_RECORDS) {
-    taskEXIT_CRITICAL();
+    if (!in_ISR) {
+      taskEXIT_CRITICAL();
+    }
     return;
   }
 
@@ -56,7 +61,7 @@ void TRACE_record( //
   if (task != NULL) {
     task_id  = task->id;
     deadline = task->absolute_deadline;
-    if (task->handle != NULL) {
+    if (!in_ISR && task->handle != NULL) {
       priority   = uxTaskPriorityGet(task->handle);
       task_state = eTaskGetState(task->handle);
     }
@@ -76,8 +81,10 @@ void TRACE_record( //
 
   const size_t slot = trace_count[core_id];
 
+  const TickType_t trace_tick = in_ISR ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+
   trace_buffer[core_id][slot] = (TraceRecord_t){
-    .FreeRTOS_tick  = xTaskGetTickCount(),
+    .FreeRTOS_tick  = trace_tick,
     .time           = get_absolute_time(),
     .core_id        = core_id,
     .core_seq       = (uint32_t)slot,
@@ -92,7 +99,9 @@ void TRACE_record( //
   };
 
   trace_count[core_id]++;
-  taskEXIT_CRITICAL();
+  if (!in_ISR) {
+    taskEXIT_CRITICAL();
+  }
 }
 
 /// @brief Prints all recorded traces to the host computer
