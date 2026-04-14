@@ -1,4 +1,5 @@
 from enum import Enum
+import re
 
 TraceEvent = Enum(
     "TraceEvent",
@@ -34,24 +35,6 @@ TEST_SUITE_IDS = {
     "SMP": 4,
 }
 
-SUITE_DEFAULT_FLAGS = {
-    "EDF": {"USE_PARTITIONED": 0, "USE_GLOBAL": 0},
-    "SRP": {"USE_PARTITIONED": 0, "USE_GLOBAL": 0},
-    "CBS": {"USE_PARTITIONED": 0, "USE_GLOBAL": 0},
-    "SMP": {"USE_PARTITIONED": 0, "USE_GLOBAL": 0},
-}
-
-
-def infer_suite(test_id):
-    test_id_upper = test_id.upper()
-    if test_id_upper.startswith("SRP"):
-        return "SRP"
-    if test_id_upper.startswith("SMP"):
-        return "SMP"
-    if test_id_upper.startswith("CBS"):
-        return "CBS"
-    return "EDF"
-
 
 def build_test_flags(suite, test_nr, overrides=None):
     if suite not in TEST_SUITE_IDS:
@@ -61,7 +44,6 @@ def build_test_flags(suite, test_nr, overrides=None):
         "TEST_SUITE": TEST_SUITE_IDS[suite],
         "TEST_NR": int(test_nr),
     }
-    flags.update(SUITE_DEFAULT_FLAGS[suite])
 
     if overrides:
         flags.update(overrides)
@@ -74,7 +56,6 @@ TEST_CASES = {
     # EDF TESTS
     "EDF1": {
         "name": "Smoke Test for Periodic Tasks",
-        "case": 1,
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -119,7 +100,6 @@ TEST_CASES = {
     },
     "EDF2": {
         "name": "Mark's Proposed EDF Smoke Test",
-        "case": 2,
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -169,46 +149,39 @@ TEST_CASES = {
     },
     "EDF3": {
         "name": "100 Tasks NON-ADMISSIBLE",
-        "case": 3,
         "expected_admission_failure": "Periodic 34",
         "expected_events": {},
     },
     "EDF4": {
         "name": "100 Tasks ADMISSIBLE",
-        "case": 4,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF5": {
         "name": "Admissible by utilization",
-        "case": 5,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF6": {
         "name": "Non-admissible by utilization",
-        "case": 6,
         "expected_admission_failure": "Periodic 10",
         "expected_events": {},
     },
     "EDF7": {
         "name": "Admissible by processor demand",
-        "case": 7,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "EDF8": {
         "name": "Non-admissible by processor demand",
-        "case": 8,
         "expected_admission_failure": "Periodic 02",
         "expected_events": {},
     },
     "EDF9": {
         "name": "Admissible drop-in",
-        "case": 9,
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -229,7 +202,6 @@ TEST_CASES = {
     },
     "EDF10": {
         "name": "Inadmissible drop-in",
-        "case": 10,
         "expected_admission_failure": "Periodic 02",
         "expected_events": {
             "Periodic 01": [
@@ -257,7 +229,6 @@ TEST_CASES = {
     },
     "EDF11": {
         "name": "Missed deadline",
-        "case": 11,
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -281,7 +252,6 @@ TEST_CASES = {
     # SRP TESTS
     "SRP1": {
         "name": "Simple Single-Resource SRP Validation",
-        "case": 1,
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -305,7 +275,6 @@ TEST_CASES = {
     },
     "SRP2": {
         "name": "Complex Multi-Resource SRP Validation",
-        "case": 2,
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -338,7 +307,6 @@ TEST_CASES = {
     },
     "SRP3": {
         "name": "Stack Sharing Disabled - Simple Execution",
-        "case": 3,
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -362,7 +330,6 @@ TEST_CASES = {
     },
     "SRP4": {
         "name": "Stack Sharing Enabled - Simple Execution",
-        "case": 4,
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -390,14 +357,12 @@ TEST_CASES = {
     # They really aren't very different from tests 3 and 4
     "SRP5": {
         "name": "Stack Sharing Disabled - 100 Tasks w/ 5 Preemption Levels",
-        "case": 5,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP6": {
         "name": "Stack Sharing Enabled - 100 Tasks w/ 5 Preemption Levels",
-        "case": 6,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
@@ -405,31 +370,30 @@ TEST_CASES = {
     },
     "SRP7": {
         "name": "Admission Control - Pass (Implicit Deadlines)",
-        "case": 7,
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP8": {
         "name": "Admission Control - Fail (Implicit Deadlines)",
-        "case": 8,
         "expected_admission_failure": "Periodic 03",
         "expected_events": {},
     },
     "SRP9": {
         "name": "Admission Control - Fail (Constrained Deadlines)",
-        "case": 9,
         "expected_admission_failure": "Periodic 03",
         "expected_events": {},
     },
 }
 
-
+TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|SMP)(\d+)$")
 for test_id, test_case in TEST_CASES.items():
-    suite = test_case.get("suite", infer_suite(test_id))
-    test_nr = test_case.get("case")
-    if test_nr is None:
-        raise ValueError(f"Test '{test_id}' is missing required 'case'")
+    match = TEST_ID_PATTERN.match(test_id)
+    if not match:
+        raise ValueError(f"Invalid test_id format: '{test_id}'. Must be Prefix + Number (e.g., SRP9).")
+
+    suite = match.group(1)
+    test_nr = int(match.group(2))
 
     test_case["suite"] = suite
     test_case["flags"] = build_test_flags(
