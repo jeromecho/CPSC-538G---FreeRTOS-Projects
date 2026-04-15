@@ -1,0 +1,66 @@
+#ifndef SCHEDULER_TYPES_H
+#define SCHEDULER_TYPES_H
+
+#include "FreeRTOS.h" // IWYU pragma: keep
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
+typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
+
+typedef struct SchedulerParameters {
+  TickType_t completion_time;
+  void      *parameters_remaining;
+} SchedulerParameters_t;
+
+typedef struct TMB_t {
+  // --- FreeRTOS-specific data ---
+  TaskFunction_t task_function;
+  StaticTask_t   task_buffer;
+  StackType_t   *stack_buffer;
+
+  // --- Common Metadata ---
+  TaskType_t   type;
+  size_t       id; // Index in the corresponding TMB array, starting from 0
+  TaskHandle_t handle;
+  bool         is_done;
+  bool         is_hard_rt;
+  bool         is_suspended; // State flag reflecting calls to suspend in real-time
+
+  // --- Common Scheduling Data ---
+  TickType_t release_time;
+  TickType_t absolute_deadline;
+  TickType_t completion_time;
+
+#if USE_MP
+  uint8_t assigned_core;
+#endif
+
+  // --- Task Parameters ---
+  SchedulerParameters_t parameters;
+
+  // --- SRP-specific Data ---
+#if USE_SRP
+  unsigned int preemption_level;
+  bool         has_started;
+  TickType_t   resource_hold_times[N_RESOURCES];
+#endif // USE_SRP
+
+  // --- Type-Specific Data ---
+  union {
+    struct {
+      TickType_t period;
+      TickType_t relative_deadline;
+      TickType_t next_period;
+    } periodic;
+
+    struct {
+      // TODO - below field might need to be locked for concurrent scenarios
+      bool is_runnable;
+    } aperiodic;
+  };
+} TMB_t;
+
+#endif // USE_EDF
+
+#endif // SCHEDULER_TYPES_H

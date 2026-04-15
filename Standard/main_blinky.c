@@ -84,7 +84,7 @@
 #include "testing/srp_tests.h" // IWYU pragma: keep
 
 #elif TEST_SUITE == TEST_SUITE_CBS
-// #include "testing/cbs_tests.h" // IWYU pragma: keep
+#include "testing/cbs_tests.h" // IWYU pragma: keep
 
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 #include "testing/partitioned_mp_tests.h" // IWYU pragma: keep
@@ -209,6 +209,9 @@ void run_test() {
 #elif TEST_SUITE == TEST_SUITE_SRP
   printf("Running SRP Test %d\n", TEST_NR);
   PASTE_EXPAND(srp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_CBS
+  printf("Running CBS Test %d\n", TEST_NR);
+  PASTE_EXPAND(cbs_test_, TEST_NR)();
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   printf("Running Partitioned MP Test %d\n", TEST_NR);
   PASTE_EXPAND(partitioned_mp_test_, TEST_NR)();

@@ -22,6 +22,9 @@ typedef enum {
   TRACE_ADMISSION_FAILED,
   TRACE_SEMAPHORE_TAKE,
   TRACE_SEMAPHORE_GIVE,
+
+  // CBS Events
+  TRACE_BUDGET_RUN_OUT
 } TraceEventType_t;
 
 typedef struct {

@@ -4,60 +4,19 @@
 #include "FreeRTOS.h"
 #include "ProjectConfig.h"
 #include "task.h"
-
-typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
-
-typedef struct TMB_t {
-  // --- FreeRTOS-specific data ---
-  TaskFunction_t task_function;
-  StaticTask_t   task_buffer;
-  StackType_t   *stack_buffer;
-
-  // --- Common Metadata ---
-  TaskType_t   type;
-  size_t       id; // Index in the corresponding TMB array, starting from 0
-  TaskHandle_t handle;
-  bool         is_done;
-
-  // --- Common Scheduling Data ---
-  TickType_t release_time;
-  TickType_t absolute_deadline;
-  TickType_t completion_time;
-
-#if USE_MP
-  uint8_t assigned_core;
-#endif
-
-  // --- SRP-specific Data ---
-#if USE_SRP
-  unsigned int preemption_level;
-  bool         has_started;
-  TickType_t   resource_hold_times[N_RESOURCES];
-#endif // USE_SRP
-
-  // --- Type-Specific Data ---
-  union {
-    struct {
-      TickType_t period;
-      TickType_t relative_deadline;
-      TickType_t next_period;
-    } periodic;
-
-    struct {
-    } aperiodic;
-  };
-} TMB_t;
+#include "types/scheduler_types.h"
 
 BaseType_t _create_task_internal(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  const TaskType_t  type,
-  const size_t      id,
-  TMB_t *const      new_task,
-  const TickType_t  completion_time,
-  StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer,
-  const UBaseType_t core
+  TaskFunction_t        task_function,
+  const char *const     task_name,
+  const TaskType_t      type,
+  const size_t          id,
+  TMB_t *const          new_task,
+  SchedulerParameters_t parameters,
+  StackType_t          *stack_buffer,
+  StaticTask_t         *task_buffer,
+  bool                  is_hard_rt,
+  const UBaseType_t     core
 );
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,
@@ -69,6 +28,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle,
+  void             *parameters_remaining,
+  bool              is_hard_rt,
   const UBaseType_t core
 );
 BaseType_t _create_periodic_task_internal(

@@ -52,6 +52,8 @@ EVENT_STYLE = {
     TraceEvent.TRACE_ADMISSION_FAILED: ("Admission Failed", "hexagram", "#b22222"),
     TraceEvent.TRACE_SEMAPHORE_TAKE: ("Semaphore Take", "triangle-down", "#dc143c"),
     TraceEvent.TRACE_SEMAPHORE_GIVE: ("Semaphore Give", "triangle-up", "#1f77b4"),
+    # CBS Events
+    TraceEvent.TRACE_BUDGET_RUN_OUT: ("CBS Budget Run Out", "hourglass", "teal"),
 }
 
 

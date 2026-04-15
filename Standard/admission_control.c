@@ -12,6 +12,12 @@
 #include <string.h>
 
 ; // ===================================
+; // === CONSTANTS ===
+; // ===================================
+
+#define EPSILON 1e-9
+
+; // ===================================
 ; // === LOCAL FUNCTION DECLARATIONS ===
 ; // ===================================
 
@@ -199,7 +205,7 @@ bool EDF_can_admit_periodic_task( //
     U += Ci / Ti;
   }
 
-  if (U >= 1.0) {
+  if (U >= 1.0 + EPSILON) {
     return false;
   }
 

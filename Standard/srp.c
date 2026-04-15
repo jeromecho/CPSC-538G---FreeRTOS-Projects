@@ -207,6 +207,8 @@ BaseType_t SRP_create_aperiodic_task(
     release_time,
     relative_deadline,
     &handle,
+    NULL,
+    true,
     configNUMBER_OF_CORES
   );
 
@@ -247,8 +249,7 @@ void SRP_reset_TCB(const TMB_t *const task) {
 
   // Rebuild the ARM hardware stack frame (PC, LR, xPSR, etc.)
   // We pass the completion time back in as the parameter to mimic task creation.
-  StackType_t *new_top_of_stack =
-    pxPortInitialiseStack(pxTopOfStack, task->task_function, (void *)task->completion_time);
+  StackType_t *new_top_of_stack = pxPortInitialiseStack(pxTopOfStack, task->task_function, (void *)&task->parameters);
 
   // Overwrite the TCB's stack pointer
   *((StackType_t **)task->handle) = new_top_of_stack;

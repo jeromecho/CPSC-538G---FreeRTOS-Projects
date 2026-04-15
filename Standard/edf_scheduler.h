@@ -3,6 +3,9 @@
 
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "scheduler_internal.h"
+#include "types/scheduler_types.h"
+
+#if USE_EDF
 
 #define PRIORITY_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE    (tskIDLE_PRIORITY)
@@ -22,7 +25,9 @@ BaseType_t EDF_create_aperiodic_task(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining,
+  bool              is_hard_rt
 );
 
 void EDF_periodic_task(void *pvParameters);

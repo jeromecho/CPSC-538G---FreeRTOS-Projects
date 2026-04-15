@@ -35,11 +35,16 @@ add_executable(main_blinky
         
         tracer.c
         helpers.c
+
+        cbs.c
+
+        data_structures/queue.c
         
         testing/testing.c
         testing/edf_tests.c
         testing/partitioned_mp_tests.c
         testing/srp_tests.c
+        testing/cbs_tests.c
         )
     
 pico_enable_stdio_uart(main_blinky 0)
