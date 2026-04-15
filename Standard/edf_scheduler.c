@@ -522,7 +522,7 @@ void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, con
     const TickType_t   current_tick = xTaskGetTickCountFromISR();
 
     // Checks if the task has missed its deadline
-    const bool deadline_missed = (current_tick > task->absolute_deadline);
+    const bool deadline_missed = (current_tick >= task->absolute_deadline);
     if (!task_done && deadline_missed) {
       scheduler_register_deadline_miss(task);
     }

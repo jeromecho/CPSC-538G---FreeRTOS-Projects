@@ -278,7 +278,7 @@ TEST_CASES = {
                 (50, TraceEvent.TRACE_SWITCH_IN),
                 (120, TraceEvent.TRACE_SWITCH_OUT),
                 (170, TraceEvent.TRACE_SWITCH_IN),
-                (201, TraceEvent.TRACE_DEADLINE_MISS),
+                (200, TraceEvent.TRACE_DEADLINE_MISS),
             ],
         },
     },
