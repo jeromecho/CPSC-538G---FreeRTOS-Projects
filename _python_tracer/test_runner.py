@@ -34,6 +34,7 @@ TESTS_TO_RUN: list[str] = [  #
     # "SRP7",
     # "SRP8",
     # "SRP9",
+    # "SMP1",
 ]
 
 TRACE_RUN_BANNERS = (
@@ -51,6 +52,15 @@ SUITE_PREFIXES = (
     ("EDF", "EDF"),
     ("CBS", "CBS"),
 )
+
+STRICT_POLICED_EVENTS = {  #
+    TraceEvent.TRACE_RELEASE,
+    TraceEvent.TRACE_SWITCH_IN,
+    TraceEvent.TRACE_SWITCH_OUT,
+    TraceEvent.TRACE_SEMAPHORE_TAKE,
+    TraceEvent.TRACE_SEMAPHORE_GIVE,
+    TraceEvent.TRACE_DONE,
+}
 
 
 def get_task_name(t_type, t_id, core=None, include_core_for_realtime=False):
@@ -217,7 +227,7 @@ def validate_trace_events(parsed_logs, test_case):
 
     for log in parsed_logs:
         is_background = any(log["task_name"].startswith(name) for name in BACKGROUND_TASK_PREFIXES)
-        if not is_background and log["event"] in {TraceEvent.TRACE_SWITCH_IN, TraceEvent.TRACE_SWITCH_OUT}:
+        if not is_background and log["event"] in STRICT_POLICED_EVENTS:
             actual_event_tuple = (log["tick"], log["task_name"], log["event"])
             if actual_event_tuple not in expected_set:
                 event_name = TraceEvent(log["event"]).name

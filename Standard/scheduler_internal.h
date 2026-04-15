@@ -56,7 +56,8 @@ BaseType_t _create_task_internal(
   TMB_t *const      new_task,
   const TickType_t  completion_time,
   StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  StaticTask_t     *task_buffer,
+  const UBaseType_t core
 );
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,
@@ -67,7 +68,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  const UBaseType_t core
 );
 BaseType_t _create_periodic_task_internal(
   TaskFunction_t    task_function,
@@ -78,7 +80,8 @@ BaseType_t _create_periodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  const UBaseType_t core
 );
 
 void   scheduler_suspend_task(const TMB_t *const task);

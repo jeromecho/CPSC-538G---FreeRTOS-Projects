@@ -155,7 +155,8 @@ BaseType_t SRP_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
-    &handle
+    &handle,
+    configNUMBER_OF_CORES
   );
 
   if (result == pdPASS) {
@@ -212,7 +213,8 @@ BaseType_t SRP_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
-    &handle
+    &handle,
+    configNUMBER_OF_CORES
   );
 
   if (result == pdPASS) {

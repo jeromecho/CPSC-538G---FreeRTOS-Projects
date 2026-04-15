@@ -51,16 +51,11 @@ BaseType_t SMP_create_periodic_task_on_core(
     completion_time,
     period,
     relative_deadline,
-    &handle // Use local handle to ensure pin_task_to_core works
+    &handle,
+    core
   );
 
   if (result == pdPASS && handle != NULL) {
-#if USE_MP
-    handle->assigned_core = (uint8_t)core;
-#endif
-    if (pin_task_to_core(handle->handle, core) != pdPASS) {
-      return pdFAIL;
-    }
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
@@ -103,16 +98,11 @@ BaseType_t SMP_create_aperiodic_task_on_core(
     completion_time,
     release_time,
     relative_deadline,
-    &handle
+    &handle,
+    core
   );
 
   if (result == pdPASS && handle != NULL) {
-#if USE_MP
-    handle->assigned_core = (uint8_t)core;
-#endif
-    if (pin_task_to_core(handle->handle, core) != pdPASS) {
-      return pdFAIL;
-    }
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }

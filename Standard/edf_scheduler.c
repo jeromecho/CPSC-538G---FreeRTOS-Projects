@@ -143,7 +143,8 @@ BaseType_t _create_task_internal(
   TMB_t *const      new_task,
   const TickType_t  completion_time,
   StackType_t      *stack_buffer,
-  StaticTask_t     *task_buffer
+  StaticTask_t     *task_buffer,
+  const UBaseType_t core
 ) {
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
@@ -168,6 +169,18 @@ BaseType_t _create_task_internal(
   new_task->is_done         = false;
   new_task->completion_time = completion_time;
 
+  // Pin task to specified core before any trace events are recorded
+#if USE_MP
+  new_task->assigned_core = (core < configNUMBER_OF_CORES) ? (uint8_t)core : UINT8_MAX;
+  if (core < configNUMBER_OF_CORES) {
+    if (pin_task_to_core(task_handle, core) != pdPASS) {
+      return pdFAIL;
+    }
+  }
+#else
+  (void)core; // Suppress unused parameter warning when USE_MP is not enabled
+#endif
+
   return pdPASS;
 }
 
@@ -181,7 +194,8 @@ BaseType_t _create_periodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  const UBaseType_t core
 ) {
   if (*task_count >= MAXIMUM_PERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -198,7 +212,8 @@ BaseType_t _create_periodic_task_internal(
     new_task,
     completion_time,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    core
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -243,7 +258,8 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
-  TMB_t **const     TMB_handle
+  TMB_t **const     TMB_handle,
+  const UBaseType_t core
 ) {
   if (*task_count >= MAXIMUM_APERIODIC_TASKS) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
@@ -262,7 +278,8 @@ BaseType_t _create_aperiodic_task_internal(
     new_task,
     completion_time,
     stack_buffer,
-    &new_task->task_buffer
+    &new_task->task_buffer,
+    core
   );
   if (result != pdPASS) {
     if (TMB_handle != NULL)
@@ -316,7 +333,8 @@ BaseType_t EDF_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
-    TMB_handle
+    TMB_handle,
+    0
   );
 #else
   // Fallback if no periodic tasks are allowed in this config
@@ -349,7 +367,8 @@ BaseType_t EDF_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
-    TMB_handle
+    TMB_handle,
+    0
   );
 #else
   // Fallback if no aperiodic tasks are allowed in this config

@@ -168,6 +168,7 @@ TEST_CASES = {
     "EDF3": {
         "name": "100 Tasks NON-ADMISSIBLE",
         "expected_admission_failure": "Periodic 34",
+        "ignore_traces": True,
         "expected_events": {},
     },
     "EDF4": {
@@ -185,6 +186,7 @@ TEST_CASES = {
     "EDF6": {
         "name": "Non-admissible by utilization",
         "expected_admission_failure": "Periodic 10",
+        "ignore_traces": True,
         "expected_events": {},
     },
     "EDF7": {
@@ -196,6 +198,7 @@ TEST_CASES = {
     "EDF8": {
         "name": "Non-admissible by processor demand",
         "expected_admission_failure": "Periodic 02",
+        "ignore_traces": True,
         "expected_events": {},
     },
     "EDF9": {
@@ -250,6 +253,8 @@ TEST_CASES = {
                 (400, TraceEvent.TRACE_SWITCH_IN),
                 (419, TraceEvent.TRACE_SWITCH_OUT),
                 (419, TraceEvent.TRACE_DONE),
+                #
+                (500, TraceEvent.TRACE_RELEASE),
             ],
         },
     },
@@ -339,6 +344,8 @@ TEST_CASES = {
                 (250, TraceEvent.TRACE_SWITCH_IN),
                 (279, TraceEvent.TRACE_SWITCH_OUT),
                 (937, TraceEvent.TRACE_SWITCH_IN),
+                (997, TraceEvent.TRACE_SEMAPHORE_TAKE),
+                (1106, TraceEvent.TRACE_SEMAPHORE_GIVE),
                 (1199, TraceEvent.TRACE_SWITCH_OUT),
                 (1199, TraceEvent.TRACE_DONE),
             ],
@@ -432,11 +439,13 @@ TEST_CASES = {
     "SRP8": {
         "name": "Admission Control - Fail (Implicit Deadlines)",
         "expected_admission_failure": "Periodic 03",
+        "ignore_traces": True,
         "expected_events": {},
     },
     "SRP9": {
         "name": "Admission Control - Fail (Constrained Deadlines)",
         "expected_admission_failure": "Periodic 03",
+        "ignore_traces": True,
         "expected_events": {},
     },
     # SMP TESTS
