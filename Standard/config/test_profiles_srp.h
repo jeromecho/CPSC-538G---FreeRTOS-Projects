@@ -1,7 +1,9 @@
 #ifndef TEST_PROFILES_SRP_H
 #define TEST_PROFILES_SRP_H
 
-#ifdef TEST_NR
+#include "ProjectConfig.h"
+
+#if TEST_SUITE == TEST_SUITE_SRP
 
 #if TEST_NR == 1
 #define MAXIMUM_PERIODIC_TASKS  0
@@ -67,8 +69,8 @@
 #define TEST_DURATION_TICKS     300
 #else
 #error "Invalid or undefined TEST_NR for SRP profile"
-#endif
-
 #endif // TEST_NR
+
+#endif // TEST_SUITE == TEST_SUITE_SRP
 
 #endif // TEST_PROFILES_SRP_H

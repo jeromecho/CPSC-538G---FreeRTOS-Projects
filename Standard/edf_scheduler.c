@@ -109,10 +109,7 @@ TMB_t *scheduler_produce_highest_priority_task() {
     (periodic_candidate != NULL) ? periodic_candidate->absolute_deadline : portMAX_DELAY;
   const TickType_t aperiodic_deadline =
     (aperiodic_candidate != NULL) ? aperiodic_candidate->absolute_deadline : portMAX_DELAY;
-
-
-  TickType_t count     = xTaskGetTickCount();
-  TMB_t     *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
+  TMB_t *candidate = (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
 
   return candidate;
 #endif
@@ -335,7 +332,8 @@ BaseType_t _create_aperiodic_task_internal(
   return pdPASS;
 }
 
-#if TEST_SUITE == TEST_SUITE_EDF
+#if TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS
+
 /// REQUIRES: xDeadlinePeriodic <= xPeriod must hold
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
@@ -444,7 +442,7 @@ BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t co
 /// itself. When used for periodic tasks, the scheduler should resume it for its next period.
 void EDF_periodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = *(BaseType_t *)pvParameters;
-  const TaskStep_t actions[0]      = {};
+  TaskStep_t       actions[]       = {};
 
   for (;;) {
     EXECUTE_WORKLOAD(actions, xCompletionTime);

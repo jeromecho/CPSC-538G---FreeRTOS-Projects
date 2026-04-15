@@ -3,6 +3,7 @@
 
 #include "FreeRTOS.h"
 #include "ProjectConfig.h"
+#include "config/TestConfig.h" // IWYU pragma: keep
 #include "task.h"
 #include "types/scheduler_types.h"
 
@@ -48,7 +49,7 @@ BaseType_t _create_periodic_task_internal(
 void   scheduler_suspend_task(const TMB_t *const task);
 void   scheduler_resume_task(const TMB_t *const task);
 void   scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, const size_t count);
-TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count);
+TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
 void   scheduler_suspend_and_resume_tasks();
 void   scheduler_record_release(const TMB_t *const task);

@@ -1,7 +1,9 @@
 #ifndef TEST_PROFILES_EDF_H
 #define TEST_PROFILES_EDF_H
 
-#ifdef TEST_NR
+#include "ProjectConfig.h"
+
+#if TEST_SUITE == TEST_SUITE_EDF
 
 #if TEST_NR == 1
 #define MAXIMUM_PERIODIC_TASKS  2
@@ -47,6 +49,6 @@
 #error "Invalid or undefined TEST_NR for EDF profile"
 #endif
 
-#endif // TEST_NR
+#endif // TEST_SUITE == TEST_SUITE_EDF
 
 #endif // TEST_PROFILES_EDF_H

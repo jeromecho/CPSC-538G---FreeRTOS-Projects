@@ -38,4 +38,6 @@ void   EDF_mark_task_done(TaskHandle_t task_handle);
 
 extern TaskHandle_t monitor_task_handle;
 
+#endif // USE_EDF
+
 #endif // EDF_SCHEDULER_H

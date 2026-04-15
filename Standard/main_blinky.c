@@ -124,6 +124,8 @@ void vTraceMonitorTask(void *pvParameters) {
   printf("Results for EDF Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_SRP
   printf("Results for SRP Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_CBS
+  printf("Results for CBS Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   printf("Results for SMP Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP

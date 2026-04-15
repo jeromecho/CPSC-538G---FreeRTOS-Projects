@@ -24,7 +24,18 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
+    # "EDF1",
+    # "EDF2",
+    # "EDF3",
+    # "EDF4",
+    # "EDF5",
+    # "EDF6",
+    # "EDF7",
+    # "EDF8",
     # "EDF9",
+    # "EDF10",
+    # "EDF11",
+    #
     # "SRP1",
     # "SRP2",
     # "SRP3",
@@ -34,6 +45,26 @@ TESTS_TO_RUN: list[str] = [  #
     # "SRP7",
     # "SRP8",
     # "SRP9",
+    #
+    "CBS1",
+    "CBS2",
+    "CBS3",
+    "CBS4",
+    "CBS5",
+    "CBS6",
+    "CBS7",
+    "CBS8",
+    "CBS9",
+    "CBS10",
+    "CBS11",
+    "CBS12",
+    "CBS13",
+    "CBS14",
+    "CBS15",
+    "CBS16",
+    "CBS17",
+    "CBS18",
+    #
     # "SMP1",
 ]
 

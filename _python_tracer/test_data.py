@@ -452,7 +452,6 @@ TEST_CASES = {
     # CBS TESTS
     "CBS1": {
         "name": "Smoke test (textbook pg.190): 1 periodic task with 2 aperiodic tasks; 1 CBS server",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 1},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -483,7 +482,6 @@ TEST_CASES = {
     },
     "CBS2": {
         "name": "Single aperiodic task running on CBS server",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 2},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -495,7 +493,6 @@ TEST_CASES = {
     },
     "CBS3": {
         "name": "Multiple tasks queueing up to max capacity on 1 CBS server",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 3},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -507,7 +504,6 @@ TEST_CASES = {
     },
     "CBS4": {
         "name": "Smoke Test #2: Different setup with 1 periodic task and 1 CBS server",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 4},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -548,7 +544,6 @@ TEST_CASES = {
     },
     "CBS5": {
         "name": "Smoke Test #3: Multiple Periodic Tasks Running Alongside Single CBS Server",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 5},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -632,7 +627,6 @@ TEST_CASES = {
     },
     "CBS6": {
         "name": "Multiple Periodic Tasks Running Alongside 2 symmetric CBS servers",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 6},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -838,7 +832,6 @@ TEST_CASES = {
     },
     "CBS7": {
         "name": "Smoke Test #4: Multiple Periodic Tasks Running Alongside 2 asymmetric CBS servers",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 7},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -996,7 +989,6 @@ TEST_CASES = {
     },
     "CBS8": {
         "name": "Multiple (2) symmetric CBS servers in isolation",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 8},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -1057,7 +1049,6 @@ TEST_CASES = {
     },
     "CBS9": {
         "name": "Multiple (2) asymmetric CBS servers in isolation",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 9},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -1092,7 +1083,6 @@ TEST_CASES = {
     },
     "CBS10": {
         "name": "Multiple (3) asymmetric CBS servers in isolation",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 10},
         "expected_admission_failure": None,
         "expected_events": {
             "Aperiodic 01": [
@@ -1150,7 +1140,6 @@ TEST_CASES = {
     },
     "CBS11": {
         "name": "Multiple (2) CBS servers running alongside 1 periodic task",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 11},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1240,7 +1229,6 @@ TEST_CASES = {
     },
     "CBS12": {
         "name": "Multiple (3) CBS servers running alongside 1 periodic task",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 12},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1355,7 +1343,6 @@ TEST_CASES = {
     },
     "CBS13": {
         "name": "1 CBS Server, 1 periodic task. Bandwidth is high but load of aperiodic tasks is low. (no deadline miss)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 13},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1385,7 +1372,6 @@ TEST_CASES = {
     },
     "CBS14": {
         "name": "1 CBS Server, 1 periodic task. Bandwidth is high and load of aperiodic tasks is high. (deadline miss)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 14},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1405,7 +1391,6 @@ TEST_CASES = {
     },
     "CBS15": {
         "name": "Bandwidth just under deadline miss threshold (Total Utilization < 100%)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 15},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1455,7 +1440,6 @@ TEST_CASES = {
     },
     "CBS16": {
         "name": "Bandwidth at deadline miss threshold (Total Utilization = 100%)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 16},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1507,7 +1491,6 @@ TEST_CASES = {
     },
     "CBS17": {
         "name": "Bandwidth just over deadline miss threshold (Total Utilization > 100%)",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 17},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [
@@ -1542,7 +1525,6 @@ TEST_CASES = {
     },
     "CBS18": {
         "name": "100% server bandwidth",
-        "flags": {"USE_EDF": 1, "USE_SRP": 0, "USE_CBS": 1, "TEST_NR": 18},
         "expected_admission_failure": None,
         "expected_events": {
             "Periodic 01": [

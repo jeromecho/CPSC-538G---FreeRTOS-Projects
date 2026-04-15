@@ -7,8 +7,8 @@
 #define TEST_SUITE_PARTITIONED_MP 4
 #define TEST_SUITE_GLOBAL_MP      5
 
-#define TEST_SUITE 4
-#define TEST_NR    1
+#define TEST_SUITE 3
+#define TEST_NR    3
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
@@ -84,64 +84,6 @@
 #if !USE_PARTITIONED && !USE_GLOBAL
 #error "When USE_MP=1, one of USE_PARTITIONED or USE_GLOBAL must be active"
 #endif
-#endif
-
-
-; // ==========================
-; // === TEST PROFILE TABLES ===
-; // ==========================
-
-#if TEST_SUITE == TEST_SUITE_EDF
-#include "config/test_profiles_edf.h"
-
-#elif TEST_SUITE == TEST_SUITE_SRP
-#include "config/test_profiles_srp.h"
-
-#elif TEST_SUITE == TEST_SUITE_CBS
-#include "config/test_profiles_cbs.h"
-
-#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-#include "config/test_profiles_partitioned_mp.h"
-
-#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-#include "config/test_profiles_global_mp.h"
-
-#else
-#error "Invalid TEST_SUITE in ProjectConfig.h"
-#endif
-
-; // =============================
-; // === COMMON VALIDATION/DEF ===
-; // =============================
-
-#ifndef MAXIMUM_PERIODIC_TASKS
-#error "MAXIMUM_PERIODIC_TASKS not set by selected test profile"
-#endif
-
-#ifndef MAXIMUM_APERIODIC_TASKS
-#error "MAXIMUM_APERIODIC_TASKS not set by selected test profile"
-#endif
-
-#if USE_SRP
-#ifndef N_RESOURCES
-#error "N_RESOURCES not set for SRP profile"
-#endif
-
-#ifndef N_PREEMPTION_LEVELS
-#error "N_PREEMPTION_LEVELS not set for SRP profile"
-#endif
-
-#ifndef ENABLE_STACK_SHARING
-#error "ENABLE_STACK_SHARING not set for SRP profile"
-#endif
-#endif
-
-#ifndef PERFORM_ADMISSION_CONTROL
-#define PERFORM_ADMISSION_CONTROL 1
-#endif
-
-#ifndef TEST_DURATION_TICKS
-#define TEST_DURATION_TICKS 500
 #endif
 
 #endif /* PROJECT_CONFIG_H */

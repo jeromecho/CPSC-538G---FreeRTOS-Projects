@@ -13,13 +13,14 @@ PendingCBSTask_t pending_cbs_tasks[MAX_PENDING_CBS_TASKS];
 // TODO: Add a CBS_init function
 // that initializes the is_active flag of `pending_cbs_tasks` to false
 
-// === HELPER FUNCTION DEFINITIONS ===
-// ================================
+; // ===================================
+; // === HELPER FUNCTION DEFINITIONS ===
+; // ===================================
 /**
  * @pre this function should only be called from within the context of a CBS master task
  */
 static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
-  TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_APERIODIC, cbs_mb->tmb_handle);
+  TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_APERIODIC, cbs_mb->tmb_handle, false);
   CBS_mark_task_done(cbs_mb->tmb_handle->handle);
 }
 
@@ -35,8 +36,11 @@ static inline CBS_MB_t *find_cbs_server_by_tmb(TMB_t *task) {
   return NULL;
 }
 
-// === API FUNCTION DEFINITIONS ===
-// ================================
+
+; // ================================
+; // === API FUNCTION DEFINITIONS ===
+; // ================================
+
 static void CBS_master_task(void *pvParameters) {
   SchedulerParameters_t *parameters = (SchedulerParameters_t *)pvParameters;
   CBS_MB_t              *pxServer   = (CBS_MB_t *)parameters->parameters_remaining;
@@ -108,7 +112,7 @@ BaseType_t CBS_update_budget(TMB_t *current_task) {
     server->dsk += server->Ts;
     server->tmb_handle->absolute_deadline = server->dsk;
     server->cs                            = server->Qs;
-    TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle);
+    TRACE_record(EVENT_BASIC(TRACE_BUDGET_RUN_OUT), TRACE_TASK_APERIODIC, server->tmb_handle, true);
     return pdTRUE;
   }
   return pdFALSE;
@@ -121,10 +125,9 @@ void CBS_release_tasks() {
       int       cbs_id   = pending_cbs_tasks[i].cbs_id;
       CBS_MB_t *pxServer = &cbs_metadata_blocks[cbs_id];
       if (q_empty(&pxServer->aperiodic_tasks)) {
-        if (
-          pxServer->tmb_handle->is_done && (double)pxServer->cs >= ((double)pxServer->dsk - (double)current_timestamp) *
-                                                                     ((double)pxServer->Qs / (double)pxServer->Ts)
-        ) {
+        if (pxServer->tmb_handle->is_done &&
+            (double)pxServer->cs >=
+              ((double)pxServer->dsk - (double)current_timestamp) * ((double)pxServer->Qs / (double)pxServer->Ts)) {
           pxServer->dsk                           = current_timestamp + pxServer->Ts;
           pxServer->cs                            = pxServer->Qs;
           pxServer->tmb_handle->absolute_deadline = pxServer->dsk;

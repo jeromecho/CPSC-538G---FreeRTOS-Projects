@@ -1,6 +1,8 @@
 #ifndef EDF_TESTS_H
 #define EDF_TESTS_H
 
+#include "ProjectConfig.h"
+
 #if TEST_SUITE == TEST_SUITE_EDF
 
 void edf_test_1();

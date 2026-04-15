@@ -155,7 +155,7 @@ static TickType_t calculate_d_max(const TickType_t relative_deadline, const TMB_
 ; // === PURE EDF ADMISSION CONTROL ===
 ; // ==================================
 
-#if TEST_SUITE == TEST_SUITE_EDF
+#if TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS
 
 /// @brief checks if demand bound functions evaluates to leq L at points of interest
 static bool

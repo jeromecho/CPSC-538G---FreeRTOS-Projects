@@ -16,7 +16,16 @@
 /// @brief Creates a periodic task from a provided task configuration.
 // Handles API differences between SRP and EDF via preprocessor macros.
 void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config) {
-#if TEST_SUITE == TEST_SUITE_SRP
+#if TEST_SUITE == TEST_SUITE_EDF
+  EDF_create_periodic_task( //
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->T),
+    pdMS_TO_TICKS(config->D),
+    NULL
+  );
+#elif TEST_SUITE == TEST_SUITE_SRP
   SRP_create_periodic_task(
     config->func,
     task_name,
@@ -27,15 +36,8 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
     config->plvl,
     config->resources
   );
-#elif TEST_SUITE == TEST_SUITE_EDF
-  EDF_create_periodic_task( //
-    config->func,
-    task_name,
-    pdMS_TO_TICKS(config->C),
-    pdMS_TO_TICKS(config->T),
-    pdMS_TO_TICKS(config->D),
-    NULL
-  );
+#elif TEST_SUITE == TEST_SUITE_CBS
+  (void)0;
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   SMP_create_periodic_task_on_core( //
     config->func,
@@ -56,7 +58,18 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
 
 /// @brief Creates an aperiodic task from a provided task configuration
 void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config) {
-#if TEST_SUITE == TEST_SUITE_SRP
+#if TEST_SUITE == TEST_SUITE_EDF
+  EDF_create_aperiodic_task( //
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->r),
+    pdMS_TO_TICKS(config->D),
+    NULL,
+    NULL,
+    true
+  );
+#elif TEST_SUITE == TEST_SUITE_SRP
   SRP_create_aperiodic_task(
     config->func,
     task_name,
@@ -67,10 +80,8 @@ void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *co
     config->plvl,
     config->resources
   );
-#elif TEST_SUITE == TEST_SUITE_EDF
-  EDF_create_aperiodic_task(
-    config->func, task_name, pdMS_TO_TICKS(config->C), pdMS_TO_TICKS(config->r), pdMS_TO_TICKS(config->D), NULL
-  );
+#elif TEST_SUITE == TEST_SUITE_CBS
+  (void)0;
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   SMP_create_aperiodic_task_on_core(
     config->func,
@@ -119,6 +130,19 @@ void build_aperiodic_test( //
   }
 }
 
+/// @brief Execute for a series of ticks without marking as done
+void execute_for_ticks(const TickType_t execution_ticks) {
+  TickType_t time_executed = 0;
+  TickType_t previous_tick = -1;
+  while (time_executed < execution_ticks) {
+    const TickType_t current_tick = xTaskGetTickCount();
+    if (current_tick != previous_tick) {
+      time_executed += 1;
+      previous_tick = current_tick;
+    }
+  }
+}
+
 /// @brief Executes a series of steps defined for a given test. Verifies that the total execution time for the task
 /// matches the intended completion time
 void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps) {
@@ -157,6 +181,7 @@ void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps) {
           SRP_give_binary_semaphore(next_step->semaphore_index);
           break;
 #endif
+
         default:
           break;
         }

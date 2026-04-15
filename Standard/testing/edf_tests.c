@@ -1,14 +1,9 @@
-#include "ProjectConfig.h"
+#include "edf_tests.h"
 
 #if TEST_SUITE == TEST_SUITE_EDF
 
-#include "edf_tests.h"
-#include "testing.h"
-
-
-// TODO: EDF test 5 needs updated logic for the admission (u=1)
-
 #include "edf_scheduler.h"
+#include "testing.h"
 
 ; // ====================================
 ; // === Tests for Base Functionality ===

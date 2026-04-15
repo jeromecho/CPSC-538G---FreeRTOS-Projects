@@ -71,6 +71,7 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
 void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config);
 void build_periodic_test(const char *test_name, const PeriodicTaskParams_t *config, size_t num_tasks);
 void build_aperiodic_test(const char *test_name, const AperiodicTaskParams_t *config, size_t num_tasks);
+void execute_for_ticks(const TickType_t execution_ticks);
 void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps);
 
 #endif // TESTING_H

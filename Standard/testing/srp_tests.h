@@ -1,6 +1,8 @@
 #ifndef SRP_TESTS_H
 #define SRP_TESTS_H
 
+#include "ProjectConfig.h"
+
 #if TEST_SUITE == TEST_SUITE_SRP
 
 void srp_test_1();

@@ -1,9 +1,9 @@
 #ifndef SMP_TESTS_H
 #define SMP_TESTS_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
+#include "ProjectConfig.h"
 
-#if USE_MP
+#if TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 
 void partitioned_mp_test_1();
 
