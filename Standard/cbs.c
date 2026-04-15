@@ -20,6 +20,9 @@ PendingCBSTask_t pending_cbs_tasks[MAX_PENDING_CBS_TASKS];
  * @pre this function should only be called from within the context of a CBS master task
  */
 static void CBS_master_task_out_of_tasks(CBS_MB_t *cbs_mb) {
+  // If the server executed and suspended in this same tick, it can be invisible at
+  // the next tick hook. Charge that final tick here exactly once.
+  CBS_update_budget(cbs_mb->tmb_handle);
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_APERIODIC, cbs_mb->tmb_handle, false);
   CBS_mark_task_done(cbs_mb->tmb_handle->handle);
 }
@@ -54,6 +57,14 @@ static void CBS_master_task(void *pvParameters) {
     fptr();
     // NB: dequeue here should succeed
     q_dequeue(&pxServer->aperiodic_tasks, NULL);
+
+    // Enforce one-tick spacing between queued CBS jobs without suspending the server.
+    // This keeps the server active while deferring next dispatch to the next tick.
+    if (!q_empty(&pxServer->aperiodic_tasks)) {
+      const TickType_t current_tick = xTaskGetTickCount();
+      while (xTaskGetTickCount() == current_tick) {
+      }
+    }
   }
 }
 
@@ -64,6 +75,7 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   pxServer->Qs       = Qs;
   pxServer->Ts       = Ts;
   pxServer->cs       = Qs;
+  pxServer->last_budget_accounted_tick = portMAX_DELAY;
 
   q_init(
     &pxServer->aperiodic_tasks,
@@ -76,10 +88,18 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
 
   CBS_create_master_task(
-    CBS_master_task, pcTaskName, portMAX_DELAY, 0, pxServer->dsk, &pxServer->tmb_handle, (void *)pxServer, false
+    CBS_master_task,
+    pcTaskName,
+    portMAX_DELAY,
+    portMAX_DELAY,
+    pxServer->dsk,
+    &pxServer->tmb_handle,
+    (void *)pxServer,
+    false
   );
   // Newly created CBS server should not be considered for execution
   pxServer->tmb_handle->is_done = true;
+  return pdPASS;
 };
 
 BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_id, TickType_t release_time) {
@@ -99,12 +119,16 @@ BaseType_t CBS_create_aperiodic_task(AperiodicTaskFunc_t task_function, int cbs_
 // ASSUMPTION: CBS_update_budget is called every time slice
 // INVARIANT: last_server->cs > 0 at entry of function (i.e., server capacity > 0 must hold)
 BaseType_t CBS_update_budget(TMB_t *current_task) {
-  const BaseType_t budget_exhausted = pdFALSE;
-  CBS_MB_t        *server           = find_cbs_server_by_tmb(current_task);
+  CBS_MB_t *server = find_cbs_server_by_tmb(current_task);
   if (server == NULL) {
     return pdFALSE;
   }
-  TickType_t count = xTaskGetTickCount();
+
+  const TickType_t current_tick = xTaskGetTickCount();
+  if (server->last_budget_accounted_tick == current_tick) {
+    return pdFALSE;
+  }
+  server->last_budget_accounted_tick = current_tick;
 
   server->cs -= 1;
 
@@ -132,6 +156,9 @@ void CBS_release_tasks() {
           pxServer->cs                            = pxServer->Qs;
           pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
         }
+      }
+      if (pxServer->tmb_handle->is_done) {
+        pxServer->tmb_handle->release_time = current_timestamp;
       }
       pxServer->tmb_handle->is_done = false;
       q_enqueue(&pxServer->aperiodic_tasks, (void *)&pending_cbs_tasks[i].task_function);

@@ -13,7 +13,6 @@
 #define MAXIMUM_CBS_SERVERS 10
 #define CBS_QUEUE_CAPACITY  10
 
-#define CBS_PRIORITY_NOT_RUNNING PRIORITY_NOT_RUNNING
 typedef BaseType_t (*AperiodicTaskFunc_t)(void);
 
 typedef struct {
@@ -27,14 +26,14 @@ typedef struct {
 extern PendingCBSTask_t pending_cbs_tasks[MAX_PENDING_CBS_TASKS];
 
 typedef BaseType_t (*SchedulerCreateTask_t)(
-  TaskFunction_t,
-  const char *const,
-  const TickType_t,
-  const TickType_t,
-  const TickType_t,
-  TMB_t **const,
-  void *,
-  bool is_hard_rt
+  TaskFunction_t    task_function,
+  const char *const task_name,
+  const TickType_t  completion_time,
+  const TickType_t  release_time,
+  const TickType_t  relative_deadline,
+  TMB_t **const     TMB_handle,
+  void             *parameters_remaining,
+  bool              is_hard_rt
 );
 
 typedef void (*MarkTaskDone_t)(TaskHandle_t task_handle);
@@ -48,6 +47,7 @@ typedef struct {
   TickType_t          Qs;
   TickType_t          Ts;
   TickType_t          cs; // budget
+  TickType_t          last_budget_accounted_tick;
   Queue_t             aperiodic_tasks;
   AperiodicTaskFunc_t aperiodic_tasks_storage[CBS_QUEUE_CAPACITY];
   TMB_t              *tmb_handle;

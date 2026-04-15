@@ -499,6 +499,14 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
 
 void starting_scheduler(void *xIdleTaskHandles) {
   TaskHandle_t *idle_task_handles = (TaskHandle_t *)xIdleTaskHandles;
+
+#if USE_CBS && !(USE_MP && USE_PARTITIONED)
+  // Ensure CBS jobs released at tick 0 are visible before the first dispatch.
+  // Without this, first CBS release is delayed until the first tick hook.
+  CBS_release_tasks();
+  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
+#endif
+
   scheduler_suspend_and_resume_tasks();
 }
 

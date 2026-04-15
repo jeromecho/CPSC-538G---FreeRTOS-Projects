@@ -88,8 +88,9 @@ STRICT_POLICED_EVENTS = {  #
     TraceEvent.TRACE_RELEASE,
     TraceEvent.TRACE_SWITCH_IN,
     TraceEvent.TRACE_SWITCH_OUT,
-    TraceEvent.TRACE_SEMAPHORE_TAKE,
-    TraceEvent.TRACE_SEMAPHORE_GIVE,
+    # TraceEvent.TRACE_SEMAPHORE_TAKE,
+    # TraceEvent.TRACE_SEMAPHORE_GIVE,
+    TraceEvent.TRACE_BUDGET_RUN_OUT,
     TraceEvent.TRACE_DONE,
     TraceEvent.TRACE_DEADLINE_MISS,
 }
