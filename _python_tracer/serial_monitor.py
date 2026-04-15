@@ -132,6 +132,30 @@ def build_execution_segments(df):
             inclusive_end_by_core[core] = False
             continue
 
+        if event == TraceEvent.TRACE_DEADLINE_MISS:
+            in_row = active_by_core.get(core)
+            if in_row is not None and in_row["TASK_NAME"] == task_name:
+                start_tick = int(in_row["TIMESTAMP"])
+                end_tick = int(row["TIMESTAMP"])
+                if end_tick >= start_tick:
+                    segments.append(
+                        {
+                            "CORE": core,
+                            "TASK_NAME": task_name,
+                            "START_TICK": start_tick,
+                            "END_TICK": end_tick,
+                            "DURATION": end_tick - start_tick,
+                            "INCLUSIVE_END": False,
+                            "ABS_START": int(in_row["ABS_TIME"]),
+                            "ABS_END": int(row["ABS_TIME"]),
+                            "DEADLINE": int(in_row["DEADLINE"]),
+                            "PRIORITY": int(in_row["PRIORITY"]),
+                        }
+                    )
+                    del active_by_core[core]
+                    inclusive_end_by_core[core] = False
+            continue
+
         if event in INCLUSIVE_DURATION_EVENTS:
             inclusive_end_by_core[core] = True
 
