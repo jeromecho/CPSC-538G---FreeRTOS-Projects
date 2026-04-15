@@ -4,9 +4,8 @@
 #include "FreeRTOS.h" // IWYU pragma: keep
 #include "scheduler_internal.h"
 
-#define PRIORITY_RUNNING     (tskIDLE_PRIORITY + 2)
-#define PRIORITY_NOT_RUNNING (tskIDLE_PRIORITY + 1)
-#define PRIORITY_IDLE        (tskIDLE_PRIORITY)
+#define PRIORITY_RUNNING (tskIDLE_PRIORITY + 1)
+#define PRIORITY_IDLE    (tskIDLE_PRIORITY)
 
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,

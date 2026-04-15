@@ -33,7 +33,7 @@ UINT32_MAX = 4294967295
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 
 MIN_EXECUTION_BAR_WIDTH = 0.6
-END_ALIGNED_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SWITCH_OUT, TraceEvent.TRACE_DEPRIORITIZED}
+END_ALIGNED_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SWITCH_OUT, TraceEvent.TRACE_SUSPENDED}
 
 TASK_COLOR_PALETTE = qualitative.Plotly + qualitative.Dark24 + qualitative.Alphabet
 
@@ -43,9 +43,9 @@ EVENT_STYLE = {
     TraceEvent.TRACE_SWITCH_OUT: ("Switch Out", "triangle-left", "#e6194b"),
     TraceEvent.TRACE_DONE: ("Task Done", "circle", "#008080"),
     TraceEvent.TRACE_RESCHEDULED: ("Rescheduled", "diamond", "#3cb371"),
-    TraceEvent.TRACE_UPDATING_PRIORITIES: ("Update Priorities", "diamond-open", "#911eb4"),
-    TraceEvent.TRACE_DEPRIORITIZED: ("Deprioritized", "triangle-down-open", "#808080"),
-    TraceEvent.TRACE_PRIORITY_SET: ("Priority Set", "triangle-up-open", "#f2c300"),
+    TraceEvent.TRACE_PREPARING_CONTEXT_SWITCH: ("Prepare Context Switch", "diamond-open", "#911eb4"),
+    TraceEvent.TRACE_SUSPENDED: ("Suspended", "triangle-down-open", "#808080"),
+    TraceEvent.TRACE_RESUMED: ("Resumed", "triangle-up-open", "#f2c300"),
     TraceEvent.TRACE_DEADLINE_MISS: ("Deadline Miss", "x", "#d62728"),
     TraceEvent.TRACE_SRP_BLOCK: ("SRP Block", "cross", "#ff8c00"),
     TraceEvent.TRACE_ADMISSION_FAILED: ("Admission Failed", "hexagram", "#b22222"),

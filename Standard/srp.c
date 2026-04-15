@@ -92,17 +92,10 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
   TRACE_record(EVENT_SEMAPHORE_GIVE(semaphoreIdx), TRACE_TASK_EITHER, current_task, false);
 
-  // Figure out the highest priority task from EDF scheduler
-  // TaskHandle_t highest_task = produce_highest_priority_task();
-
   TMB_t *highest_priority_task = scheduler_produce_highest_priority_task();
   if (highest_priority_task != current_task) {
     scheduler_suspend_task(current_task);
   }
-
-  // TODO: Allow preemption immediately after semaphore release?
-  // If the highest task's preemption level > SRP_get_system_ceiling():
-  //     vTaskResume(highest_task);
 
   taskEXIT_CRITICAL();
 }

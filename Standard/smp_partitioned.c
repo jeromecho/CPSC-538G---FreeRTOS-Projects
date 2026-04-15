@@ -162,8 +162,8 @@ void SMP_partitioned_check_deadlines_and_release_tasks(void) {
   }
 }
 
-void SMP_partitioned_update_priorities(void) {
-  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL, true);
+void SMP_partitioned_suspend_and_resume_tasks(void) {
+  TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
 
   for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
     TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);

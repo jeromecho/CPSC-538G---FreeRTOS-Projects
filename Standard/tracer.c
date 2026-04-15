@@ -52,10 +52,10 @@ void TRACE_record( //
     task_type = (task->type == TASK_PERIODIC) ? TRACE_TASK_PERIODIC : TRACE_TASK_APERIODIC;
   }
 
-  uint8_t     task_id    = UINT8_MAX;
-  TickType_t  deadline   = portMAX_DELAY;
-  UBaseType_t priority   = UINT_MAX;
-  eTaskState  task_state = eInvalid;
+  uint8_t     task_id           = UINT8_MAX;
+  TickType_t  deadline          = portMAX_DELAY;
+  UBaseType_t freeRTOS_priority = UINT_MAX;
+  eTaskState  task_state        = eInvalid;
 
   // SRP-related (not updated when SRP is disabled)
   unsigned int system_ceiling = UINT_MAX;
@@ -65,8 +65,8 @@ void TRACE_record( //
     task_id  = task->id;
     deadline = task->absolute_deadline;
     if (!in_ISR && task->handle != NULL) {
-      priority   = uxTaskPriorityGet(task->handle);
-      task_state = eTaskGetState(task->handle);
+      freeRTOS_priority = uxTaskPriorityGet(task->handle);
+      task_state        = eTaskGetState(task->handle);
     }
   }
 
@@ -95,7 +95,7 @@ void TRACE_record( //
     .task_type      = task_type,
     .task_id        = task_id,
     .deadline       = deadline,
-    .priority       = priority,
+    .priority       = freeRTOS_priority,
     .task_state     = task_state,
     .system_ceiling = system_ceiling,
     .preempt_level  = preempt_level,

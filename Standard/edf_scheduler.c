@@ -56,7 +56,7 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 
 static void   reschedule_periodic_tasks();
 static TMB_t *candidate_highest_priority(TMB_t *tasks, const size_t count);
-static bool   should_update_priorities(const TMB_t *const highest_priority_task);
+static bool   should_context_switch(const TMB_t *const highest_priority_task);
 static TickType_t
 calculate_release_time_for_new_task(const TickType_t new_period, const TMB_t *tasks, const size_t count);
 
@@ -468,7 +468,7 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
 
 void starting_scheduler(void *xIdleTaskHandles) {
   TaskHandle_t *idle_task_handles = (TaskHandle_t *)xIdleTaskHandles;
-  scheduler_update_priorities();
+  scheduler_suspend_and_resume_tasks();
 }
 
 ; // ==================================
@@ -494,25 +494,23 @@ static void reschedule_periodic_tasks() {
 #endif
 }
 
-/// @brief Increases the priority of a task to the highest possible/maximum, which should force it to be chosen to run
-/// by the FreeRTOS scheduler
+/// @brief Suspends a task to prevent it from being run by the FreeRTOS scheduler
 void scheduler_suspend_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  // vTaskPrioritySet(task->handle, PRIORITY_NOT_RUNNING);
   vTaskSuspend(task->handle);
-  TRACE_record(EVENT_BASIC(TRACE_DEPRIORITIZED), TRACE_TASK_EITHER, task, true);
+  TRACE_record(EVENT_BASIC(TRACE_SUSPENDED), TRACE_TASK_EITHER, task, true);
 }
 
-/// @brief Lowers the priority of a task to the lowest possible/minimum, which should prevent it from running.
+/// @brief Resumes a task so it can be run by the FreeRTOS scheduler. In non-MP mode, there should only ever be one
+/// non-suspended task at any given time.
 void scheduler_resume_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
 
-  // vTaskPrioritySet(task->handle, PRIORITY_RUNNING);
   xTaskResumeFromISR(task->handle);
-  TRACE_record(EVENT_BASIC(TRACE_PRIORITY_SET), TRACE_TASK_EITHER, task, true);
+  TRACE_record(EVENT_BASIC(TRACE_RESUMED), TRACE_TASK_EITHER, task, true);
 }
 
 /// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
@@ -614,7 +612,7 @@ void scheduler_record_release(const TMB_t *const task) {
 }
 
 /// @brief produce true if currently running task is different from the highest priority task
-static bool should_update_priorities(const TMB_t *const highest_priority_task) {
+static bool should_context_switch(const TMB_t *const highest_priority_task) {
 #if USE_MP && USE_PARTITIONED
   (void)highest_priority_task;
   return true;
@@ -649,17 +647,17 @@ static bool should_update_priorities(const TMB_t *const highest_priority_task) {
 /// priority of the next task to run. This is presented as an option so that this function can be run before the
 /// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which
 /// is very much not allowed before the scheduler has started (at least when SMP is enabled).
-void scheduler_update_priorities() {
+void scheduler_suspend_and_resume_tasks() {
 #if USE_MP && USE_PARTITIONED
-  SMP_partitioned_update_priorities();
+  SMP_partitioned_suspend_and_resume_tasks();
 #else
   TMB_t *const highest_priority_task = scheduler_produce_highest_priority_task();
-  const bool   should_update         = should_update_priorities(highest_priority_task);
+  const bool   should_update         = should_context_switch(highest_priority_task);
   if (!should_update) {
     return;
   }
 
-  TRACE_record(EVENT_BASIC(TRACE_UPDATING_PRIORITIES), TRACE_TASK_SYSTEM, NULL, true);
+  TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
   scheduler_suspend_lower_priority_tasks(highest_priority_task);
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
@@ -722,7 +720,7 @@ void vApplicationTickHook(void) {
   scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
 #endif
 
-  scheduler_update_priorities();
+  scheduler_suspend_and_resume_tasks();
 }
 
 static void trace_task_switch(TraceEventType_t switch_event) {
