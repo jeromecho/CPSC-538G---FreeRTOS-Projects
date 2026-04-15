@@ -18,6 +18,8 @@
 #include "smp_partitioned.h"
 #endif
 
+#include "testing/testing.h"
+
 #include <stdio.h>
 
 
@@ -80,7 +82,7 @@ void task_switched_in(void);
 ; // ================================
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
-TMB_t *EDF_produce_highest_priority_task() {
+TMB_t *scheduler_produce_highest_priority_task() {
 #if USE_MP && USE_PARTITIONED
   return SMP_partitioned_produce_highest_priority_task((UBaseType_t)portGET_CORE_ID());
 #else
@@ -388,10 +390,10 @@ BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t co
 /// itself. When used for periodic tasks, the scheduler should resume it for its next period.
 void EDF_periodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
+  const TaskStep_t actions[0]      = {};
 
   for (;;) {
-    execute_for_ticks(xCompletionTime);
-    EDF_mark_task_done(NULL);
+    EXECUTE_WORKLOAD(actions, xCompletionTime);
   }
 }
 
@@ -400,8 +402,10 @@ void EDF_periodic_task(void *pvParameters) {
 /// itself.
 void EDF_aperiodic_task(void *pvParameters) {
   const BaseType_t xCompletionTime = (BaseType_t)pvParameters;
-  execute_for_ticks(xCompletionTime);
-  EDF_mark_task_done(NULL);
+  const TaskStep_t actions[0]      = {};
+
+  EXECUTE_WORKLOAD(actions, xCompletionTime);
+
   vTaskDelete(NULL);
 }
 
@@ -630,7 +634,7 @@ void scheduler_update_priorities() {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_update_priorities();
 #else
-  TMB_t *const highest_priority_task = EDF_produce_highest_priority_task();
+  TMB_t *const highest_priority_task = scheduler_produce_highest_priority_task();
   const bool   should_update         = should_update_priorities(highest_priority_task);
   if (!should_update) {
     return;

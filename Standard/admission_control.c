@@ -352,7 +352,9 @@ bool SRP_can_admit_periodic_task(
 ) {
   unsigned int simulated_ceilings[N_RESOURCES];
   memcpy(simulated_ceilings, SRP_get_resource_ceilings(), sizeof(simulated_ceilings));
+#if N_RESOURCES > 0
   SRP_update_resource_ceilings(preemption_level, resource_hold_times, simulated_ceilings);
+#endif
 
   for (size_t k = 0; k < periodic_task_count; k++) {
     const TickType_t   D_k                = periodic_tasks[k].periodic.relative_deadline;
@@ -369,8 +371,12 @@ bool SRP_can_admit_periodic_task(
       sum_U += (double)completion_time / period;
     }
 
+#if N_RESOURCES > 0
     const TickType_t B_k =
       calculate_blocking_time(preemption_level_k, simulated_ceilings, preemption_level, resource_hold_times);
+#else
+    const TickType_t B_k = 0;
+#endif
     if (sum_U + ((double)B_k / T_k) > 1.0)
       return false;
   }
@@ -383,8 +389,12 @@ bool SRP_can_admit_periodic_task(
   }
   sum_U_new += (double)completion_time / period;
 
+#if N_RESOURCES > 0
   const TickType_t B_new =
     calculate_blocking_time(preemption_level, simulated_ceilings, preemption_level, resource_hold_times);
+#else
+  const TickType_t B_new = 0;
+#endif
   if (sum_U_new + ((double)B_new / period) > 1.0) {
     return false;
   }
@@ -400,9 +410,13 @@ bool SRP_can_admit_periodic_task(
   const TickType_t D_max = calculate_d_max(relative_deadline, periodic_tasks, periodic_task_count);
   const TickType_t upper = (TickType_t)fmin(H, fmax(D_max, l_star));
 
+#if N_RESOURCES > 0
   return check_deadlines_srp(
     completion_time, period, relative_deadline, upper, preemption_level, resource_hold_times, simulated_ceilings
   );
+#else
+  return check_deadlines_srp(completion_time, period, relative_deadline, upper, preemption_level, NULL, NULL);
+#endif
 }
 
 #endif

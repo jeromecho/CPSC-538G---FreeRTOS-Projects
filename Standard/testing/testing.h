@@ -43,24 +43,34 @@ typedef enum {
   TASK_TAKE_SEMAPHORE,
   TASK_GIVE_SEMAPHORE,
 #endif
-  TASK_EXECUTE
+  TASK_DUMMY_ACTION, // Necessary to prevent compilation errors, since empty enums are not allowed
 } TaskAction_t;
 
 /// @brief Collection of an action and any corresponding data necessary to complete that action
 typedef struct {
-  TaskAction_t action;
+  const TickType_t relative_tick; // When to execute the action relative to when the workload was started. For example,
+                                  // a relative tick of 1 means "during the first tick of execution"
+  const TaskAction_t action;      // Which action to execute
   union {
-    int duration;
-    int semaphore_index;
+    const int semaphore_index;
   };
 } TaskStep_t;
 
+typedef struct {
+  const TickType_t  completion_time;
+  const TaskStep_t *task_actions;
+} TaskWorkload_t;
+
 #define LEN(x) (sizeof(x) / sizeof((x)[0]))
+
+#define EXECUTE_WORKLOAD(steps_array, completion_time)                                                                 \
+  const TaskWorkload_t workload = {completion_time, steps_array};                                                      \
+  task_execute(&workload, LEN(steps_array))
 
 void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config);
 void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config);
 void build_periodic_test(const char *test_name, const PeriodicTaskParams_t *config, size_t num_tasks);
 void build_aperiodic_test(const char *test_name, const AperiodicTaskParams_t *config, size_t num_tasks);
-void execute_steps(const TickType_t completion_time, const TaskStep_t steps[], const size_t num_steps);
+void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps);
 
 #endif // TESTING_H

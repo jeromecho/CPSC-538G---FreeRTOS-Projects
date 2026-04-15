@@ -90,6 +90,7 @@ void   scheduler_update_priorities();
 void   scheduler_record_release(const TMB_t *const task);
 void   scheduler_register_deadline_miss(const TMB_t *const task);
 void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task);
+TMB_t *scheduler_produce_highest_priority_task();
 
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 

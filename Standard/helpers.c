@@ -28,19 +28,6 @@ TickType_t compute_hyperperiod(const TickType_t new_period, const TMB_t *tasks_a
   return H;
 }
 
-/// @brief Simulate work for a number of ticks by busy-waiting
-void execute_for_ticks(const TickType_t ticks_to_wait) {
-  TickType_t previous_tick = -1;
-  TickType_t waited_time   = 0;
-  while (waited_time < ticks_to_wait) {
-    const TickType_t current_tick = xTaskGetTickCount();
-    if (current_tick != previous_tick) {
-      waited_time += 1;
-      previous_tick = current_tick;
-    }
-  }
-}
-
 /// @brief Crash the system with a custom message printed over UART
 void crash_without_trace(const char *format, ...) {
   va_list args;

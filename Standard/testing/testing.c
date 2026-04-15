@@ -121,39 +121,46 @@ void build_aperiodic_test( //
 
 /// @brief Executes a series of steps defined for a given test. Verifies that the total execution time for the task
 /// matches the intended completion time
-void execute_steps(const TickType_t completion_time, const TaskStep_t steps[], const size_t num_steps) {
-  // Verify that the execution time of the steps matches the completion time for the task
-  TickType_t calculated_execution_time = 0;
+void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps) {
+  // Ensure that none of the actions are scheduled to happen:
+  // - Before the first tick of the task's execution
+  // - After completion time
   for (size_t i = 0; i < num_steps; i++) {
-    if (steps[i].action == TASK_EXECUTE) {
-      calculated_execution_time += steps[i].duration;
-    }
+    const TaskStep_t *action = &task_workload->task_actions[i];
+    configASSERT(action->relative_tick > 0);
+    configASSERT(action->relative_tick <= task_workload->completion_time);
   }
-  configASSERT(calculated_execution_time == completion_time);
 
-  // Actually execute the steps
-  for (size_t i = 0; i < num_steps; i++) {
-    const TaskStep_t *step = &steps[i];
+  size_t     action_index  = 0;
+  TickType_t time_executed = 0;
+  TickType_t previous_tick = -1;
+  while (time_executed < task_workload->completion_time) {
+    const TickType_t current_tick = xTaskGetTickCount();
+    if (current_tick != previous_tick) {
+      time_executed += 1;
+      previous_tick = current_tick;
 
-    switch (step->action) {
+      if (action_index >= num_steps) {
+        continue;
+      }
+
+      const TaskStep_t *next_step = &task_workload->task_actions[action_index];
+      if (next_step->relative_tick == time_executed) {
+        action_index += 1;
+        switch (next_step->action) {
 #if TEST_SUITE == TEST_SUITE_SRP
-    case TASK_TAKE_SEMAPHORE:
-      SRP_take_binary_semaphore(step->semaphore_index);
-      break;
+        case TASK_TAKE_SEMAPHORE:
+          SRP_take_binary_semaphore(next_step->semaphore_index);
+          break;
 
-    case TASK_GIVE_SEMAPHORE:
-      SRP_give_binary_semaphore(step->semaphore_index);
-      break;
+        case TASK_GIVE_SEMAPHORE:
+          SRP_give_binary_semaphore(next_step->semaphore_index);
+          break;
 #endif
-
-    case TASK_EXECUTE:
-      execute_for_ticks(step->duration);
-      break;
-
-    default:
-      // Catch invalid configurations
-      configASSERT(pdFALSE);
-      break;
+        default:
+          break;
+        }
+      }
     }
   }
 

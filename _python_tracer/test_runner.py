@@ -24,7 +24,7 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
-    "EDF9",
+    # "EDF9",
     # "SRP1",
     # "SRP2",
     # "SRP3",
@@ -53,9 +53,11 @@ SUITE_PREFIXES = (
 )
 
 
-def get_task_name(t_type, t_id, core=None):
+def get_task_name(t_type, t_id, core=None, include_core_for_realtime=False):
     base_name = TASK_TYPES.get(t_type, f"Unknown ({t_type})")
     if t_type in [1, 2]:
+        if include_core_for_realtime and core is not None:
+            return f"{base_name} {(t_id + 1):02d} C{core}"
         return f"{base_name} {(t_id + 1):02d}"
     if core is not None and t_type in [0, 3]:
         return f"{base_name} C{core}"
@@ -83,7 +85,7 @@ def detect_run_banner(line):
     return None
 
 
-def parse_trace_record(line):
+def parse_trace_record(line, include_core_for_realtime=False):
     parts = line.split(",")
     if len(parts) < 5:
         return None
@@ -101,14 +103,14 @@ def parse_trace_record(line):
         return {
             "tick": int(parts[0]),
             "event": TraceEvent(int(parts[1])),
-            "task_name": get_task_name(task_type, task_id, core),
+            "task_name": get_task_name(task_type, task_id, core, include_core_for_realtime),
             "raw": line,
         }
     except ValueError:
         return None
 
 
-def stream_test_output(port, expected_boot_name):
+def stream_test_output(port, expected_boot_name, include_core_for_realtime=False):
     parsed_logs = []
     output_log_raw = ""
     capturing = False
@@ -148,7 +150,7 @@ def stream_test_output(port, expected_boot_name):
                 break
 
             if capturing:
-                parsed_record = parse_trace_record(line)
+                parsed_record = parse_trace_record(line, include_core_for_realtime)
                 if parsed_record is not None:
                     parsed_logs.append(parsed_record)
 
@@ -268,9 +270,10 @@ def run_test(test_id, test_case):
         port = auto_detect_port()
 
     expected_boot_name = build_expected_boot_name(test_id, test_case)
+    include_core_for_realtime = test_case.get("suite") == "SMP"
 
     try:
-        trace_result = stream_test_output(port, expected_boot_name)
+        trace_result = stream_test_output(port, expected_boot_name, include_core_for_realtime)
 
     except serial.SerialException as e:
         clear_status()
