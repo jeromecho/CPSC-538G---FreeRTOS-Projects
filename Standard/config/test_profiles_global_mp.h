@@ -1,8 +1,10 @@
-#ifndef TEST_PROFILES_MP_H
-#define TEST_PROFILES_MP_H
+#ifndef TEST_PROFILES_GLOBAL_MP_H
+#define TEST_PROFILES_GLOBAL_MP_H
 
-#ifdef TEST_NR
+#include "ProjectConfig.h"
 
-#endif // TEST_NR
+#if TEST_SUITE == TEST_SUITE_GLOBAL_MP
 
-#endif // TEST_PROFILES_MP_H
+#endif // TEST_SUITE == TEST_SUITE_GLOBAL_MP
+
+#endif // TEST_PROFILES_GLOBAL_MP_H

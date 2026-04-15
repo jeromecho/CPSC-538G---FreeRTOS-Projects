@@ -209,7 +209,7 @@ BaseType_t SRP_create_aperiodic_task(
     &handle,
     NULL,
     true,
-    configNUMBER_OF_CORES
+    0
   );
 
   if (result == pdPASS) {

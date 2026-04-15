@@ -27,14 +27,14 @@ void vSRPTest1Task1(void *pvParameters) {
     {1,  TASK_TAKE_SEMAPHORE, 0},
     {30, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest1Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
     {1,   TASK_TAKE_SEMAPHORE, 0},
     {100, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void srp_test_1() {
   const AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
@@ -68,28 +68,28 @@ void vSRPTest2Task1(void *pvParameters) {
     {273, TASK_TAKE_SEMAPHORE, 2}, // Take Yellow (R2)
     {318, TASK_GIVE_SEMAPHORE, 2}, // Give Yellow (R2)
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest2Task2(void *pvParameters) {
   const TaskStep_t steps[] = {
     {93,  TASK_TAKE_SEMAPHORE, 1}, // Take Blue (R1)
     {202, TASK_GIVE_SEMAPHORE, 1}, // Give Blue (R1)
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest2Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
     {90,  TASK_TAKE_SEMAPHORE, 2}, // Take Yellow (R2)
     {199, TASK_GIVE_SEMAPHORE, 2}, // Give Yellow (R2)
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest2Task4(void *pvParameters) {
   const TaskStep_t steps[] = {
     {93,  TASK_TAKE_SEMAPHORE, 0}, // Take Red (R0)
     {250, TASK_GIVE_SEMAPHORE, 0}, // Give Red (R0)
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void srp_test_2() {
   const AperiodicTaskParams_t test_config[MAXIMUM_APERIODIC_TASKS] = {
@@ -178,14 +178,14 @@ void vSRPTest7Task1(void *pvParameters) {
     {1, TASK_TAKE_SEMAPHORE, 0},
     {2, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest7Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
     {1, TASK_TAKE_SEMAPHORE, 0},
     {4, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void srp_test_7() {
   const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -207,14 +207,14 @@ void vSRPTest8Task1(void *pvParameters) {
     {1, TASK_TAKE_SEMAPHORE, 0},
     {2, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest8Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
     {1,  TASK_TAKE_SEMAPHORE, 0},
     {10, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void srp_test_8() {
   const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
@@ -236,14 +236,14 @@ void vSRPTest9Task1(void *pvParameters) {
     {1, TASK_TAKE_SEMAPHORE, 0},
     {3, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest9Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
     {1, TASK_TAKE_SEMAPHORE, 0},
     {7, TASK_GIVE_SEMAPHORE, 0},
   };
-  EXECUTE_WORKLOAD(steps, (TickType_t)pvParameters);
+  EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void srp_test_9() {
   const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {

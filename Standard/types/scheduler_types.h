@@ -1,8 +1,9 @@
 #ifndef SCHEDULER_TYPES_H
 #define SCHEDULER_TYPES_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
-#include "ProjectConfig.h"
+#include "FreeRTOS.h"          // IWYU pragma: keep
+#include "config/TestConfig.h" // IWYU pragma: keep
+#include "task.h"
 
 #if USE_EDF
 
@@ -25,7 +26,6 @@ typedef struct TMB_t {
   TaskHandle_t handle;
   bool         is_done;
   bool         is_hard_rt;
-  bool         is_suspended; // State flag reflecting calls to suspend in real-time
 
   // --- Common Scheduling Data ---
   TickType_t release_time;

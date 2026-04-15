@@ -124,8 +124,10 @@ BaseType_t SMP_create_aperiodic_task_on_core(
 }
 
 TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core) {
-  TMB_t *periodic_candidate  = scheduler_highest_priority_candidate(periodic_tasks[core], periodic_task_count[core]);
-  TMB_t *aperiodic_candidate = scheduler_highest_priority_candidate(aperiodic_tasks[core], aperiodic_task_count[core]);
+  TMB_t *periodic_candidate =
+    scheduler_highest_priority_candidate(periodic_tasks[core], periodic_task_count[core], NULL);
+  TMB_t *aperiodic_candidate =
+    scheduler_highest_priority_candidate(aperiodic_tasks[core], aperiodic_task_count[core], NULL);
 
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
     return NULL;

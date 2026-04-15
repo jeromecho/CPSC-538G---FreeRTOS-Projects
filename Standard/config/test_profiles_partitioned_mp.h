@@ -1,7 +1,9 @@
-#ifndef TEST_PROFILES_MP_H
-#define TEST_PROFILES_MP_H
+#ifndef TEST_PROFILES_PARTITIONED_MP_H
+#define TEST_PROFILES_PARTITIONED_MP_H
 
-#ifdef TEST_NR
+#include "ProjectConfig.h"
+
+#if TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 
 #if TEST_NR == 1
 #define MAXIMUM_PERIODIC_TASKS  4
@@ -9,8 +11,8 @@
 #define TEST_DURATION_TICKS     11
 #else
 #error "Invalid or undefined TEST_NR for EDF profile"
-#endif
-
 #endif // TEST_NR
 
-#endif // TEST_PROFILES_MP_H
+#endif // TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+
+#endif // TEST_PROFILES_PARTITIONED_MP_H

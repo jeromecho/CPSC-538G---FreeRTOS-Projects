@@ -132,8 +132,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
-  task_tmb->is_done      = true;
-  task_tmb->is_suspended = true;
+  task_tmb->is_done = true;
   scheduler_suspend_task(task_tmb);
 
 #if USE_SRP
@@ -174,7 +173,6 @@ BaseType_t _create_task_internal(
     return pdFAIL;
   }
 
-  new_task->is_suspended  = true;
   new_task->handle        = task_handle;
   new_task->task_function = task_function;
   new_task->stack_buffer  = stack_buffer;
@@ -562,8 +560,7 @@ void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, con
 
     // Checks if the release time for a task has arrived
     const bool released_this_tick = (task->release_time == current_tick);
-    const bool task_suspended     = task->is_suspended;
-    if (released_this_tick && task_suspended) {
+    if (released_this_tick) {
       scheduler_record_release(task);
     }
   }
@@ -579,6 +576,7 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bo
     TMB_t *task = &tasks[i];
 
     // Skip tasks that are done or haven't been released yet
+    // if (task->is_done || current_tick < task->release_time) {
     if (task->is_done || current_tick < task->release_time || (is_eligible != NULL && !is_eligible(task))) {
       continue;
     }
@@ -653,7 +651,6 @@ static bool should_context_switch(const TMB_t *const highest_priority_task) {
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   TMB_t             *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
 
-  TickType_t count = xTaskGetTickCount();
   if (highest_priority_task == NULL) {
     // No EDF tasks want to run.
     // We only need to update if an EDF task is currently running and needs to be stopped.
@@ -671,6 +668,8 @@ static bool should_context_switch(const TMB_t *const highest_priority_task) {
   const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
   if (equal_deadlines && !current_task_tmb->is_done &&
       (current_task_tmb->is_hard_rt && highest_priority_task->is_hard_rt)) {
+    // const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
+    // if (equal_deadlines && !current_task_tmb->is_done) {
     return false;
   }
 
