@@ -2337,7 +2337,7 @@ TEST_CASES = {
     },
     "SMP3": {
         "name": "100 Tasks NON-ADMISSIBLE",
-        "expected_admission_failure": "Periodic 34",
+        "expected_admission_failure": "Periodic 34 C0",
         "ignore_traces": True,
         "expected_events": {},
     },

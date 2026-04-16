@@ -10,7 +10,6 @@
 #define TEST_SUITE 3
 #define TEST_NR    18
 
-#define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0
 
