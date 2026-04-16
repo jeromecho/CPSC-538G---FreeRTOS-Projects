@@ -50,7 +50,7 @@ typedef enum {
 /// @brief Collection of an action and any corresponding data necessary to complete that action
 typedef struct {
   const TickType_t relative_tick; // When to execute the action relative to when the workload was started. For example,
-                                  // a relative tick of 1 means "during the first tick of execution"
+                                  // a relative tick of 0 means "at the start of the first tick of execution"
   const TaskAction_t action;      // Which action to execute
   union {
     const int semaphore_index;
@@ -58,8 +58,8 @@ typedef struct {
 } TaskStep_t;
 
 typedef struct {
-  const TickType_t  completion_time;
-  const TaskStep_t *task_actions;
+  const TickType_t        completion_time;
+  const TaskStep_t *const task_actions;
 } TaskWorkload_t;
 
 #define LEN(x) (sizeof(x) / sizeof((x)[0]))

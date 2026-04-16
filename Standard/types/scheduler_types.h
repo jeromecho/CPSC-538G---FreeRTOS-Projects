@@ -39,6 +39,9 @@ typedef struct TMB_t {
   // --- Task Parameters ---
   SchedulerParameters_t parameters;
 
+  // --- Execution Tracking ---
+  volatile TickType_t ticks_executed; // Incremented by scheduler in vApplicationTickHook when task is running
+
   // --- SRP-specific Data ---
 #if USE_SRP
   unsigned int preemption_level;

@@ -18,8 +18,8 @@ BAUD_RATE = 115200
 TRACE_RUN_BANNERS = (
     "Running EDF Test",
     "Running SRP Test",
+    "Running CBS Test",
     "Running SMP Test",
-    # "Running CBS Test",
 )
 EXPECTED_HEADERS = {
     "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
@@ -31,9 +31,6 @@ DEFAULT_TRACE_TITLE = "FreeRTOS Scheduling Trace"
 UINT32_MAX = 4294967295
 
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
-
-MIN_EXECUTION_BAR_WIDTH = 0.6
-END_ALIGNED_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SWITCH_OUT, TraceEvent.TRACE_SUSPENDED}
 
 TASK_COLOR_PALETTE = qualitative.Plotly + qualitative.Dark24 + qualitative.Alphabet
 
@@ -208,26 +205,7 @@ def build_task_color_map(task_names):
 
 
 def build_marker_display_x(df, df_exec):
-    display_x = df["TIMESTAMP"].astype(float).copy()
-
-    if df_exec.empty:
-        return display_x
-
-    zero_duration_segments = df_exec[(df_exec["DURATION"] == 0) & (~df_exec["TASK_NAME"].map(is_background_task_name))]
-    if zero_duration_segments.empty:
-        return display_x
-
-    offset_keys = {(int(row_data["CORE"]), row_data["TASK_NAME"], int(row_data["END_TICK"])) for _, row_data in zero_duration_segments.iterrows()}
-
-    for index, row_data in df.iterrows():
-        if row_data["EVENT"] not in END_ALIGNED_EVENTS:
-            continue
-
-        key = (int(row_data["CORE"]), row_data["TASK_NAME"], int(row_data["TIMESTAMP"]))
-        if key in offset_keys:
-            display_x.at[index] = float(row_data["TIMESTAMP"]) + MIN_EXECUTION_BAR_WIDTH
-
-    return display_x
+    return df["TIMESTAMP"].astype(float).copy()
 
 
 def parse_trace_dataframe(csv_data):
@@ -353,9 +331,6 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=Non
     for _, row_data in background_rows + foreground_rows:
         us_duration = row_data["ABS_END"] - row_data["ABS_START"]
         duration = int(row_data["DURATION"])
-        rendered_duration = float(duration)
-        if duration == 0 and not is_background_task_name(row_data["TASK_NAME"]):
-            rendered_duration = MIN_EXECUTION_BAR_WIDTH
         hover_lines = [
             f"<b>{row_data['TASK_NAME']}</b>",
             f"Core: {row_data['CORE']}",
@@ -370,7 +345,7 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=Non
 
         trace = go.Bar(
             base=[row_data["START_TICK"]],
-            x=[rendered_duration],
+            x=[float(duration)],
             y=[y_map_func(row_data)],
             orientation="h",
             marker=dict(color=task_colors[row_data["TASK_NAME"]], line=dict(color="black", width=1)),

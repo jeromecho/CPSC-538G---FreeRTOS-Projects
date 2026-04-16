@@ -132,60 +132,66 @@ void build_aperiodic_test( //
 
 /// @brief Execute for a series of ticks without marking as done
 void execute_for_ticks(const TickType_t execution_ticks) {
-  TickType_t time_executed = 0;
-  TickType_t previous_tick = -1;
-  while (time_executed < execution_ticks) {
-    const TickType_t current_tick = xTaskGetTickCount();
-    if (current_tick != previous_tick) {
-      time_executed += 1;
-      previous_tick = current_tick;
-    }
+  TaskHandle_t self_handle = xTaskGetCurrentTaskHandle();
+  TMB_t       *self_tmb    = EDF_get_task_by_handle(self_handle);
+  configASSERT(self_tmb != NULL);
+  const TickType_t start_ticks_executed = self_tmb->ticks_executed;
+  TickType_t       elapsed_ticks        = 0;
+
+  while (elapsed_ticks < execution_ticks) {
+    elapsed_ticks = self_tmb->ticks_executed - start_ticks_executed;
   }
 }
 
 /// @brief Executes a series of steps defined for a given test. Verifies that the total execution time for the task
-/// matches the intended completion time
+/// matches the intended completion time.
+/// The task's execution time is tracked by the scheduler in vApplicationTickHook, which increments ticks_executed
+/// whenever the task is running at tick boundaries. This prevents double-counting during preemption.
 void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps) {
   // Ensure that none of the actions are scheduled to happen:
   // - Before the first tick of the task's execution
   // - After completion time
   for (size_t i = 0; i < num_steps; i++) {
     const TaskStep_t *action = &task_workload->task_actions[i];
-    configASSERT(action->relative_tick > 0);
+    configASSERT(action->relative_tick >= 0);
     configASSERT(action->relative_tick <= task_workload->completion_time);
   }
 
-  size_t     action_index  = 0;
-  TickType_t time_executed = 0;
-  TickType_t previous_tick = -1;
-  while (time_executed < task_workload->completion_time) {
-    const TickType_t current_tick = xTaskGetTickCount();
-    if (current_tick != previous_tick) {
-      time_executed += 1;
-      previous_tick = current_tick;
+  size_t action_index = 0;
 
-      if (action_index >= num_steps) {
-        continue;
-      }
+  // Get access to the current task's TMB structure to read ticks_executed
+  TaskHandle_t self_handle = xTaskGetCurrentTaskHandle();
+  TMB_t       *self_tmb    = EDF_get_task_by_handle(self_handle);
+  configASSERT(self_tmb != NULL);
+  const TickType_t start_ticks_executed = self_tmb->ticks_executed;
+  TickType_t       elapsed_ticks        = 0;
 
+  while (elapsed_ticks < task_workload->completion_time) {
+    // Read the scheduler-managed execution counter.
+    // The scheduler increments this in vApplicationTickHook when the task is running.
+    elapsed_ticks = self_tmb->ticks_executed - start_ticks_executed;
+
+    // Execute any actions at the current relative_tick.
+    while (action_index < num_steps) {
       const TaskStep_t *next_step = &task_workload->task_actions[action_index];
-      if (next_step->relative_tick == time_executed) {
-        action_index += 1;
-        switch (next_step->action) {
-#if TEST_SUITE == TEST_SUITE_SRP
-        case TASK_TAKE_SEMAPHORE:
-          SRP_take_binary_semaphore(next_step->semaphore_index);
-          break;
-
-        case TASK_GIVE_SEMAPHORE:
-          SRP_give_binary_semaphore(next_step->semaphore_index);
-          break;
-#endif
-
-        default:
-          break;
-        }
+      if (next_step->relative_tick != elapsed_ticks) {
+        break; // No more actions at this relative_tick
       }
+
+      switch (next_step->action) {
+#if TEST_SUITE == TEST_SUITE_SRP
+      case TASK_TAKE_SEMAPHORE:
+        SRP_take_binary_semaphore(next_step->semaphore_index);
+        break;
+
+      case TASK_GIVE_SEMAPHORE:
+        SRP_give_binary_semaphore(next_step->semaphore_index);
+        break;
+#endif
+      default:
+        break;
+      }
+      action_index += 1;
     }
   }
 

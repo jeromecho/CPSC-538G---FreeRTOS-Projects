@@ -132,8 +132,9 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
 
-  task_tmb->is_done = true;
-  scheduler_suspend_task(task_tmb);
+  task_tmb->is_done        = true;
+  task_tmb->ticks_executed = 0;
+  // scheduler_suspend_task(task_tmb);
 
 #if USE_SRP
   task_tmb->has_started = false;
@@ -141,6 +142,8 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 #endif // USE_SRP
 
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb, false);
+
+  scheduler_suspend_and_resume_tasks();
 
   taskEXIT_CRITICAL();
 }
@@ -183,6 +186,7 @@ BaseType_t _create_task_internal(
   new_task->is_done         = false;
   new_task->is_hard_rt      = is_hard_rt;
   new_task->completion_time = parameters.completion_time;
+  new_task->ticks_executed  = 0;
 
   // Pin task to specified core before any trace events are recorded
 #if USE_MP
@@ -251,7 +255,6 @@ BaseType_t _create_periodic_task_internal(
     new_task->release_time         = current_tick;
     new_task->periodic.next_period = current_tick + period;
     new_task->absolute_deadline    = current_tick + relative_deadline;
-    TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_PERIODIC, new_task, false);
   } else {
     TickType_t release_time        = calculate_release_time_for_new_task(period, task_array, *task_count);
     new_task->release_time         = release_time;
@@ -316,10 +319,6 @@ BaseType_t _create_aperiodic_task_internal(
 
   new_task->release_time      = release_time;
   new_task->absolute_deadline = release_time + relative_deadline;
-
-  if (release_time == current_tick) {
-    TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_APERIODIC, new_task, false);
-  }
 
   scheduler_suspend_task(new_task);
 
@@ -499,14 +498,14 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
 
 void starting_scheduler(void *xIdleTaskHandles) {
   TaskHandle_t *idle_task_handles = (TaskHandle_t *)xIdleTaskHandles;
+  (void)idle_task_handles;
 
-#if USE_CBS && !(USE_MP && USE_PARTITIONED)
-  // Ensure CBS jobs released at tick 0 are visible before the first dispatch.
-  // Without this, first CBS release is delayed until the first tick hook.
+#if USE_CBS
   CBS_release_tasks();
-  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
-#endif
+#endif // USE_CBS
 
+  scheduler_check_deadlines_and_record_releases(periodic_tasks, periodic_task_count);
+  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
   scheduler_suspend_and_resume_tasks();
 }
 
@@ -561,7 +560,7 @@ void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, con
     const TickType_t   current_tick = xTaskGetTickCountFromISR();
 
     // Checks if the task has missed its deadline
-    const bool deadline_missed = (current_tick >= task->absolute_deadline);
+    const bool deadline_missed = (current_tick > task->absolute_deadline);
     if (!task_done && deadline_missed && task->is_hard_rt) {
       scheduler_register_deadline_miss(task);
     }
@@ -584,7 +583,6 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bo
     TMB_t *task = &tasks[i];
 
     // Skip tasks that are done or haven't been released yet
-    // if (task->is_done || current_tick < task->release_time) {
     if (task->is_done || current_tick < task->release_time || (is_eligible != NULL && !is_eligible(task))) {
       continue;
     }
@@ -676,8 +674,6 @@ static bool should_context_switch(const TMB_t *const highest_priority_task) {
   const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
   if (equal_deadlines && !current_task_tmb->is_done &&
       (current_task_tmb->is_hard_rt && highest_priority_task->is_hard_rt)) {
-    // const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
-    // if (equal_deadlines && !current_task_tmb->is_done) {
     return false;
   }
 
@@ -754,14 +750,25 @@ void scheduler_register_deadline_miss(const TMB_t *const task) {
 
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
+  // Record execution time for the task that ran this tick
+  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  TMB_t       *current_task        = NULL;
+
+  if (current_task_handle != NULL) {
+    current_task = EDF_get_task_by_handle(current_task_handle);
+    if (current_task != NULL) {
+      current_task->ticks_executed += 1;
+    }
+  }
+
   reschedule_periodic_tasks();
 
 #if USE_CBS
   CBS_release_tasks();
-  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  TMB_t       *current_task        = EDF_get_task_by_handle(current_task_handle);
   // INVARIANT: current_task was the task that ran for the last tick
-  CBS_update_budget(current_task);
+  if (current_task != NULL) {
+    CBS_update_budget(current_task);
+  }
 #endif // USE_CBS
 
 #if USE_MP && USE_PARTITIONED

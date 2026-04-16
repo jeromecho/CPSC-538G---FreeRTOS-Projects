@@ -76,6 +76,8 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
   TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task, false);
 
+  scheduler_suspend_and_resume_tasks();
+
   taskEXIT_CRITICAL();
   return pdTRUE;
 }
@@ -96,6 +98,8 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
   if (highest_priority_task != current_task) {
     scheduler_suspend_task(current_task);
   }
+
+  scheduler_suspend_and_resume_tasks();
 
   taskEXIT_CRITICAL();
 }

@@ -24,14 +24,14 @@
 /// - Task 1 (High) arrives, preempts, and interacts with the resource.
 void vSRPTest1Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1,  TASK_TAKE_SEMAPHORE, 0},
+    {0,  TASK_TAKE_SEMAPHORE, 0},
     {30, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest1Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1,   TASK_TAKE_SEMAPHORE, 0},
+    {0,   TASK_TAKE_SEMAPHORE, 0},
     {100, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
@@ -175,15 +175,15 @@ void srp_test_6() { srp_test_5(); }
 #if TEST_NR == 7
 void vSRPTest7Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1, TASK_TAKE_SEMAPHORE, 0},
-    {2, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {1, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest7Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1, TASK_TAKE_SEMAPHORE, 0},
-    {4, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {3, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
@@ -204,15 +204,15 @@ void srp_test_7() {
 #if TEST_NR == 8
 void vSRPTest8Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1, TASK_TAKE_SEMAPHORE, 0},
-    {2, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {1, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest8Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1,  TASK_TAKE_SEMAPHORE, 0},
-    {10, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {9, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
@@ -233,15 +233,15 @@ void srp_test_8() {
 #if TEST_NR == 9
 void vSRPTest9Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1, TASK_TAKE_SEMAPHORE, 0},
-    {3, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {2, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }
 void vSRPTest9Task3(void *pvParameters) {
   const TaskStep_t steps[] = {
-    {1, TASK_TAKE_SEMAPHORE, 0},
-    {7, TASK_GIVE_SEMAPHORE, 0},
+    {0, TASK_TAKE_SEMAPHORE, 0},
+    {6, TASK_GIVE_SEMAPHORE, 0},
   };
   EXECUTE_WORKLOAD(steps, ((const SchedulerParameters_t *)pvParameters)->completion_time);
 }

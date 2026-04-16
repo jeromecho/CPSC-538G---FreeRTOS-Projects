@@ -47,7 +47,7 @@ typedef struct {
   TickType_t          Qs;
   TickType_t          Ts;
   TickType_t          cs; // budget
-  TickType_t          last_budget_accounted_tick;
+  // TickType_t          last_budget_accounted_tick;
   Queue_t             aperiodic_tasks;
   AperiodicTaskFunc_t aperiodic_tasks_storage[CBS_QUEUE_CAPACITY];
   TMB_t              *tmb_handle;

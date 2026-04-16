@@ -7,8 +7,8 @@
 #define TEST_SUITE_PARTITIONED_MP 4
 #define TEST_SUITE_GLOBAL_MP      5
 
-#define TEST_SUITE 4
-#define TEST_NR    1
+#define TEST_SUITE 3
+#define TEST_NR    18
 
 #define SHARED_STACK_SIZE         (configMINIMAL_STACK_SIZE)
 #define MAX_TRACE_RECORDS         1000
