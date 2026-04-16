@@ -23,30 +23,34 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
-add_executable(main_blinky
+set(MY_SOURCES
         main.c
         main_blinky.c
-        
+
         edf_scheduler.c
         srp.c
         smp_partitioned.c
         smp_global.c
         admission_control.c
-        
+
         tracer.c
         helpers.c
 
         cbs.c
 
         data_structures/queue.c
-        
+
         testing/testing.c
         testing/edf_tests.c
         testing/partitioned_mp_tests.c
         testing/srp_tests.c
         testing/cbs_tests.c
-        )
-    
+)
+
+add_executable(main_blinky ${MY_SOURCES})
+
+set_source_files_properties(${MY_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wundef;-Werror=undef")
+
 pico_enable_stdio_uart(main_blinky 0)
 pico_enable_stdio_usb(main_blinky 1)
 

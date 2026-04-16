@@ -5,7 +5,7 @@
 
 #if USE_MP
 
-#include "FreeRTOS.h" // IWYU pragma: keep
+#include "FreeRTOS_include.h"
 #include "scheduler_internal.h"
 
 BaseType_t SMP_create_periodic_task_on_core(

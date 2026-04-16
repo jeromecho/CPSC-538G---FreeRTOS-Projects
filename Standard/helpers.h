@@ -1,8 +1,7 @@
-#include "FreeRTOS.h" // IWYU pragma: keep
-#include "scheduler_internal.h"
-
 #ifndef HELPERS_H
 #define HELPERS_H
+
+#include "types/scheduler_types.h"
 
 TickType_t gcd(TickType_t a, TickType_t b);
 TickType_t lcm(const TickType_t a, const TickType_t b);

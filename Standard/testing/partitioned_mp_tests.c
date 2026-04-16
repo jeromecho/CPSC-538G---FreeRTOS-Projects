@@ -5,7 +5,6 @@
 #include "partitioned_mp_tests.h"
 #include "testing.h"
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 
 #if TEST_NR == 1
@@ -21,6 +20,6 @@ void partitioned_mp_test_1() {
 
   build_periodic_test("SMP Test 1", test_config, MAXIMUM_PERIODIC_TASKS);
 }
-#endif
+#endif // TEST_NR == 1
 
 #endif // TEST_SUITE == TEST_SUITE_MP

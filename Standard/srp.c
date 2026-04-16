@@ -1,12 +1,17 @@
-#include "srp.h"
+#include "ProjectConfig.h"
 
 #if USE_SRP
 
-#include "admission_control.h"
+#include "srp.h"
+
 #include "edf_scheduler.h"
-#include "helpers.h"
 #include "scheduler_internal.h"
 #include "tracer.h"
+
+#include "config/TestConfig.h"
+#if PERFORM_ADMISSION_CONTROL
+#include "admission_control.h"
+#endif
 
 #include <stdio.h>
 #include <string.h> // For memcpy

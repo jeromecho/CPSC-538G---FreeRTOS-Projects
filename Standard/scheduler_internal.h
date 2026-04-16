@@ -1,10 +1,9 @@
 #ifndef SCHEDULER_INTERNAL_H
 #define SCHEDULER_INTERNAL_H
 
-#include "FreeRTOS.h"
+#include "FreeRTOS_include.h"
 #include "ProjectConfig.h"
 #include "config/TestConfig.h" // IWYU pragma: keep
-#include "task.h"
 #include "types/scheduler_types.h"
 
 BaseType_t _create_task_internal(

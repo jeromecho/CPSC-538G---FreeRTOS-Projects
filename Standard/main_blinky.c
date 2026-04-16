@@ -64,9 +64,7 @@
 #include "main_blinky.h"
 
 /* Kernel includes. */
-#include "FreeRTOS.h" // IWYU pragma: keep
-#include "semphr.h"
-#include "task.h"
+#include "FreeRTOS_include.h"
 
 /* Library includes. */
 #include "hardware/gpio.h"
@@ -77,6 +75,7 @@
 #include "helpers.h"
 #include "tracer.h"
 
+#include "config/TestConfig.h" // IWYU pragma: keep
 #if TEST_SUITE == TEST_SUITE_EDF
 #include "testing/edf_tests.h" // IWYU pragma: keep
 
@@ -164,7 +163,7 @@ void main_blinky(void) {
   }
 
 #if USE_MP
-  pin_task_to_core(monitor_task_handle, 0);
+  vTaskCoreAffinitySet(monitor_task_handle, (1 << 0));
 #endif
 
 #if (configUSE_CORE_AFFINITY == 1)

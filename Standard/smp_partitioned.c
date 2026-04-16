@@ -1,8 +1,8 @@
-#include "smp_partitioned.h"
-
 #include "ProjectConfig.h"
 
 #if USE_MP && USE_PARTITIONED
+
+#include "smp_partitioned.h"
 
 #include "edf_scheduler.h"
 #include "helpers.h"

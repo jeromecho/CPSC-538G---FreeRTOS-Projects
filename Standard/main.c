@@ -42,7 +42,7 @@
  */
 
 /* Scheduler include files. */
-#include "FreeRTOS.h"
+#include "FreeRTOS_include.h"
 #include "semphr.h"
 #include "task.h"
 

@@ -5,9 +5,10 @@
 
 #if USE_SRP
 
-#include "FreeRTOS.h" // IWYU pragma: keep
-#include "scheduler_internal.h"
+#include "FreeRTOS_include.h"  // IWYU pragma: keep
+#include "config/TestConfig.h" // IWYU pragma: keep
 #include "task.h"
+#include "types/scheduler_types.h"
 
 #define MAX_SRP_NESTING (N_PREEMPTION_LEVELS + N_RESOURCES)
 

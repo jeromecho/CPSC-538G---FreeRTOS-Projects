@@ -1,7 +1,6 @@
 #include "testing.h"
 
 #include "edf_scheduler.h"
-#include "helpers.h"
 
 #include <stdio.h>
 

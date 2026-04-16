@@ -1,7 +1,8 @@
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #ifndef ADMISSION_CONTROL_H
 #define ADMISSION_CONTROL_H
+
+#include "FreeRTOS_include.h" // IWYU pragma: keep
 
 // NB: we seem to treat aperiodic tasks as soft real-time tasks, so current
 // admission control implementation only operates over periodic tasks

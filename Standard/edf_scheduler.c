@@ -1,8 +1,10 @@
 #include "edf_scheduler.h"
 
 #include "ProjectConfig.h"
+
 #include "admission_control.h"
 #include "helpers.h"
+#include "scheduler_internal.h"
 #include "tracer.h"
 
 #if TRACE_WITH_LOGIC_ANALYZER

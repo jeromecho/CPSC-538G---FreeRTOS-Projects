@@ -2,12 +2,9 @@
 
 #if TEST_SUITE == TEST_SUITE_CBS
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #include "cbs.h"
 #include "edf_scheduler.h"
-#include "helpers.h"
 #include "testing.h"
-#include <stdio.h>
 
 
 ; // ================================
