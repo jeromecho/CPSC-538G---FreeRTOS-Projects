@@ -87,8 +87,15 @@ BaseType_t create_cbs_server(int Qs, int Ts, int cbs_id) {
   char pcTaskName[20];
   sprintf(pcTaskName, "CBS Server %d", cbs_id);
 
-  CBS_create_master_task(
-    CBS_master_task, pcTaskName, portMAX_DELAY, 0, pxServer->dsk, &pxServer->tmb_handle, (void *)pxServer, false
+  CBS_create_master_task( //
+    CBS_master_task,
+    pcTaskName,
+    portMAX_DELAY,
+    portMAX_DELAY,
+    pxServer->dsk,
+    &pxServer->tmb_handle,
+    (void *)pxServer,
+    false
   );
   // Newly created CBS server should not be considered for execution
   pxServer->tmb_handle->is_done = true;
