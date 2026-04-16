@@ -166,28 +166,8 @@ void SMP_partitioned_record_releases(void) {
 }
 
 void SMP_partitioned_suspend_and_resume_tasks(void) {
-  TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
-
   for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
-
-    for (size_t i = 0; i < periodic_task_count[core]; ++i) {
-      TMB_t *const task = &periodic_tasks[core][i];
-      if (task != highest_priority_task) {
-        scheduler_suspend_task(task);
-      }
-    }
-
-    for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
-      TMB_t *const task = &aperiodic_tasks[core][i];
-      if (task != highest_priority_task) {
-        scheduler_suspend_task(task);
-      }
-    }
-
-    if (highest_priority_task != NULL) {
-      scheduler_resume_task(highest_priority_task);
-    }
+    scheduler_suspend_and_resume_tasks(core);
   }
 }
 

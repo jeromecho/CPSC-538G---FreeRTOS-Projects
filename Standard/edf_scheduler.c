@@ -62,7 +62,6 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 
 static void       scheduler_reschedule_periodic_tasks();
 static TMB_t     *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
-static bool       should_context_switch(const TMB_t *const highest_priority_task);
 static TickType_t calculate_release_time_for_new_task(TickType_t new_period, const TMB_t *tasks, const size_t count);
 
 #if TRACE_WITH_LOGIC_ANALYZER
@@ -131,15 +130,14 @@ TMB_t *scheduler_produce_highest_priority_task() {
 /// @brief Performs all necessary logic to inform the scheduler that a task has finished its execution. Note that
 /// calling this function causes the calling task to be suspended.
 void EDF_mark_task_done(TaskHandle_t task_handle) {
-  // This call to ENTER_CRITICAL is necessary both to prevent race conditions, where a task might get preempted in the
-  // middle of calling this function, but also because of the calls to vTaskSuspend and vTaskPrioritySet in the middle
-  // of it, which would otherwise cause the scheduler to perform a context switch immediately
+  // This call to ENTER_CRITICAL is necessary to prevent a task from getting preempted in the
+  // middle of calling this function.
+  taskENTER_CRITICAL();
+
   if (task_handle == NULL) {
     task_handle = xTaskGetCurrentTaskHandle();
   }
   configASSERT(task_handle != NULL);
-
-  taskENTER_CRITICAL();
 
   TMB_t *const task_tmb = EDF_get_task_by_handle(task_handle);
   configASSERT(task_tmb != NULL);
@@ -165,7 +163,8 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
   TRACE_record(EVENT_BASIC(TRACE_DONE), TRACE_TASK_EITHER, task_tmb, false);
 
-  scheduler_suspend_and_resume_tasks();
+  const size_t core = portGET_CORE_ID();
+  scheduler_suspend_and_resume_tasks(core);
 
   taskEXIT_CRITICAL();
 }
@@ -492,25 +491,29 @@ TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks
 // TODO: Some way of providing the task type to speed up the function, if only looking for periodic tasks or only
 // looking for aperiodic tasks?
 /// @brief Helper function to get the TMB of a task by its task handle
-TMB_t *EDF_get_task_by_handle(const TaskHandle_t handle) {
+TMB_t *EDF_get_task_by_handle(const TaskHandle_t task_handle) {
+  if (task_handle == NULL) {
+    return NULL;
+  }
+
   TMB_t *candidate = NULL;
 
 #if USE_MP && USE_PARTITIONED
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    candidate = scheduler_search_array_for_handle(handle, periodic_tasks[core], periodic_task_count[core]);
+    candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks[core], periodic_task_count[core]);
     if (candidate)
       return candidate;
 
-    candidate = scheduler_search_array_for_handle(handle, aperiodic_tasks[core], aperiodic_task_count[core]);
+    candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks[core], aperiodic_task_count[core]);
     if (candidate)
       return candidate;
   }
 #else
-  candidate = scheduler_search_array_for_handle(handle, periodic_tasks, periodic_task_count);
+  candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks, periodic_task_count);
   if (candidate)
     return candidate;
 
-  candidate = scheduler_search_array_for_handle(handle, aperiodic_tasks, aperiodic_task_count);
+  candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks, aperiodic_task_count);
   if (candidate)
     return candidate;
 #endif
@@ -529,14 +532,14 @@ void starting_scheduler(void *xIdleTaskHandles) {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_check_deadlines();
   SMP_partitioned_record_releases();
+  SMP_partitioned_suspend_and_resume_tasks();
 #else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
   scheduler_record_releases(periodic_tasks, periodic_task_count);
   scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_suspend_and_resume_tasks(0);
 #endif
-
-  scheduler_suspend_and_resume_tasks();
 }
 
 ; // ==================================
@@ -637,10 +640,8 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bo
 }
 
 /// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
-void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task) {
+void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core) {
 #if USE_MP && USE_PARTITIONED
-  const UBaseType_t core = (UBaseType_t)portGET_CORE_ID();
-
   for (size_t i = 0; i < periodic_task_count[core]; ++i) {
     TMB_t *const task = &periodic_tasks[core][i];
     if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
@@ -680,18 +681,17 @@ void scheduler_record_release(const TMB_t *const task) {
 }
 
 /// @brief produce true if currently running task is different from the highest priority task
-static bool should_context_switch(const TMB_t *const highest_priority_task) {
-#if USE_MP && USE_PARTITIONED
-  (void)highest_priority_task;
-  return true;
-#else
-  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  TMB_t             *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
+bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core) {
+  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandleForCore(core);
+  TMB_t       *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
+  if (current_task_tmb != NULL) {
+    current_task_handle = current_task_tmb->handle;
+  }
 
   if (highest_priority_task == NULL) {
     // No EDF tasks want to run.
     // We only need to update if an EDF task is currently running and needs to be stopped.
-    return current_task_tmb != NULL;
+    return (current_task_tmb != NULL);
   }
 
   // If no EDF task is currently running (idle/system task is running),
@@ -709,26 +709,24 @@ static bool should_context_switch(const TMB_t *const highest_priority_task) {
   }
 
   // An EDF task wants to run. Only return true if it is not already running?
-  return highest_priority_task->handle != current_task_handle;
-#endif
+  return (highest_priority_task->handle != current_task_handle);
 }
 
-/// @brief Deprioritizes all tasks which are not currently running. If the boolean flag is set, also elevates the
-/// priority of the next task to run. This is presented as an option so that this function can be run before the
-/// scheduler has started, since increasing a task's priority to the highest one would invoke a context switch, which
-/// is very much not allowed before the scheduler has started (at least when SMP is enabled).
-void scheduler_suspend_and_resume_tasks() {
+/// @brief Deprioritizes all tasks which are not currently running.
+void scheduler_suspend_and_resume_tasks(const size_t core) {
 #if USE_MP && USE_PARTITIONED
-  SMP_partitioned_suspend_and_resume_tasks();
-#else
+  TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
+#else  // USE_MP && USE_PARTITIONED
   TMB_t *const highest_priority_task = scheduler_produce_highest_priority_task();
-  const bool   should_update         = should_context_switch(highest_priority_task);
+#endif // USE_MP && USE_PARTITIONED
+
+  const bool should_update = scheduler_should_context_switch(highest_priority_task, core);
   if (!should_update) {
     return;
   }
 
   TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
-  scheduler_suspend_lower_priority_tasks(highest_priority_task);
+  scheduler_suspend_lower_priority_tasks(highest_priority_task, core);
 
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
   // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
@@ -742,11 +740,10 @@ void scheduler_suspend_and_resume_tasks() {
       highest_priority_task->has_started = true;
       SRP_push_ceiling(highest_priority_task->preemption_level);
     }
-#endif                   // USE_SRP
+#endif // USE_SRP
 
     scheduler_resume_task(highest_priority_task);
   }
-#endif
 }
 
 /// @brief Calculates release time for dropped task
@@ -782,11 +779,9 @@ void scheduler_register_deadline_miss(const TMB_t *const task) {
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
   // Record execution time for the task that ran this tick
-  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
-  TMB_t       *current_task        = NULL;
-
-  if (current_task_handle != NULL) {
-    current_task = EDF_get_task_by_handle(current_task_handle);
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    const TaskHandle_t current_task_on_core = xTaskGetCurrentTaskHandleForCore(core);
+    TMB_t             *current_task         = EDF_get_task_by_handle(current_task_on_core);
     if (current_task != NULL) {
       current_task->ticks_executed += 1;
     }
@@ -796,7 +791,9 @@ void vApplicationTickHook(void) {
 
 #if USE_CBS
   CBS_release_tasks();
-  // INVARIANT: current_task was the task that ran for the last tick
+  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  TMB_t             *current_task        = EDF_get_task_by_handle(current_task_handle);
+  // INVARIANT: current_task is the task that ran for the last tick
   if (current_task != NULL) {
     CBS_update_budget(current_task);
   }
@@ -805,44 +802,36 @@ void vApplicationTickHook(void) {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_check_deadlines();
   SMP_partitioned_record_releases();
+  SMP_partitioned_suspend_and_resume_tasks();
 #else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
   scheduler_record_releases(periodic_tasks, periodic_task_count);
   scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_suspend_and_resume_tasks(0);
 #endif
-
-  scheduler_suspend_and_resume_tasks();
 }
 
 static void trace_task_switch(TraceEventType_t switch_event) {
-  // For some reason, when there is only one core, it is illegal to call xTaskGetIdleTaskHandle before the scheduler
-  // starts. This check makes sure that never happens (could probably be wrapped in a )
-  // const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
-  // if (!scheduler_started) {
-  //   return;
-  // }
-
-  const TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
+  configASSERT(current_task_handle != NULL);
 
   bool current_task_is_idle = false;
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
-    if (current_task == xTaskGetIdleTaskHandleForCore(core))
+    if (current_task_handle == xTaskGetIdleTaskHandleForCore(core)) {
       current_task_is_idle = true;
+    }
   }
 
-  if (current_task == NULL)
-    return;
-
 #if TRACE_WITH_LOGIC_ANALYZER
-  update_gpio_pin(idle_task, current_task, 0);
+  update_gpio_pin(idle_task, current_task_handle, 0);
 #else
   if (current_task_is_idle) {
     TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_IDLE, NULL, true);
     return;
   }
 
-  const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task);
+  const TMB_t *const current_task_tmb = EDF_get_task_by_handle(current_task_handle);
   if (current_task_tmb == NULL) {
     TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_SYSTEM, NULL, true);
     return;

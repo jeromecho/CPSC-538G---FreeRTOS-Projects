@@ -33,7 +33,7 @@ BaseType_t EDF_create_aperiodic_task(
 void EDF_periodic_task(void *pvParameters);
 void EDF_aperiodic_task(void *pvParameters);
 
-TMB_t *EDF_get_task_by_handle(TaskHandle_t handle);
+TMB_t *EDF_get_task_by_handle(const TaskHandle_t task_handle);
 void   EDF_mark_task_done(TaskHandle_t task_handle);
 
 extern TaskHandle_t monitor_task_handle;
