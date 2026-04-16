@@ -7,6 +7,8 @@
 
 #include "edf_scheduler.h"
 
+#include "helpers.h" // for crash_without_trace
+
 #include <stdio.h>
 
 static void build_periodic_tasks_on_core(
@@ -148,14 +150,19 @@ void partitioned_mp_test_9() {
   build_periodic_task("SMP Test 9 C0, Base", &base0);
   build_periodic_task("SMP Test 9 C1, Base", &base1);
 
-  TaskHandle_t runner0 = NULL;
-  TaskHandle_t runner1 = NULL;
-  xTaskCreate(
+  TaskHandle_t     runner0         = NULL;
+  TaskHandle_t     runner1         = NULL;
+  const BaseType_t runner0_created = xTaskCreate(
     vPartitionedMPTestRunner9Core0, "SMP9 Runner C0", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner0
   );
-  xTaskCreate(
+  const BaseType_t runner1_created = xTaskCreate(
     vPartitionedMPTestRunner9Core1, "SMP9 Runner C1", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner1
   );
+
+  if (runner0_created != pdPASS || runner1_created != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP9: Failed to create runner task(s)");
+  }
 
 #if (configUSE_CORE_AFFINITY == 1)
   if (runner0 != NULL) {
@@ -193,9 +200,9 @@ void partitioned_mp_test_10() {
   build_periodic_task("SMP Test 10 C0, Base", &base0);
   build_periodic_task("SMP Test 10 C1, Base", &base1);
 
-  TaskHandle_t runner0 = NULL;
-  TaskHandle_t runner1 = NULL;
-  xTaskCreate(
+  TaskHandle_t     runner0         = NULL;
+  TaskHandle_t     runner1         = NULL;
+  const BaseType_t runner0_created = xTaskCreate(
     vPartitionedMPTestRunner10Core0,
     "SMP10 Runner C0",
     configMINIMAL_STACK_SIZE,
@@ -203,7 +210,7 @@ void partitioned_mp_test_10() {
     configMAX_PRIORITIES - 1,
     &runner0
   );
-  xTaskCreate(
+  const BaseType_t runner1_created = xTaskCreate(
     vPartitionedMPTestRunner10Core1,
     "SMP10 Runner C1",
     configMINIMAL_STACK_SIZE,
@@ -211,6 +218,11 @@ void partitioned_mp_test_10() {
     configMAX_PRIORITIES - 1,
     &runner1
   );
+
+  if (runner0_created != pdPASS || runner1_created != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP10: Failed to create runner task(s); insufficient heap memory.");
+  }
 
 #if (configUSE_CORE_AFFINITY == 1)
   if (runner0 != NULL) {
