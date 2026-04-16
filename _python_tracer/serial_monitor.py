@@ -34,7 +34,6 @@ BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 
 MIN_EXECUTION_BAR_WIDTH = 0.6
 END_ALIGNED_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SWITCH_OUT, TraceEvent.TRACE_SUSPENDED}
-INCLUSIVE_DURATION_EVENTS = {TraceEvent.TRACE_DONE, TraceEvent.TRACE_SEMAPHORE_GIVE}
 
 TASK_COLOR_PALETTE = qualitative.Plotly + qualitative.Dark24 + qualitative.Alphabet
 
@@ -122,7 +121,6 @@ def get_task_name(row):
 def build_execution_segments(df):
     segments = []
     active_by_core = {}
-    inclusive_end_by_core = {}
 
     for _, row in df.iterrows():
         event = row["EVENT"]
@@ -131,7 +129,6 @@ def build_execution_segments(df):
 
         if event == TraceEvent.TRACE_SWITCH_IN:
             active_by_core[core] = row
-            inclusive_end_by_core[core] = False
             continue
 
         if event == TraceEvent.TRACE_DEADLINE_MISS:
@@ -155,11 +152,7 @@ def build_execution_segments(df):
                         }
                     )
                     del active_by_core[core]
-                    inclusive_end_by_core[core] = False
             continue
-
-        if event in INCLUSIVE_DURATION_EVENTS:
-            inclusive_end_by_core[core] = True
 
         if event != TraceEvent.TRACE_SWITCH_OUT:
             continue
@@ -183,7 +176,6 @@ def build_execution_segments(df):
                 "START_TICK": start_tick,
                 "END_TICK": end_tick,
                 "DURATION": end_tick - start_tick,
-                "INCLUSIVE_END": inclusive_end_by_core.get(core, False),
                 "ABS_START": int(in_row["ABS_TIME"]),
                 "ABS_END": int(row["ABS_TIME"]),
                 "DEADLINE": int(in_row["DEADLINE"]),
@@ -191,7 +183,6 @@ def build_execution_segments(df):
             }
         )
         del active_by_core[core]
-        inclusive_end_by_core[core] = False
 
     return pd.DataFrame(segments)
 
@@ -365,16 +356,11 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=Non
         rendered_duration = float(duration)
         if duration == 0 and not is_background_task_name(row_data["TASK_NAME"]):
             rendered_duration = MIN_EXECUTION_BAR_WIDTH
-
-        if bool(row_data.get("INCLUSIVE_END", False)):
-            duration_label = f"<{duration + 1}"
-        else:
-            duration_label = f"{duration}"
         hover_lines = [
             f"<b>{row_data['TASK_NAME']}</b>",
             f"Core: {row_data['CORE']}",
             f"Start Tick: {row_data['START_TICK']}",
-            f"Duration: {duration_label} ticks ({us_duration} us)",
+            f"Duration: {row_data['DURATION']} ticks ({us_duration} us)",
             f"Abs Start: {row_data['ABS_START']} us",
         ]
         if row_data["DEADLINE"] != UINT32_MAX:
