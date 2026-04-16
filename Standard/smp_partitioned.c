@@ -1,23 +1,25 @@
-#include "smp_partitioned.h"
-
 #include "ProjectConfig.h"
 
 #if USE_MP && USE_PARTITIONED
 
-#include "edf_scheduler.h"
-#include "helpers.h"
-#include "tracer.h"
+#include "smp_partitioned.h"
 
-static bool
-SMP_can_admit_periodic_task_on_core(const TickType_t completion_time, const TickType_t period, const UBaseType_t core) {
-  double U = (double)completion_time / period;
-  for (size_t i = 0; i < periodic_task_count[core]; ++i) {
-    const double Ci = (double)periodic_tasks[core][i].completion_time;
-    const double Ti = (double)periodic_tasks[core][i].periodic.period;
-    U += Ci / Ti;
-  }
+#include "admission_control.h"
+#include "scheduler_internal.h"
 
-  return U < 1.0;
+static bool SMP_can_admit_periodic_task_on_core( //
+  const TickType_t  completion_time,
+  const TickType_t  period,
+  const TickType_t  relative_deadline,
+  const UBaseType_t core
+) {
+  return EDF_can_admit_periodic_task_for_task_set( //
+    completion_time,
+    period,
+    relative_deadline,
+    periodic_tasks[core],
+    periodic_task_count[core]
+  );
 }
 
 BaseType_t SMP_create_periodic_task_on_core(
@@ -33,10 +35,8 @@ BaseType_t SMP_create_periodic_task_on_core(
   configASSERT(core < configNUMBER_OF_CORES);
 
 #if PERFORM_ADMISSION_CONTROL
-  if (!SMP_can_admit_periodic_task_on_core(completion_time, period, core)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count[core]), TRACE_TASK_PERIODIC, NULL, false);
-    TRACE_disable();
-    xTaskNotifyGive(monitor_task_handle);
+  if (!SMP_can_admit_periodic_task_on_core(completion_time, period, relative_deadline, core)) {
+    admission_control_handle_failure(periodic_task_count[core]);
     return pdFALSE;
   }
 #endif
@@ -166,28 +166,8 @@ void SMP_partitioned_record_releases(void) {
 }
 
 void SMP_partitioned_suspend_and_resume_tasks(void) {
-  TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
-
   for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
-
-    for (size_t i = 0; i < periodic_task_count[core]; ++i) {
-      TMB_t *const task = &periodic_tasks[core][i];
-      if (task != highest_priority_task) {
-        scheduler_suspend_task(task);
-      }
-    }
-
-    for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
-      TMB_t *const task = &aperiodic_tasks[core][i];
-      if (task != highest_priority_task) {
-        scheduler_suspend_task(task);
-      }
-    }
-
-    if (highest_priority_task != NULL) {
-      scheduler_resume_task(highest_priority_task);
-    }
+    scheduler_suspend_and_resume_tasks(core);
   }
 }
 

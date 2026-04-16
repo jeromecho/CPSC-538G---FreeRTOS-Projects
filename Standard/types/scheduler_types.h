@@ -1,11 +1,16 @@
 #ifndef SCHEDULER_TYPES_H
 #define SCHEDULER_TYPES_H
 
-#include "FreeRTOS.h"          // IWYU pragma: keep
-#include "config/TestConfig.h" // IWYU pragma: keep
-#include "task.h"
+#include "ProjectConfig.h"
 
 #if USE_EDF
+
+#include "FreeRTOS_include.h" // IWYU pragma: keep
+
+#if USE_SRP
+// Include TestConfig so that the N_RESOURCES constant is available
+#include "config/TestConfig.h" // IWYU pragma: keep
+#endif
 
 typedef enum { TASK_PERIODIC, TASK_APERIODIC } TaskType_t;
 

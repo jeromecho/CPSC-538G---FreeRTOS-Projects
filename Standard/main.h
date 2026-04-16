@@ -56,7 +56,7 @@
 #define mainENABLE_TIMER_DEMO 1
 #endif
 
-#if ( configNUM_CORES != 2 )
+#if ( configNUMBER_OF_CORES != 2 )
 /* This test just expects two tasks not to run concurrently */
 #define mainENABLE_DYNAMIC_PRIORITY 1
 #endif

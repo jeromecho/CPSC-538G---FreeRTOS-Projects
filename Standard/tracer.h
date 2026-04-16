@@ -1,9 +1,8 @@
 #ifndef TRACER_H
 #define TRACER_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
-#include "scheduler_internal.h"
-#include "task.h"
+#include "FreeRTOS_include.h"
+#include "types/scheduler_types.h"
 
 typedef enum {
   // Basic events, which are _not_ used together with additional data

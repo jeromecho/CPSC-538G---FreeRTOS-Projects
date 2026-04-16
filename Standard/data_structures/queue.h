@@ -1,11 +1,7 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
+#include "FreeRTOS_include.h" // IWYU pragma: keep
 
 typedef struct {
   uint8_t *buffer;       // Pointer to the static memory block

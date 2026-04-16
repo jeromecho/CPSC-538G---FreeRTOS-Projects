@@ -1,7 +1,13 @@
-#include "cbs.h"
-#include <stdio.h>
+#include "ProjectConfig.h"
 
 #if USE_CBS
+
+#include "cbs.h"
+
+#include "edf_scheduler.h"
+#include "tracer.h"
+
+#include <stdio.h>
 
 SchedulerCreateTask_t CBS_create_master_task = EDF_create_aperiodic_task;
 MarkTaskDone_t        CBS_mark_task_done     = EDF_mark_task_done;

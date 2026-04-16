@@ -1,12 +1,17 @@
-#include "srp.h"
+#include "ProjectConfig.h"
 
 #if USE_SRP
 
-#include "admission_control.h"
+#include "srp.h"
+
 #include "edf_scheduler.h"
-#include "helpers.h"
 #include "scheduler_internal.h"
 #include "tracer.h"
+
+#include "config/TestConfig.h"
+#if PERFORM_ADMISSION_CONTROL
+#include "admission_control.h"
+#endif
 
 #include <stdio.h>
 #include <string.h> // For memcpy
@@ -76,7 +81,7 @@ BaseType_t SRP_take_binary_semaphore(const unsigned int semaphoreIdx) {
   const TMB_t *const current_task        = EDF_get_task_by_handle(current_task_handle);
   TRACE_record(EVENT_SEMAPHORE_TAKE(semaphoreIdx), TRACE_TASK_EITHER, current_task, false);
 
-  scheduler_suspend_and_resume_tasks();
+  scheduler_suspend_and_resume_tasks(0); // Hard-code core 0 here, since SRP should only ever be active on single-core
 
   taskEXIT_CRITICAL();
   return pdTRUE;
@@ -99,7 +104,7 @@ void SRP_give_binary_semaphore(const unsigned int semaphoreIdx) {
     scheduler_suspend_task(current_task);
   }
 
-  scheduler_suspend_and_resume_tasks();
+  scheduler_suspend_and_resume_tasks(0); // Hard-code core 0 here, since SRP should only ever be active on single-core
 
   taskEXIT_CRITICAL();
 }
@@ -129,9 +134,7 @@ BaseType_t SRP_create_periodic_task(
 
 #if PERFORM_ADMISSION_CONTROL
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL, false);
-    TRACE_disable();
-    xTaskNotifyGive(monitor_task_handle);
+    admission_control_handle_failure(periodic_task_count);
     return pdFALSE;
   }
 #endif

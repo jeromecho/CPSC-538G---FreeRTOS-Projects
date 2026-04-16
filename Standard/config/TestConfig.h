@@ -49,4 +49,8 @@
 #define TEST_DURATION_TICKS 500
 #endif
 
+#ifndef SHARED_STACK_SIZE
+#define SHARED_STACK_SIZE (configMINIMAL_STACK_SIZE)
+#endif
+
 #endif // TEST_CONFIG_H

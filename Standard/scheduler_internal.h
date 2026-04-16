@@ -1,10 +1,9 @@
 #ifndef SCHEDULER_INTERNAL_H
 #define SCHEDULER_INTERNAL_H
 
-#include "FreeRTOS.h"
+#include "FreeRTOS_include.h"
 #include "ProjectConfig.h"
 #include "config/TestConfig.h" // IWYU pragma: keep
-#include "task.h"
 #include "types/scheduler_types.h"
 
 BaseType_t _create_task_internal(
@@ -52,12 +51,13 @@ void   scheduler_check_deadlines(const TMB_t *const tasks, const size_t count);
 void   scheduler_record_releases(const TMB_t *const tasks, const size_t count);
 TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
-void   scheduler_suspend_and_resume_tasks();
+void   scheduler_suspend_and_resume_tasks(const size_t core);
 void   scheduler_record_release(const TMB_t *const task);
 void   scheduler_register_deadline_miss(const TMB_t *const task);
 bool   scheduler_release_periodic_job_if_ready(TMB_t *task, TickType_t current_tick);
-void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task);
+void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core);
 TMB_t *scheduler_produce_highest_priority_task();
+bool   scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core);
 
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 

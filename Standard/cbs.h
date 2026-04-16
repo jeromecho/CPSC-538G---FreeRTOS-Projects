@@ -1,13 +1,13 @@
 #ifndef CBS_H
 #define CBS_H
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #include "ProjectConfig.h"
-#include "data_structures/queue.h"
-#include "edf_scheduler.h"
-#include "tracer.h"
 
 #if USE_CBS
+
+#include "FreeRTOS_include.h"
+#include "data_structures/queue.h"
+#include "types/scheduler_types.h"
 
 #define CBS_MASTER_STACK_SZ configMINIMAL_STACK_SIZE
 #define MAXIMUM_CBS_SERVERS 10

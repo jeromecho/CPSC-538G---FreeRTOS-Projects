@@ -5,7 +5,6 @@
 #include "srp_tests.h"
 #include "testing.h"
 
-#include "FreeRTOS.h" // IWYU pragma: keep
 #include "edf_scheduler.h"
 #include "helpers.h"
 
