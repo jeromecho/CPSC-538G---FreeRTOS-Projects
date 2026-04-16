@@ -151,7 +151,7 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
   // release the next job immediately so release tracing is not missed by waiting for next tick hook.
   if (task_tmb->type == TASK_PERIODIC) {
     const TickType_t current_tick = xTaskGetTickCount();
-    const bool released_now = scheduler_release_periodic_job_if_ready(task_tmb, current_tick);
+    const bool       released_now = scheduler_release_periodic_job_if_ready(task_tmb, current_tick);
     if (released_now && task_tmb->release_time == current_tick) {
       scheduler_record_release(task_tmb);
     }
@@ -526,11 +526,15 @@ void starting_scheduler(void *xIdleTaskHandles) {
   CBS_release_tasks();
 #endif // USE_CBS
 
+#if USE_MP && USE_PARTITIONED
+  SMP_partitioned_check_deadlines();
+  SMP_partitioned_record_releases();
+#else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
-
   scheduler_record_releases(periodic_tasks, periodic_task_count);
   scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+#endif
 
   scheduler_suspend_and_resume_tasks();
 }
