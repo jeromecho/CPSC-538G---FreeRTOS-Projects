@@ -150,9 +150,9 @@ void CBS_release_tasks() {
           pxServer->tmb_handle->absolute_deadline = pxServer->dsk;
         }
       }
-      // if (pxServer->tmb_handle->is_done) {
-      //   pxServer->tmb_handle->release_time = current_timestamp;
-      // }
+      if (pxServer->tmb_handle->is_done) {
+        pxServer->tmb_handle->release_time = current_timestamp;
+      }
       pxServer->tmb_handle->is_done = false;
       q_enqueue(&pxServer->aperiodic_tasks, (void *)&pending_cbs_tasks[i].task_function);
       pending_cbs_tasks[i].is_active = false;
