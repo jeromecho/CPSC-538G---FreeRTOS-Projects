@@ -1,6 +1,9 @@
 #include "admission_control.h"
 
+#include "edf_scheduler.h"
 #include "helpers.h"
+#include "tracer.h"
+
 #include "scheduler_internal.h"
 
 #if USE_SRP
@@ -16,6 +19,12 @@
 ; // ===================================
 
 #define EPSILON 1e-9
+
+void admission_control_handle_failure(const size_t task_index) {
+  TRACE_record(EVENT_ADMISSION_FAIL(task_index), TRACE_TASK_PERIODIC, NULL, false);
+  TRACE_disable();
+  xTaskNotifyGive(monitor_task_handle);
+}
 
 ; // ===================================
 ; // === LOCAL FUNCTION DECLARATIONS ===
@@ -39,14 +48,16 @@ static double calculate_l_star(
 );
 static TickType_t calculate_d_max(const TickType_t relative_deadline, const TMB_t *tasks, const size_t count);
 
-#if TEST_SUITE == TEST_SUITE_EDF
+#if TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS || TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 static bool check_deadlines_edf( //
   const TickType_t C_new,
   const TickType_t T_new,
   const TickType_t D_new,
-  const TickType_t upper
+  const TickType_t upper,
+  const TMB_t     *tasks,
+  const size_t     count
 );
-#endif // TEST_SUITE == TEST_SUITE_EDF
+#endif // TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS || TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 
 #if USE_SRP
 static TickType_t calculate_blocking_time(
@@ -155,21 +166,27 @@ static TickType_t calculate_d_max(const TickType_t relative_deadline, const TMB_
 ; // === PURE EDF ADMISSION CONTROL ===
 ; // ==================================
 
-#if TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS
+#if TEST_SUITE == TEST_SUITE_EDF || TEST_SUITE == TEST_SUITE_CBS || TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 
 /// @brief checks if demand bound functions evaluates to leq L at points of interest
-static bool
-check_deadlines_edf(const TickType_t C_new, const TickType_t T_new, const TickType_t D_new, const TickType_t upper) {
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    const TickType_t Ti = periodic_tasks[i].periodic.period;
-    const TickType_t Di = periodic_tasks[i].periodic.relative_deadline;
+static bool check_deadlines_edf(
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new,
+  const TickType_t upper,
+  const TMB_t     *tasks,
+  const size_t     count
+) {
+  for (size_t i = 0; i < count; i++) {
+    const TickType_t Ti = tasks[i].periodic.period;
+    const TickType_t Di = tasks[i].periodic.relative_deadline;
 
     for (TickType_t k = 0;; k++) {
       const TickType_t t = k * Ti + Di;
       if (t > upper)
         break;
 
-      if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) > (double)t) {
+      if (dbf(t, C_new, T_new, D_new, tasks, count) > (double)t) {
         return false;
       }
     }
@@ -180,7 +197,7 @@ check_deadlines_edf(const TickType_t C_new, const TickType_t T_new, const TickTy
     if (t > upper)
       break;
 
-    if (dbf(t, C_new, T_new, D_new, periodic_tasks, periodic_task_count) > (double)t) {
+    if (dbf(t, C_new, T_new, D_new, tasks, count) > (double)t) {
       return false;
     }
   }
@@ -188,20 +205,17 @@ check_deadlines_edf(const TickType_t C_new, const TickType_t T_new, const TickTy
   return true;
 }
 
-/// @brief see if task one is about to add can be added without excessive processor demand;
-//         implements theorem 4.6 of Buttazzo's textbook
-// NOTE: Admission control test might be conservative as it currently
-//       auto-rejects for U = 1 case
-// TODO: This fails for U=1.0 in some cases because of floating point imprecision
-bool EDF_can_admit_periodic_task( //
+bool EDF_can_admit_periodic_task_for_task_set( //
   const TickType_t C_new,
   const TickType_t T_new,
-  const TickType_t D_new
+  const TickType_t D_new,
+  const TMB_t     *tasks,
+  const size_t     task_count
 ) {
   double U = (double)C_new / T_new;
-  for (size_t i = 0; i < periodic_task_count; i++) {
-    const double Ci = (double)periodic_tasks[i].completion_time;
-    const double Ti = (double)periodic_tasks[i].periodic.period;
+  for (size_t i = 0; i < task_count; i++) {
+    const double Ci = (double)tasks[i].completion_time;
+    const double Ti = (double)tasks[i].periodic.period;
     U += Ci / Ti;
   }
 
@@ -209,13 +223,34 @@ bool EDF_can_admit_periodic_task( //
     return false;
   }
 
-  const double     l_star = calculate_l_star(C_new, T_new, D_new, U, periodic_tasks, periodic_task_count);
-  const TickType_t H      = compute_hyperperiod(T_new, periodic_tasks, periodic_task_count);
-  const TickType_t D_max  = calculate_d_max(D_new, periodic_tasks, periodic_task_count);
+  const double     l_star = calculate_l_star(C_new, T_new, D_new, U, tasks, task_count);
+  const TickType_t H      = compute_hyperperiod(T_new, tasks, task_count);
+  const TickType_t D_max  = calculate_d_max(D_new, tasks, task_count);
   const TickType_t upper  = (TickType_t)fmin(H, fmax(D_max, l_star));
 
-  return check_deadlines_edf(C_new, T_new, D_new, upper);
+  return check_deadlines_edf(C_new, T_new, D_new, upper, tasks, task_count);
 }
+
+/// @brief see if task one is about to add can be added without excessive processor demand;
+//         implements theorem 4.6 of Buttazzo's textbook
+// NOTE: Admission control test might be conservative as it currently
+//       auto-rejects for U = 1 case
+// TODO: This fails for U=1.0 in some cases because of floating point imprecision
+#if !(USE_MP && USE_PARTITIONED)
+bool EDF_can_admit_periodic_task( //
+  const TickType_t C_new,
+  const TickType_t T_new,
+  const TickType_t D_new
+) {
+  return EDF_can_admit_periodic_task_for_task_set( //
+    C_new,
+    T_new,
+    D_new,
+    periodic_tasks,
+    periodic_task_count
+  );
+}
+#endif // !(USE_MP && USE_PARTITIONED)
 
 #endif // TEST_SUITE == TEST_SUITE_EDF
 

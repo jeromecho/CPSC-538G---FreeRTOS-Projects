@@ -134,9 +134,7 @@ BaseType_t SRP_create_periodic_task(
 
 #if PERFORM_ADMISSION_CONTROL
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL, false);
-    TRACE_disable();
-    xTaskNotifyGive(monitor_task_handle);
+    admission_control_handle_failure(periodic_task_count);
     return pdFALSE;
   }
 #endif
