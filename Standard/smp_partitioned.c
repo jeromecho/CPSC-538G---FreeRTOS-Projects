@@ -146,21 +146,22 @@ void SMP_partitioned_reschedule_periodic_tasks(void) {
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
     for (size_t i = 0; i < periodic_task_count[core]; ++i) {
       TMB_t *const task = &periodic_tasks[core][i];
-
-      if (task->is_done && current_tick >= task->periodic.next_period) {
-        task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
-        task->release_time      = task->periodic.next_period;
-        task->periodic.next_period += task->periodic.period;
-        task->is_done = false;
-      }
+      (void)scheduler_release_periodic_job_if_ready(task, current_tick);
     }
   }
 }
 
-void SMP_partitioned_check_deadlines_and_release_tasks(void) {
+void SMP_partitioned_check_deadlines(void) {
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    scheduler_check_deadlines_and_record_releases(periodic_tasks[core], periodic_task_count[core]);
-    scheduler_check_deadlines_and_record_releases(aperiodic_tasks[core], aperiodic_task_count[core]);
+    scheduler_check_deadlines(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_check_deadlines(aperiodic_tasks[core], aperiodic_task_count[core]);
+  }
+}
+
+void SMP_partitioned_record_releases(void) {
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    scheduler_record_releases(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_record_releases(aperiodic_tasks[core], aperiodic_task_count[core]);
   }
 }
 

@@ -48,12 +48,14 @@ BaseType_t _create_periodic_task_internal(
 
 void   scheduler_suspend_task(const TMB_t *const task);
 void   scheduler_resume_task(const TMB_t *const task);
-void   scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, const size_t count);
+void   scheduler_check_deadlines(const TMB_t *const tasks, const size_t count);
+void   scheduler_record_releases(const TMB_t *const tasks, const size_t count);
 TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
 void   scheduler_suspend_and_resume_tasks();
 void   scheduler_record_release(const TMB_t *const task);
 void   scheduler_register_deadline_miss(const TMB_t *const task);
+bool   scheduler_release_periodic_job_if_ready(TMB_t *task, TickType_t current_tick);
 void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task);
 TMB_t *scheduler_produce_highest_priority_task();
 

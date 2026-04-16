@@ -60,7 +60,7 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 ; // === LOCAL FUNCTION DECLARATIONS ===
 ; // ===================================
 
-static void       reschedule_periodic_tasks();
+static void       scheduler_reschedule_periodic_tasks();
 static TMB_t     *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 static bool       should_context_switch(const TMB_t *const highest_priority_task);
 static TickType_t calculate_release_time_for_new_task(TickType_t new_period, const TMB_t *tasks, const size_t count);
@@ -77,6 +77,18 @@ static void trace_task_switch(TraceEventType_t switch_event);
 // === HELPER FUNCTION DEFINITIONS ===
 // ===================================
 static bool is_aperiodic_ready(TMB_t *t) { return !t->is_done; };
+
+bool scheduler_release_periodic_job_if_ready(TMB_t *task, const TickType_t current_tick) {
+  if (task == NULL || task->type != TASK_PERIODIC || !task->is_done || current_tick < task->periodic.next_period) {
+    return false;
+  }
+
+  task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
+  task->release_time      = task->periodic.next_period;
+  task->periodic.next_period += task->periodic.period;
+  task->is_done = false;
+  return true;
+}
 
 ; // ==================================
 ; // === FUNCTION HOOK DECLARATIONS ===
@@ -134,6 +146,16 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
   task_tmb->is_done        = true;
   task_tmb->ticks_executed = 0;
+
+  // If a periodic task completes on/after its next release boundary in this same tick,
+  // release the next job immediately so release tracing is not missed by waiting for next tick hook.
+  if (task_tmb->type == TASK_PERIODIC) {
+    const TickType_t current_tick = xTaskGetTickCount();
+    const bool released_now = scheduler_release_periodic_job_if_ready(task_tmb, current_tick);
+    if (released_now && task_tmb->release_time == current_tick) {
+      scheduler_record_release(task_tmb);
+    }
+  }
   // scheduler_suspend_task(task_tmb);
 
 #if USE_SRP
@@ -504,8 +526,12 @@ void starting_scheduler(void *xIdleTaskHandles) {
   CBS_release_tasks();
 #endif // USE_CBS
 
-  scheduler_check_deadlines_and_record_releases(periodic_tasks, periodic_task_count);
-  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_check_deadlines(periodic_tasks, periodic_task_count);
+  scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
+
+  scheduler_record_releases(periodic_tasks, periodic_task_count);
+  scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+
   scheduler_suspend_and_resume_tasks();
 }
 
@@ -514,20 +540,14 @@ void starting_scheduler(void *xIdleTaskHandles) {
 ; // ==================================
 
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
-static void reschedule_periodic_tasks() {
+static void scheduler_reschedule_periodic_tasks() {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_reschedule_periodic_tasks();
 #else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const     task         = &periodic_tasks[i];
     const TickType_t current_tick = xTaskGetTickCountFromISR();
-
-    if (task->is_done && current_tick >= task->periodic.next_period) {
-      task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
-      task->release_time      = task->periodic.next_period;
-      task->periodic.next_period += task->periodic.period;
-      task->is_done = false;
-    }
+    (void)scheduler_release_periodic_job_if_ready(task, current_tick);
   }
 #endif
 }
@@ -551,9 +571,8 @@ void scheduler_resume_task(const TMB_t *const task) {
   TRACE_record(EVENT_BASIC(TRACE_RESUMED), TRACE_TASK_EITHER, task, true);
 }
 
-/// @brief Loops through all tasks in an array, and checks whether they have exceeded their deadline, and whether they
-/// should be released.
-void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, const size_t count) {
+/// @brief Loops through all tasks in an array and checks whether they have exceeded their deadline.
+void scheduler_check_deadlines(const TMB_t *const tasks, const size_t count) {
   for (size_t i = 0; i < count; ++i) {
     const TMB_t *const task         = &tasks[i];
     const bool         task_done    = task->is_done;
@@ -564,6 +583,14 @@ void scheduler_check_deadlines_and_record_releases(const TMB_t *const tasks, con
     if (!task_done && deadline_missed && task->is_hard_rt) {
       scheduler_register_deadline_miss(task);
     }
+  }
+}
+
+/// @brief Loops through all tasks in an array and records release events for tasks released this tick.
+void scheduler_record_releases(const TMB_t *const tasks, const size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const TMB_t *const task         = &tasks[i];
+    const TickType_t   current_tick = xTaskGetTickCountFromISR();
 
     // Checks if the release time for a task has arrived
     const bool released_this_tick = (task->release_time == current_tick);
@@ -761,7 +788,7 @@ void vApplicationTickHook(void) {
     }
   }
 
-  reschedule_periodic_tasks();
+  scheduler_reschedule_periodic_tasks();
 
 #if USE_CBS
   CBS_release_tasks();
@@ -772,10 +799,13 @@ void vApplicationTickHook(void) {
 #endif // USE_CBS
 
 #if USE_MP && USE_PARTITIONED
-  SMP_partitioned_check_deadlines_and_release_tasks();
+  SMP_partitioned_check_deadlines();
+  SMP_partitioned_record_releases();
 #else
-  scheduler_check_deadlines_and_record_releases(periodic_tasks, periodic_task_count);
-  scheduler_check_deadlines_and_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_check_deadlines(periodic_tasks, periodic_task_count);
+  scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
+  scheduler_record_releases(periodic_tasks, periodic_task_count);
+  scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
 #endif
 
   scheduler_suspend_and_resume_tasks();
