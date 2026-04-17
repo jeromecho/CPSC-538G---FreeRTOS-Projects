@@ -134,23 +134,80 @@ def parse_trace_record(line, include_core_for_realtime=False):
         return None
 
     try:
-        if len(parts) >= 13:
+        if len(parts) >= 15:
             core = int(parts[3])
             task_type = int(parts[5])
             task_id = int(parts[6])
+            task_uid = int(parts[14])
+        elif len(parts) >= 13:
+            core = int(parts[3])
+            task_type = int(parts[5])
+            task_id = int(parts[6])
+            task_uid = task_id
         else:
             core = None
             task_type = int(parts[3])
             task_id = int(parts[4])
+            task_uid = task_id
 
         return {
             "tick": int(parts[0]),
             "event": TraceEvent(int(parts[1])),
+            "core": core,
+            "task_uid": task_uid,
             "task_name": get_task_name(task_type, task_id, core, include_core_for_realtime),
             "raw": line,
         }
     except ValueError:
         return None
+
+
+def normalize_expected_core(expected_core):
+    if expected_core is None:
+        return None
+
+    if isinstance(expected_core, int):
+        return expected_core
+
+    if isinstance(expected_core, str):
+        core_text = expected_core.strip().upper()
+        if core_text.startswith("C"):
+            core_text = core_text[1:]
+        return int(core_text)
+
+    return int(expected_core)
+
+
+def matches_expected_task_reference(log, expected_task_ref):
+    if isinstance(expected_task_ref, int):
+        return int(log["task_uid"]) == expected_task_ref
+
+    if isinstance(expected_task_ref, str):
+        stripped_ref = expected_task_ref.strip()
+        if stripped_ref.isdigit():
+            return int(log["task_uid"]) == int(stripped_ref)
+        return log["task_name"] == expected_task_ref
+
+    return int(log["task_uid"]) == int(expected_task_ref)
+
+
+def format_expected_task_reference(expected_task_ref):
+    if isinstance(expected_task_ref, int):
+        return f"UID {expected_task_ref}"
+    return str(expected_task_ref)
+
+
+def matches_expected_event(log, expected_task_ref, exp_tick, exp_event, exp_core=None):
+    if log["tick"] != exp_tick or log["event"] != exp_event:
+        return False
+
+    if not matches_expected_task_reference(log, expected_task_ref):
+        return False
+
+    if exp_core is not None and int(log["core"]) != exp_core:
+        return False
+
+    return True
 
 
 def stream_test_output(port, expected_boot_name, include_core_for_realtime=False):
@@ -242,29 +299,39 @@ def validate_trace_events(parsed_logs, test_case):
     if test_case.get("ignore_traces", False):
         return True
 
-    expected_set = set()
+    expected_entries = []
     for exp_task, events in test_case.get("expected_events", {}).items():
-        for exp_tick, exp_event in events:
-            expected_set.add((exp_tick, exp_task, exp_event))
+        for event_spec in events:
+            if len(event_spec) == 2:
+                exp_tick, exp_event = event_spec
+                exp_core = None
+            elif len(event_spec) == 3:
+                exp_tick, exp_event, exp_core = event_spec
+                exp_core = normalize_expected_core(exp_core)
+            else:
+                raise ValueError(f"Expected events must be 2- or 3-tuples, got {event_spec!r} for task {exp_task!r}")
+
+            expected_entries.append((exp_task, exp_tick, exp_event, exp_core))
 
     all_passed = True
-    sorted_expected_events = sorted(expected_set, key=lambda x: (x[0], x[1]))
+    sorted_expected_events = sorted(expected_entries, key=lambda x: (x[1], str(x[0])))
 
-    for exp_tick, exp_task, exp_event in sorted_expected_events:
+    for exp_task, exp_tick, exp_event, exp_core in sorted_expected_events:
         event_name = TraceEvent(exp_event).name
-        found = any(log["tick"] == exp_tick and log["task_name"] == exp_task and log["event"] == exp_event for log in parsed_logs)
+        found = any(matches_expected_event(log, exp_task, exp_tick, exp_event, exp_core) for log in parsed_logs)
 
         if not found:
-            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {exp_task} | {event_name}{C_RESET}")
+            core_suffix = f" | C{exp_core}" if exp_core is not None else ""
+            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {format_expected_task_reference(exp_task)}{core_suffix} | {event_name}{C_RESET}")
             all_passed = False
 
     for log in parsed_logs:
         is_background = any(log["task_name"].startswith(name) for name in BACKGROUND_TASK_PREFIXES)
         if not is_background and log["event"] in STRICT_POLICED_EVENTS:
-            actual_event_tuple = (log["tick"], log["task_name"], log["event"])
-            if actual_event_tuple not in expected_set:
+            if not any(matches_expected_event(log, exp_task, exp_tick, exp_event, exp_core) for exp_task, exp_tick, exp_event, exp_core in expected_entries):
                 event_name = TraceEvent(log["event"]).name
-                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {log['task_name']} | {event_name}{C_RESET}")
+                unexpected_task = f"UID {int(log['task_uid'])} ({log['task_name']})"
+                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {unexpected_task} | {event_name}{C_RESET}")
                 all_passed = False
 
     return all_passed
