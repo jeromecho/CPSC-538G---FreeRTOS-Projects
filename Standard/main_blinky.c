@@ -113,6 +113,7 @@ TaskHandle_t monitor_task_handle = NULL;
 void vTraceMonitorTask(void *pvParameters) {
   // Either sleeps for the specified duration, or is forced to wake by task notification due to something like a
   // deadline miss
+  (void)pvParameters;
   ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
 
   // The test is over, so output trace

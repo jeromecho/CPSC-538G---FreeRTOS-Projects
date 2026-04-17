@@ -10,12 +10,10 @@ typedef enum {
   TRACE_SWITCH_IN,
   TRACE_SWITCH_OUT,
   TRACE_DONE, // When a task finishes execution
-  TRACE_RESCHEDULED,
   TRACE_PREPARING_CONTEXT_SWITCH,
   TRACE_SUSPENDED,
   TRACE_RESUMED,
   TRACE_DEADLINE_MISS,
-  TRACE_SRP_BLOCK, // When a task is ready but denied CPU due to ceiling
 
   // Non-basic events, which are used when there is additional data provided (like semaphore index)
   TRACE_ADMISSION_FAILED,
@@ -23,7 +21,14 @@ typedef enum {
   TRACE_SEMAPHORE_GIVE,
 
   // CBS Events
-  TRACE_BUDGET_RUN_OUT
+  TRACE_BUDGET_RUN_OUT,
+
+  // SMP Events
+  TRACE_REMOVED_FROM_CORE,
+  TRACE_MIGRATED_TO_CORE,
+
+  // Dedicated debug events for ad-hoc flow/timing checkpoints
+  TRACE_DEBUG_MARKER,
 } TraceEventType_t;
 
 typedef struct {
@@ -31,6 +36,7 @@ typedef struct {
   union {
     uint8_t semaphore_index;
     uint8_t task_index;
+    uint8_t debug_code;
   } data;
 } TraceEvent_t;
 
@@ -41,6 +47,7 @@ typedef struct {
   ((TraceEvent_t){.type = TRACE_SEMAPHORE_TAKE, .data = {.semaphore_index = (sem_idx)}})
 #define EVENT_SEMAPHORE_GIVE(sem_idx)                                                                                  \
   ((TraceEvent_t){.type = TRACE_SEMAPHORE_GIVE, .data = {.semaphore_index = (sem_idx)}})
+#define EVENT_DEBUG(code) ((TraceEvent_t){.type = TRACE_DEBUG_MARKER, .data = {.debug_code = (code)}})
 
 typedef enum {
   TRACE_TASK_IDLE = 0,
@@ -64,6 +71,7 @@ typedef struct {
 
   // --- Contextual Data ---
   uint8_t      resource_id;    // Which semaphore was taken/given (if applicable)
+  uint8_t      debug_code;     // Optional debug marker payload for TRACE_DEBUG_MARKER
   unsigned int system_ceiling; // The SRP ceiling AT THE TIME of this event
   unsigned int preempt_level;  // Preemption level of the acting task
   TickType_t   deadline;       // Absolute deadline of the acting task (for EDF checks)

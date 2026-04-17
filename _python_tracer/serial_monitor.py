@@ -24,6 +24,7 @@ TRACE_RUN_BANNERS = (
 EXPECTED_HEADERS = {
     "TIMESTAMP,EVENT,ABS_TIME,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
     "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,DEADLINE",
+    "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,PREEMPT_LVL,DEADLINE",
 }
 
 DEFAULT_TRACE_TITLE = "FreeRTOS Scheduling Trace"
@@ -39,17 +40,19 @@ EVENT_STYLE = {
     TraceEvent.TRACE_SWITCH_IN: ("Switch In", "triangle-right", "#3cb44b"),
     TraceEvent.TRACE_SWITCH_OUT: ("Switch Out", "triangle-left", "#e6194b"),
     TraceEvent.TRACE_DONE: ("Task Done", "circle", "#008080"),
-    TraceEvent.TRACE_RESCHEDULED: ("Rescheduled", "diamond", "#3cb371"),
     TraceEvent.TRACE_PREPARING_CONTEXT_SWITCH: ("Prepare Context Switch", "diamond-open", "#911eb4"),
     TraceEvent.TRACE_SUSPENDED: ("Suspended", "triangle-down-open", "#808080"),
     TraceEvent.TRACE_RESUMED: ("Resumed", "triangle-up-open", "#f2c300"),
     TraceEvent.TRACE_DEADLINE_MISS: ("Deadline Miss", "x", "#d62728"),
-    TraceEvent.TRACE_SRP_BLOCK: ("SRP Block", "cross", "#ff8c00"),
     TraceEvent.TRACE_ADMISSION_FAILED: ("Admission Failed", "hexagram", "#b22222"),
     TraceEvent.TRACE_SEMAPHORE_TAKE: ("Semaphore Take", "triangle-down", "#dc143c"),
     TraceEvent.TRACE_SEMAPHORE_GIVE: ("Semaphore Give", "triangle-up", "#1f77b4"),
     # CBS Events
     TraceEvent.TRACE_BUDGET_RUN_OUT: ("CBS Budget Run Out", "hourglass", "teal"),
+    # SMP Events
+    TraceEvent.TRACE_REMOVED_FROM_CORE: ("Removed From Core", "x-thin", "#ff7f0e"),
+    TraceEvent.TRACE_MIGRATED_TO_CORE: ("Migrated To Core", "cross-thin", "#17becf"),
+    TraceEvent.TRACE_DEBUG_MARKER: ("Debug Marker", "circle-open-dot", "#000000"),
 }
 
 
@@ -215,6 +218,8 @@ def parse_trace_dataframe(csv_data):
         df["CORE"] = 0
     if "CORE_SEQ" not in df.columns:
         df["CORE_SEQ"] = range(len(df))
+    if "DEBUG_CODE" not in df.columns:
+        df["DEBUG_CODE"] = UINT32_MAX
 
     df["EVENT"] = df["EVENT"].map(TraceEvent)
     df["TASK_NAME"] = df.apply(get_task_name, axis=1)
@@ -287,6 +292,8 @@ def _event_hover(row_data, event_label):
         lines.append(f"Deadline: {int(row_data['DEADLINE'])}")
     if int(row_data["PRIORITY"]) != UINT32_MAX:
         lines.append(f"Priority: {int(row_data['PRIORITY'])}")
+    if "DEBUG_CODE" in row_data and int(row_data["DEBUG_CODE"]) != UINT32_MAX:
+        lines.append(f"Debug Code: {int(row_data['DEBUG_CODE'])}")
     return "<br>".join(lines)
 
 

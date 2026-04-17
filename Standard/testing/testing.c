@@ -14,38 +14,41 @@
 
 /// @brief Creates a periodic task from a provided task configuration.
 // Handles API differences between SRP and EDF via preprocessor macros.
-void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config) {
+BaseType_t build_periodic_task_with_handle(const char *task_name, const PeriodicTaskParams_t *config, TMB_t **handle) {
 #if TEST_SUITE == TEST_SUITE_EDF
-  EDF_create_periodic_task( //
+  return EDF_create_periodic_task( //
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->T),
     pdMS_TO_TICKS(config->D),
-    NULL
+    handle
   );
 #elif TEST_SUITE == TEST_SUITE_SRP
-  SRP_create_periodic_task(
+  return SRP_create_periodic_task(
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->T),
     pdMS_TO_TICKS(config->D),
-    NULL,
+    handle,
     config->plvl,
     config->resources
   );
 #elif TEST_SUITE == TEST_SUITE_CBS
-  (void)0;
+  (void)task_name;
+  (void)config;
+  (void)handle;
+  return pdFAIL;
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-  SMP_create_periodic_task_on_core( //
+  return SMP_create_periodic_task_on_core( //
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->T),
     pdMS_TO_TICKS(config->D),
     config->core,
-    NULL
+    handle
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"
@@ -55,41 +58,49 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
 #endif
 }
 
+void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config) {
+  (void)build_periodic_task_with_handle(task_name, config, NULL);
+}
+
 /// @brief Creates an aperiodic task from a provided task configuration
-void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config) {
+BaseType_t
+build_aperiodic_task_with_handle(const char *task_name, const AperiodicTaskParams_t *config, TMB_t **handle) {
 #if TEST_SUITE == TEST_SUITE_EDF
-  EDF_create_aperiodic_task( //
+  return EDF_create_aperiodic_task( //
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->r),
     pdMS_TO_TICKS(config->D),
-    NULL,
+    handle,
     NULL,
     true
   );
 #elif TEST_SUITE == TEST_SUITE_SRP
-  SRP_create_aperiodic_task(
+  return SRP_create_aperiodic_task(
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->r),
     pdMS_TO_TICKS(config->D),
-    NULL,
+    handle,
     config->plvl,
     config->resources
   );
 #elif TEST_SUITE == TEST_SUITE_CBS
-  (void)0;
+  (void)task_name;
+  (void)config;
+  (void)handle;
+  return pdFAIL;
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-  SMP_create_aperiodic_task_on_core(
+  return SMP_create_aperiodic_task_on_core(
     config->func,
     task_name,
     pdMS_TO_TICKS(config->C),
     pdMS_TO_TICKS(config->r),
     pdMS_TO_TICKS(config->D),
     config->core,
-    NULL
+    handle
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #error "Global partitioning not implemented yet"
@@ -97,6 +108,10 @@ void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *co
 #else
 #error "Scheduler type not defined! Define TEST_SUITE_SRP, TEST_SUITE_EDF, or TEST_SUITE_MP."
 #endif
+}
+
+void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config) {
+  (void)build_aperiodic_task_with_handle(task_name, config, NULL);
 }
 
 /// @brief Creates all tasks from the provided test configuration for periodic tasks
