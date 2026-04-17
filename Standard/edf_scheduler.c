@@ -32,7 +32,7 @@
 
 static uint32_t g_next_trace_uid = 0;
 
-static uint32_t allocate_trace_uid(void) {
+uint32_t allocate_trace_uid(void) {
   taskENTER_CRITICAL();
   const uint32_t trace_uid = g_next_trace_uid++;
   taskEXIT_CRITICAL();
@@ -219,8 +219,8 @@ BaseType_t _create_task_internal(
   new_task->task_function = task_function;
   new_task->stack_buffer  = stack_buffer;
 
-  new_task->type = type;
-  new_task->id   = id;
+  new_task->type      = type;
+  new_task->id        = id;
   new_task->trace_uid = (trace_uid_override != UINT32_MAX) ? trace_uid_override : allocate_trace_uid();
 
   new_task->is_done         = false;
@@ -262,10 +262,10 @@ BaseType_t _create_periodic_task_internal(
   }
   configASSERT(relative_deadline <= period);
 
-  const size_t  existing_task_count = *task_count;
-  TMB_t *const   new_task           = &task_array[existing_task_count];
-  const bool     scheduler_started  = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
-  const TickType_t current_tick     = xTaskGetTickCount();
+  const size_t     existing_task_count = *task_count;
+  TMB_t *const     new_task            = &task_array[existing_task_count];
+  const bool       scheduler_started   = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
+  const TickType_t current_tick        = xTaskGetTickCount();
 
   SchedulerParameters_t parameters;
   parameters.completion_time      = completion_time;
@@ -294,7 +294,7 @@ BaseType_t _create_periodic_task_internal(
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
 
-  const TickType_t release_time = calculate_release_time_for_new_task(
+  const TickType_t release_time  = calculate_release_time_for_new_task( //
     period,
     task_array,
     existing_task_count,
@@ -386,9 +386,12 @@ BaseType_t EDF_create_periodic_task(
   TMB_t **const     TMB_handle
 ) {
 #if MAXIMUM_PERIODIC_TASKS > 0
+  // Allocate UID early so we can use it for both failure and success paths
+  const uint32_t allocated_uid = allocate_trace_uid();
+
 #if PERFORM_ADMISSION_CONTROL
   if (!EDF_can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    admission_control_handle_failure(periodic_task_count);
+    admission_control_handle_failure(allocated_uid);
     return pdFALSE;
   }
 #endif // PERFORM_ADMISSION_CONTROL
@@ -402,7 +405,7 @@ BaseType_t EDF_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
-    UINT32_MAX,
+    allocated_uid,
     TMB_handle,
     0
   );
@@ -771,8 +774,7 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
 }
 
 /// @brief Calculates release time for dropped task
-static TickType_t
-calculate_release_time_for_new_task(
+static TickType_t calculate_release_time_for_new_task(
   const TickType_t new_period,
   const TMB_t     *tasks,
   const size_t     count,
@@ -783,7 +785,7 @@ calculate_release_time_for_new_task(
     return current_tick;
   }
 
-  const TickType_t H = compute_hyperperiod(new_period, tasks, count);
+  const TickType_t H         = compute_hyperperiod(new_period, tasks, count);
   const TickType_t remainder = current_tick % H;
   if (remainder == 0) {
     return current_tick;

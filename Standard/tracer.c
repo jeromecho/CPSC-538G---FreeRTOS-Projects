@@ -201,8 +201,10 @@ void TRACE_print_buffer() {
     }
 
     uint8_t task_id = r->task_id;
+    uint32_t task_uid = r->task_uid;
     if (r->event.type == TRACE_ADMISSION_FAILED) {
-      task_id = r->event.data.task_index;
+      // For admission failures, use the allocated UID stored in event data
+      task_uid = r->event.data.admission_failure_uid;
     }
 
     printf(
@@ -221,7 +223,7 @@ void TRACE_print_buffer() {
       r->system_ceiling,
       r->preempt_level,
       r->deadline,
-      r->task_uid
+      task_uid
     );
   }
 

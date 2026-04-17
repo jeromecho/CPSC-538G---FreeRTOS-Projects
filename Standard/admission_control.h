@@ -15,7 +15,7 @@ bool EDF_can_admit_periodic_task_for_task_set(
   const size_t     task_count
 );
 
-void admission_control_handle_failure(const size_t task_index);
+void admission_control_handle_failure(const uint32_t uid);
 
 #if !(USE_MP && USE_PARTITIONED)
 bool EDF_can_admit_periodic_task( //

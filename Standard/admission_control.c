@@ -20,8 +20,8 @@
 
 #define EPSILON 1e-9
 
-void admission_control_handle_failure(const size_t task_index) {
-  TRACE_record(EVENT_ADMISSION_FAIL(task_index), TRACE_TASK_PERIODIC, NULL, false);
+void admission_control_handle_failure(const uint32_t uid) {
+  TRACE_record(EVENT_ADMISSION_FAIL(uid), TRACE_TASK_PERIODIC, NULL, false);
   TRACE_disable();
   xTaskNotifyGive(monitor_task_handle);
 }

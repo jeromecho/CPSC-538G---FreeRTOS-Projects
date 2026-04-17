@@ -169,7 +169,7 @@ TEST_CASES = {
     },
     "EDF3": {
         "name": "100 Tasks NON-ADMISSIBLE",
-        "expected_admission_failure": "Periodic 34",
+        "expected_admission_failure": 33,
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -187,7 +187,7 @@ TEST_CASES = {
     },
     "EDF6": {
         "name": "Non-admissible by utilization",
-        "expected_admission_failure": "Periodic 10",
+        "expected_admission_failure": 9,
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -199,7 +199,7 @@ TEST_CASES = {
     },
     "EDF8": {
         "name": "Non-admissible by processor demand",
-        "expected_admission_failure": "Periodic 02",
+        "expected_admission_failure": 1,
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -228,7 +228,7 @@ TEST_CASES = {
     },
     "EDF10": {
         "name": "Inadmissible drop-in",
-        "expected_admission_failure": "Periodic 02",
+        "expected_admission_failure": 1,
         "expected_events": {
             "Periodic 01": [
                 (0, TraceEvent.TRACE_RELEASE),
@@ -440,13 +440,13 @@ TEST_CASES = {
     },
     "SRP8": {
         "name": "Admission Control - Fail (Implicit Deadlines)",
-        "expected_admission_failure": "Periodic 03",
+        "expected_admission_failure": 2,
         "ignore_traces": True,
         "expected_events": {},
     },
     "SRP9": {
         "name": "Admission Control - Fail (Constrained Deadlines)",
-        "expected_admission_failure": "Periodic 03",
+        "expected_admission_failure": 2,
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -2338,7 +2338,7 @@ TEST_CASES = {
     },
     "SMP3": {
         "name": "100 Tasks NON-ADMISSIBLE",
-        "expected_admission_failure": "Periodic 34 C0",
+        "expected_admission_failure": 33,
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -2356,7 +2356,7 @@ TEST_CASES = {
     },
     "SMP6": {
         "name": "Non-admissible by utilization",
-        "expected_admission_failure": "Periodic 10 C0",
+        "expected_admission_failure": [9, 19],
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -2368,7 +2368,7 @@ TEST_CASES = {
     },
     "SMP8": {
         "name": "Non-admissible by processor demand",
-        "expected_admission_failure": "Periodic 02 C0",
+        "expected_admission_failure": [1, 3],
         "ignore_traces": True,
         "expected_events": {},
     },
@@ -2414,7 +2414,7 @@ TEST_CASES = {
     },
     "SMP10": {
         "name": "Inadmissible drop-in",
-        "expected_admission_failure": [1, 3],
+        "expected_admission_failure": [2, 3],
         "expected_events": {
             0: [
                 (0, TraceEvent.TRACE_RELEASE, 0),

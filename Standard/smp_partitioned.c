@@ -134,9 +134,12 @@ BaseType_t SMP_create_periodic_task_on_core(
 #if MAXIMUM_PERIODIC_TASKS > 0
   configASSERT(core < configNUMBER_OF_CORES);
 
+  // Allocate UID early so we can use it for both failure and success paths
+  const uint32_t allocated_uid = allocate_trace_uid();
+
 #if PERFORM_ADMISSION_CONTROL
   if (!SMP_can_admit_periodic_task_on_core(completion_time, period, relative_deadline, core)) {
-    admission_control_handle_failure(periodic_task_count[core]);
+    admission_control_handle_failure(allocated_uid);
     return pdFALSE;
   }
 #endif
@@ -151,7 +154,7 @@ BaseType_t SMP_create_periodic_task_on_core(
     completion_time,
     period,
     relative_deadline,
-    UINT32_MAX,
+    allocated_uid,
     &handle,
     core
   );

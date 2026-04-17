@@ -132,9 +132,12 @@ BaseType_t SRP_create_periodic_task(
   configASSERT(preemption_level > 0);
   configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
+  // Allocate UID early so we can use it for both failure and success paths
+  const uint32_t allocated_uid = allocate_trace_uid();
+
 #if PERFORM_ADMISSION_CONTROL
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    admission_control_handle_failure(periodic_task_count);
+    admission_control_handle_failure(allocated_uid);
     return pdFALSE;
   }
 #endif
@@ -155,7 +158,7 @@ BaseType_t SRP_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
-    UINT32_MAX,
+    allocated_uid,
     &handle,
     configNUMBER_OF_CORES
   );

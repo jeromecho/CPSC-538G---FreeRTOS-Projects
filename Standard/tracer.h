@@ -37,12 +37,13 @@ typedef struct {
     uint8_t semaphore_index;
     uint8_t task_index;
     uint8_t debug_code;
+    uint32_t admission_failure_uid;  // UID of the task that failed admission
   } data;
 } TraceEvent_t;
 
 #define EVENT_BASIC(event_type) ((TraceEvent_t){.type = (event_type)})
-#define EVENT_ADMISSION_FAIL(task_idx)                                                                                 \
-  ((TraceEvent_t){.type = TRACE_ADMISSION_FAILED, .data = {.task_index = (task_idx)}})
+#define EVENT_ADMISSION_FAIL(uid)                                                                                      \
+  ((TraceEvent_t){.type = TRACE_ADMISSION_FAILED, .data = {.admission_failure_uid = (uid)}})
 #define EVENT_SEMAPHORE_TAKE(sem_idx)                                                                                  \
   ((TraceEvent_t){.type = TRACE_SEMAPHORE_TAKE, .data = {.semaphore_index = (sem_idx)}})
 #define EVENT_SEMAPHORE_GIVE(sem_idx)                                                                                  \

@@ -62,6 +62,8 @@ void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priorit
 TMB_t *scheduler_produce_highest_priority_task();
 bool   scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core);
 
+uint32_t allocate_trace_uid(void);
+
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 
 #if USE_MP && USE_PARTITIONED
