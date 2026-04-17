@@ -48,8 +48,9 @@ void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *conf
     NULL
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-#error "Global partitioning not implemented yet"
-
+  SMP_create_periodic_task(
+    config->func, task_name, pdMS_TO_TICKS(config->C), pdMS_TO_TICKS(config->T), pdMS_TO_TICKS(config->D), NULL
+  );
 #else
 #error "Scheduler type not defined! Define USE_SRP or USE_EDF."
 #endif
