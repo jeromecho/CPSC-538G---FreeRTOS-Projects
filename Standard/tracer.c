@@ -75,6 +75,7 @@ void TRACE_record( //
   }
 
   uint8_t     task_id           = UINT8_MAX;
+  uint32_t    task_uid          = UINT32_MAX;
   TickType_t  deadline          = portMAX_DELAY;
   UBaseType_t freeRTOS_priority = UINT_MAX;
   eTaskState  task_state        = eInvalid;
@@ -86,6 +87,7 @@ void TRACE_record( //
 
   if (task != NULL) {
     task_id  = task->id;
+    task_uid = task->trace_uid;
     deadline = task->absolute_deadline;
     if (!in_ISR && task->handle != NULL) {
       freeRTOS_priority = uxTaskPriorityGet(task->handle);
@@ -103,6 +105,7 @@ void TRACE_record( //
   if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
     task_id = emitting_core_id;
+    task_uid = emitting_core_id;
   }
 
   if (event.type == TRACE_DEBUG_MARKER) {
@@ -122,6 +125,7 @@ void TRACE_record( //
     .event          = event,
     .task_type      = task_type,
     .task_id        = task_id,
+    .task_uid       = task_uid,
     .deadline       = deadline,
     .priority       = freeRTOS_priority,
     .task_state     = task_state,
@@ -154,7 +158,7 @@ void TRACE_print_buffer() {
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);
   printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
-         "PREEMPT_LVL,DEADLINE\n");
+         "PREEMPT_LVL,DEADLINE,TASK_UID\n");
 
   size_t head[configNUMBER_OF_CORES] = {0};
 
@@ -202,7 +206,7 @@ void TRACE_print_buffer() {
     }
 
     printf(
-      "%u,%d,%llu,%u,%lu,%d,%u,%u,%d,%u,%u,%u,%u,%u\n",
+      "%u,%d,%llu,%u,%lu,%d,%u,%u,%d,%u,%u,%u,%u,%u,%u\n",
       r->FreeRTOS_tick,
       (int)r->event.type,
       to_us_since_boot(r->time),
@@ -216,7 +220,8 @@ void TRACE_print_buffer() {
       r->debug_code,
       r->system_ceiling,
       r->preempt_level,
-      r->deadline
+      r->deadline,
+      r->task_uid
     );
   }
 

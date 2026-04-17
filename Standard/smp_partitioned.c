@@ -151,6 +151,7 @@ BaseType_t SMP_create_periodic_task_on_core(
     completion_time,
     period,
     relative_deadline,
+    UINT32_MAX,
     &handle,
     core
   );
@@ -198,6 +199,7 @@ BaseType_t SMP_create_aperiodic_task_on_core(
     completion_time,
     release_time,
     relative_deadline,
+    UINT32_MAX,
     &handle,
     core
   );
@@ -271,14 +273,18 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   BaseType_t created  = pdFAIL;
 
   if (location.is_periodic) {
-    created = SMP_create_periodic_task_on_core(
+    created = _create_periodic_task_internal(
       location.task->task_function,
       task_name,
+      periodic_tasks[destination_core],
+      &periodic_task_count[destination_core],
+      private_stacks_periodic[destination_core][periodic_task_count[destination_core]],
       location.task->completion_time,
       location.task->periodic.period,
       location.task->periodic.relative_deadline,
-      destination_core,
-      &new_task
+      location.task->trace_uid,
+      &new_task,
+      destination_core
     );
   }
 #if MAXIMUM_APERIODIC_TASKS > 0
@@ -288,14 +294,20 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
       (location.task->release_time > current_tick) ? location.task->release_time : current_tick;
     const TickType_t relative_deadline = location.task->absolute_deadline - location.task->release_time;
 
-    created = SMP_create_aperiodic_task_on_core(
+    created = _create_aperiodic_task_internal(
       location.task->task_function,
       task_name,
+      aperiodic_tasks[destination_core],
+      &aperiodic_task_count[destination_core],
+      private_stacks_aperiodic[destination_core][aperiodic_task_count[destination_core]],
       location.task->completion_time,
       release_time,
       relative_deadline,
-      destination_core,
-      &new_task
+      location.task->trace_uid,
+      &new_task,
+      NULL,
+      true,
+      destination_core
     );
   }
 #endif

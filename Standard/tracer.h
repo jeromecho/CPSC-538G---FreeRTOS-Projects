@@ -66,6 +66,7 @@ typedef struct {
 
   TraceTaskType_t task_type;
   uint8_t         task_id;    // e.g., 0, 1, 2 for the specific task array index
+  uint32_t        task_uid;   // Stable task identity that survives migration across cores
   UBaseType_t     priority;   // Captured priority at the time of the event
   eTaskState      task_state; // e.g. ready, suspended.
 
