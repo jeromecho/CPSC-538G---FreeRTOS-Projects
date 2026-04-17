@@ -87,6 +87,9 @@
 
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
 #include "testing/partitioned_mp_tests.h" // IWYU pragma: keep
+
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+#include "testing/global_mp_tests.h" // IWYU pragma: keep
 #endif
 
 // Other includes
@@ -217,5 +220,10 @@ void run_test() {
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
   printf("Running Partitioned MP Test %d\n", TEST_NR);
   PASTE_EXPAND(partitioned_mp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+  printf("Running Global MP Test %d\n", TEST_NR);
+  PASTE_EXPAND(global_mp_test_, TEST_NR)();
+#else
+#error "invalid test suite"
 #endif
 }
