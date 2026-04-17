@@ -11,6 +11,7 @@ BaseType_t _create_task_internal(
   const char *const     task_name,
   const TaskType_t      type,
   const size_t          id,
+  const uint32_t        trace_uid_override,
   TMB_t *const          new_task,
   SchedulerParameters_t parameters,
   StackType_t          *stack_buffer,
@@ -27,6 +28,7 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
+  const uint32_t    trace_uid_override,
   TMB_t **const     TMB_handle,
   void             *parameters_remaining,
   bool              is_hard_rt,
@@ -41,6 +43,7 @@ BaseType_t _create_periodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
+  const uint32_t    trace_uid_override,
   TMB_t **const     TMB_handle,
   const UBaseType_t core
 );

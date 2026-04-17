@@ -34,6 +34,15 @@
 
 #include <stdio.h>
 
+static uint32_t g_next_trace_uid = 0;
+
+static uint32_t allocate_trace_uid(void) {
+  taskENTER_CRITICAL();
+  const uint32_t trace_uid = g_next_trace_uid++;
+  taskEXIT_CRITICAL();
+  return trace_uid;
+}
+
 
 ; // ==========================
 ; // === GLOBAL TASK ARRAYS ===
@@ -181,6 +190,7 @@ BaseType_t _create_task_internal(
   const char *const     task_name,
   const TaskType_t      type,
   const size_t          id,
+  const uint32_t        trace_uid_override,
   TMB_t *const          new_task,
   SchedulerParameters_t parameters,
   StackType_t          *stack_buffer,
@@ -209,6 +219,7 @@ BaseType_t _create_task_internal(
 
   new_task->type = type;
   new_task->id   = id;
+  new_task->trace_uid = (trace_uid_override != UINT32_MAX) ? trace_uid_override : allocate_trace_uid();
 
   new_task->is_done         = false;
   new_task->is_hard_rt      = is_hard_rt;
@@ -244,6 +255,7 @@ BaseType_t _create_periodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
+  const uint32_t    trace_uid_override,
   TMB_t **const     TMB_handle,
   const UBaseType_t core
 ) {
@@ -263,6 +275,7 @@ BaseType_t _create_periodic_task_internal(
     task_name,
     TASK_PERIODIC,
     *task_count,
+    trace_uid_override,
     new_task,
     parameters,
     stack_buffer,
@@ -311,6 +324,7 @@ BaseType_t _create_aperiodic_task_internal(
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
+  const uint32_t    trace_uid_override,
   TMB_t **const     TMB_handle,
   void             *parameters_remaining,
   bool              is_hard_rt,
@@ -334,6 +348,7 @@ BaseType_t _create_aperiodic_task_internal(
     task_name,
     TASK_APERIODIC,
     *task_count,
+    trace_uid_override,
     new_task,
     parameters,
     stack_buffer,
@@ -388,6 +403,7 @@ BaseType_t EDF_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
+    UINT32_MAX,
     TMB_handle,
     0
   );
@@ -424,6 +440,7 @@ BaseType_t EDF_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
+    UINT32_MAX,
     TMB_handle,
     parameters_remaining,
     is_hard_rt,

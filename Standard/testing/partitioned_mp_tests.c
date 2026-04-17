@@ -6,6 +6,7 @@
 #include "testing.h"
 
 #include "edf_scheduler.h"
+#include "smp_partitioned.h"
 
 #include "helpers.h" // for crash_without_trace
 
@@ -246,5 +247,157 @@ void partitioned_mp_test_11() {
   build_periodic_tasks_on_all_cores("SMP Test 11", test_config, MAXIMUM_PERIODIC_TASKS);
 }
 #endif // TEST_NR == 11
+
+#if TEST_NR == 12
+static TaskHandle_t g_smp12_remove_target_core0 = NULL;
+static TaskHandle_t g_smp12_keep_target_core1   = NULL;
+
+static void vPartitionedMPTestRunner12(void *pvParameters) {
+  (void)pvParameters;
+
+  vTaskDelay(pdMS_TO_TICKS(20));
+
+  if (SMP_remove_task_from_core(g_smp12_remove_target_core0, 0) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Failed to remove task from core 0");
+  }
+
+  if (EDF_get_task_by_handle(g_smp12_remove_target_core0) != NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Removed task still present in scheduler");
+  }
+
+  if (EDF_get_task_by_handle(g_smp12_keep_target_core1) == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Unrelated core 1 task disappeared unexpectedly");
+  }
+
+  vTaskDelete(NULL);
+}
+
+void partitioned_mp_test_12() {
+  const PeriodicTaskParams_t initial_tasks[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 6, 20, 20, 0},
+    {EDF_periodic_task, 6, 20, 20, 1},
+  };
+
+  TMB_t *c0_task = NULL;
+  TMB_t *c1_task = NULL;
+
+  if (build_periodic_task_with_handle("SMP12 C0 Remove", &initial_tasks[0], &c0_task) != pdPASS ||
+      build_periodic_task_with_handle("SMP12 C1 Keep", &initial_tasks[1], &c1_task) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Failed to create setup tasks");
+  }
+
+  if (c0_task == NULL || c1_task == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Failed to resolve setup task handles");
+  }
+
+  g_smp12_remove_target_core0 = c0_task->handle;
+  g_smp12_keep_target_core1   = c1_task->handle;
+
+  TaskHandle_t runner = NULL;
+  if (xTaskCreate(
+        vPartitionedMPTestRunner12, "SMP12 Runner", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner
+      ) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP12: Failed to create runner task");
+  }
+}
+#endif // TEST_NR == 12
+
+#if TEST_NR == 13
+static TaskHandle_t g_smp13_migrate_source = NULL;
+
+static void vPartitionedMPTestRunner13(void *pvParameters) {
+  (void)pvParameters;
+
+  vTaskDelay(pdMS_TO_TICKS(20));
+
+  TMB_t *migrated = NULL;
+  if (SMP_migrate_task_to_core(g_smp13_migrate_source, 1, &migrated) != pdPASS || migrated == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP13: Migration API failed");
+  }
+
+  if (EDF_get_task_by_handle(g_smp13_migrate_source) != NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP13: Source handle still exists after migration");
+  }
+
+  if (migrated->assigned_core != 1) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP13: Migrated task not assigned to destination core");
+  }
+
+  vTaskDelete(NULL);
+}
+
+void partitioned_mp_test_13() {
+  const PeriodicTaskParams_t initial_tasks[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 5, 16, 16, 0},
+    {EDF_periodic_task, 2, 16, 12, 1},
+  };
+  TMB_t *baseline = NULL;
+  TMB_t *task     = NULL;
+  if (build_periodic_task_with_handle("SMP13 Migrating", &initial_tasks[0], &task) != pdPASS ||
+      build_periodic_task_with_handle("SMP13 Baseline", &initial_tasks[1], &baseline) != pdPASS || task == NULL ||
+      baseline == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP13: Failed to create initial task set");
+  }
+
+  g_smp13_migrate_source = task->handle;
+
+  TaskHandle_t runner = NULL;
+  if (xTaskCreate(
+        vPartitionedMPTestRunner13, "SMP13 Runner", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner
+      ) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP13: Failed to create runner task");
+  }
+}
+#endif // TEST_NR == 13
+
+#if TEST_NR == 14
+void partitioned_mp_test_14() {
+  const PeriodicTaskParams_t initial_tasks[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 40, 120, 120, 0},
+  };
+
+  TMB_t *task = NULL;
+  if (build_periodic_task_with_handle("SMP14 Target", &initial_tasks[0], &task) != pdPASS || task == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Failed to create setup task");
+  }
+
+  if (SMP_remove_task_from_core(task->handle, 1) != pdFAIL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Remove should fail for incorrect core");
+  }
+
+  if (SMP_migrate_task_to_core(task->handle, configNUMBER_OF_CORES, NULL) != pdFAIL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Migration should fail for invalid destination core");
+  }
+
+  if (SMP_remove_task_from_core(NULL, 0) != pdFAIL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Remove should fail for NULL handle");
+  }
+
+  if (EDF_get_task_by_handle(task->handle) == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Task disappeared after invalid API calls");
+  }
+
+  if (SMP_remove_task_from_core(task->handle, 0) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Cleanup remove failed");
+  }
+}
+#endif // TEST_NR == 14
 
 #endif // TEST_SUITE == TEST_SUITE_PARTITIONED_MP

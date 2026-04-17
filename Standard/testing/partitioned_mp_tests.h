@@ -16,6 +16,9 @@ void partitioned_mp_test_8();
 void partitioned_mp_test_9();
 void partitioned_mp_test_10();
 void partitioned_mp_test_11();
+void partitioned_mp_test_12();
+void partitioned_mp_test_13();
+void partitioned_mp_test_14();
 
 #endif // USE_MP
 

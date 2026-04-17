@@ -28,6 +28,7 @@ typedef struct TMB_t {
   // --- Common Metadata ---
   TaskType_t   type;
   size_t       id; // Index in the corresponding TMB array, starting from 0
+  uint32_t     trace_uid; // Stable identity used in trace output and visualisations
   TaskHandle_t handle;
   bool         is_done;
   bool         is_hard_rt;

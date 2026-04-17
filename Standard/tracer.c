@@ -15,6 +15,28 @@ static size_t        trace_count[configNUMBER_OF_CORES] = {0};
 
 static bool tracing_enabled = true;
 
+static size_t TRACE_find_duplicate_background_event_slot(
+  const TickType_t trace_tick, const TraceEvent_t event, const TraceTaskType_t task_type, const uint8_t reported_core_id
+) {
+  if (task_type != TRACE_TASK_IDLE && task_type != TRACE_TASK_SYSTEM) {
+    return SIZE_MAX;
+  }
+
+  for (size_t i = trace_count[reported_core_id]; i > 0; --i) {
+    const TraceRecord_t *const existing = &trace_buffer[reported_core_id][i - 1];
+
+    if (existing->FreeRTOS_tick != trace_tick) {
+      break;
+    }
+
+    if (existing->event.type == event.type && existing->task_type == task_type) {
+      return i - 1;
+    }
+  }
+
+  return SIZE_MAX;
+}
+
 // TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
 // bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
 // to 0 when SRP is not enabled.
@@ -53,9 +75,11 @@ void TRACE_record( //
   }
 
   uint8_t     task_id           = UINT8_MAX;
+  uint32_t    task_uid          = UINT32_MAX;
   TickType_t  deadline          = portMAX_DELAY;
   UBaseType_t freeRTOS_priority = UINT_MAX;
   eTaskState  task_state        = eInvalid;
+  uint8_t     debug_code        = UINT8_MAX;
 
   // SRP-related (not updated when SRP is disabled)
   unsigned int system_ceiling = UINT_MAX;
@@ -63,6 +87,7 @@ void TRACE_record( //
 
   if (task != NULL) {
     task_id  = task->id;
+    task_uid = task->trace_uid;
     deadline = task->absolute_deadline;
     if (!in_ISR && task->handle != NULL) {
       freeRTOS_priority = uxTaskPriorityGet(task->handle);
@@ -80,11 +105,17 @@ void TRACE_record( //
   if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
     task_id = emitting_core_id;
+    task_uid = emitting_core_id;
   }
 
-  const size_t slot = trace_count[reported_core_id];
+  if (event.type == TRACE_DEBUG_MARKER) {
+    debug_code = event.data.debug_code;
+  }
 
   const TickType_t trace_tick = in_ISR ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+  const size_t     duplicate_slot =
+    TRACE_find_duplicate_background_event_slot(trace_tick, event, task_type, reported_core_id);
+  const size_t slot = (duplicate_slot != SIZE_MAX) ? duplicate_slot : trace_count[reported_core_id];
 
   trace_buffer[reported_core_id][slot] = (TraceRecord_t){
     .FreeRTOS_tick  = trace_tick,
@@ -94,14 +125,18 @@ void TRACE_record( //
     .event          = event,
     .task_type      = task_type,
     .task_id        = task_id,
+    .task_uid       = task_uid,
     .deadline       = deadline,
     .priority       = freeRTOS_priority,
     .task_state     = task_state,
+    .debug_code     = debug_code,
     .system_ceiling = system_ceiling,
     .preempt_level  = preempt_level,
   };
 
-  trace_count[reported_core_id]++;
+  if (duplicate_slot == SIZE_MAX) {
+    trace_count[reported_core_id]++;
+  }
   if (!in_ISR) {
     taskEXIT_CRITICAL();
   }
@@ -122,8 +157,8 @@ void TRACE_print_buffer() {
 
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);
-  printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,CEILING,PREEMPT_LVL,"
-         "DEADLINE\n");
+  printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
+         "PREEMPT_LVL,DEADLINE,TASK_UID\n");
 
   size_t head[configNUMBER_OF_CORES] = {0};
 
@@ -171,7 +206,7 @@ void TRACE_print_buffer() {
     }
 
     printf(
-      "%u,%d,%llu,%u,%lu,%d,%u,%u,%d,%u,%u,%u,%u\n",
+      "%u,%d,%llu,%u,%lu,%d,%u,%u,%d,%u,%u,%u,%u,%u,%u\n",
       r->FreeRTOS_tick,
       (int)r->event.type,
       to_us_since_boot(r->time),
@@ -182,9 +217,11 @@ void TRACE_print_buffer() {
       (unsigned int)r->priority,
       (int)r->task_state,
       resource_id,
+      r->debug_code,
       r->system_ceiling,
       r->preempt_level,
-      r->deadline
+      r->deadline,
+      r->task_uid
     );
   }
 

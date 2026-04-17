@@ -155,6 +155,7 @@ BaseType_t SRP_create_periodic_task(
     completion_time,
     period,
     relative_deadline,
+    UINT32_MAX,
     &handle,
     configNUMBER_OF_CORES
   );
@@ -213,6 +214,7 @@ BaseType_t SRP_create_aperiodic_task(
     completion_time,
     release_time,
     relative_deadline,
+    UINT32_MAX,
     &handle,
     NULL,
     true,
