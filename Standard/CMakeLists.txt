@@ -31,6 +31,7 @@ set(MY_SOURCES
         srp.c
         smp_partitioned.c
         smp_global.c
+        smp_shared.c
         admission_control.c
 
         tracer.c
@@ -49,7 +50,7 @@ set(MY_SOURCES
 
 add_executable(main_blinky ${MY_SOURCES})
 
-set_source_files_properties(${MY_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wundef;-Werror=undef")
+# set_source_files_properties(${MY_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wundef;-Werror=undef")
 
 pico_enable_stdio_uart(main_blinky 0)
 pico_enable_stdio_usb(main_blinky 1)
