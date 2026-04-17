@@ -64,7 +64,7 @@
 #include "main_blinky.h"
 
 /* Kernel includes. */
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 
 /* Library includes. */
 #include "hardware/gpio.h"
@@ -127,9 +127,9 @@ void vTraceMonitorTask(void *pvParameters) {
 #elif TEST_SUITE == TEST_SUITE_CBS
   printf("Results for CBS Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-  printf("Results for SMP Test %d\n", TEST_NR);
+  printf("Results for SMP Test (Partitioned) %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-  printf("Results for SMP Test %d\n", TEST_NR);
+  printf("Results for SMP Test (Global) %d\n", TEST_NR);
 #endif
 
   crash_with_trace("");

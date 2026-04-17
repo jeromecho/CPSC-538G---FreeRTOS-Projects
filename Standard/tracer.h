@@ -1,7 +1,7 @@
 #ifndef TRACER_H
 #define TRACER_H
 
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
 
 typedef enum {

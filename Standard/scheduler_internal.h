@@ -1,7 +1,7 @@
 #ifndef SCHEDULER_INTERNAL_H
 #define SCHEDULER_INTERNAL_H
 
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h"          // IWYU pragma: keep
 #include "ProjectConfig.h"
 #include "config/TestConfig.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
@@ -60,11 +60,16 @@ void   scheduler_register_deadline_miss(const TMB_t *const task);
 bool   scheduler_release_periodic_job_if_ready(TMB_t *task, TickType_t current_tick);
 void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core);
 TMB_t *scheduler_produce_highest_priority_task();
-bool   scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core);
+
+#if USE_MP && USE_GLOBAL
+bool scheduler_should_context_switch(TMB_t **const highest_priority_tasks, const size_t core);
+#else
+bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core);
+#endif // USE_MP && USE_GLOBAL
 
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 
-#if USE_MP && USE_PARTITIONED
+#if USE_MP // && USE_PARTITIONED
 extern TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count[configNUMBER_OF_CORES];
 

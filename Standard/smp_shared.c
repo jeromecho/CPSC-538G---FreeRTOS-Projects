@@ -4,7 +4,7 @@
 #include "scheduler_internal.h"
 #include "smp_shared.h"
 
-SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location) {
+bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location) {
   if (task_handle == NULL || location == NULL) {
     return false;
   }

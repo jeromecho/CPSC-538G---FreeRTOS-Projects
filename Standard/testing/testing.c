@@ -104,8 +104,11 @@ build_aperiodic_task_with_handle(const char *task_name, const AperiodicTaskParam
     handle
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-#error "Global partitioning not implemented yet"
-
+  // TODO - implement global aperiodic tasks if time
+  (void)task_name;
+  (void)config;
+  (void)handle;
+  return pdFAIL;
 #else
 #error "Scheduler type not defined! Define TEST_SUITE_SRP, TEST_SUITE_EDF, or TEST_SUITE_MP."
 #endif

@@ -5,7 +5,8 @@
 
 #if USE_EDF
 
-#include "FreeRTOS_include.h" // IWYU pragma: keep
+#include "FreeRTOS.h" // IWYU pragma: keep
+#include "task.h"     // IWYU pragma: keep
 
 #if USE_SRP
 // Include TestConfig so that the N_RESOURCES constant is available
@@ -27,7 +28,7 @@ typedef struct TMB_t {
 
   // --- Common Metadata ---
   TaskType_t   type;
-  size_t       id; // Index in the corresponding TMB array, starting from 0
+  size_t       id;        // Index in the corresponding TMB array, starting from 0
   uint32_t     trace_uid; // Stable identity used in trace output and visualisations
   TaskHandle_t handle;
   bool         is_done;

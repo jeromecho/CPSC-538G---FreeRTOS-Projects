@@ -22,13 +22,15 @@
 #include "cbs.h"
 #endif // USE_CBS
 
-#if USE_MP && USE_PARTITIONED
+#if USE_MP
+#include "smp_shared.h"
+#if USE_PARTITIONED
 #include "smp_partitioned.h"
-#endif // USE_MP && USE_PARTITIONED
-
-#if USE_MP && USE_GLOBAL
+#endif // USE_PARTITIONED
+#if USE_GLOBAL
 #include "smp_global.h"
-#endif // USE_MP && USE_GLOBAL
+#endif // USE_GLOBAL
+#endif // USE_MP
 
 #include "testing/testing.h"
 
@@ -45,8 +47,8 @@ static uint32_t allocate_trace_uid(void) {
 
 
 ; // ==========================
-; // === GLOBAL TASK ARRAYS ===
-; // ==========================
+;          // === GLOBAL TASK ARRAYS ===
+;          // ==========================
 
 #if USE_MP //  && USE_PARTITIONED
 TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
@@ -119,7 +121,9 @@ void task_switched_in(void);
 
 /// @brief Return task handle of highest priority task in TMB arrays. Return NULL if none
 TMB_t *scheduler_produce_highest_priority_task() {
-#if USE_MP && USE_PARTITIONED
+#if USE_MP && USE_GLOBAL
+  return NULL; // make compiler happy
+#elif USE_MP && USE_PARTITIONED
   return SMP_partitioned_produce_highest_priority_task((UBaseType_t)portGET_CORE_ID());
 #else
   TMB_t *periodic_candidate = scheduler_highest_priority_candidate(periodic_tasks, periodic_task_count, NULL);
@@ -217,8 +221,8 @@ BaseType_t _create_task_internal(
   new_task->task_function = task_function;
   new_task->stack_buffer  = stack_buffer;
 
-  new_task->type = type;
-  new_task->id   = id;
+  new_task->type      = type;
+  new_task->id        = id;
   new_task->trace_uid = (trace_uid_override != UINT32_MAX) ? trace_uid_override : allocate_trace_uid();
 
   new_task->is_done         = false;
@@ -523,7 +527,7 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t task_handle) {
 
   TMB_t *candidate = NULL;
 
-#if USE_MP && USE_PARTITIONED
+#if USE_MP // && USE_PARTITIONED
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
     candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks[core], periodic_task_count[core]);
     if (candidate)
@@ -552,12 +556,12 @@ void starting_scheduler(void *xIdleTaskHandles) {
 
 #if USE_CBS
   CBS_release_tasks();
-#endif // USE_CBS
+#endif     // USE_CBS
 
-#if USE_MP && USE_PARTITIONED
-  SMP_partitioned_check_deadlines();
-  SMP_partitioned_record_releases();
-  SMP_partitioned_suspend_and_resume_tasks();
+#if USE_MP // && USE_PARTITIONED
+  SMP_check_deadlines();
+  SMP_record_releases();
+  SMP_suspend_and_resume_tasks();
 #else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
@@ -791,7 +795,7 @@ static SchedulerSelection_t select_next_task(const size_t core) {
   TMB_t *highest_priority_tasks[configNUMBER_OF_CORES] = {NULL, NULL};
   SMP_produce_highest_priority_tasks(result.all_candidates);
   // TODO - rename variable to `highest_priority_task` to run
-  result.target_task = = SMP_produce_highest_priority_task_not_running(result.all_candidates);
+  result.target_task = SMP_produce_highest_priority_task_not_running(result.all_candidates);
 #elif USE_MP && USE_PARTITIONED
   TMB_t *const result.highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
 #else  // USE_MP && USE_PARTITIONED
@@ -813,11 +817,11 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
     return;
   }
   TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
-  scheduler_suspend_lower_priority_tasks(highest_priority_task, core);
+  scheduler_suspend_lower_priority_tasks(selection.target_task, core);
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
   // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
   // to run the Idle task.
-  if (highest_priority_task != NULL) {
+  if (selection.target_task != NULL) {
 #if USE_SRP
     if (!highest_priority_task->has_started) {
 #if ENABLE_STACK_SHARING // Only do the memory wipe if stack sharing is enabled
@@ -828,9 +832,9 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
     }
 #endif // USE_SRP
 #if USE_MP && USE_GLOBAL
-    SMP_migrate_task_with_saved_state(highest_priority_task, core);
+    SMP_migrate_task_with_saved_state(selection.target_task, core);
 #endif // USE_MP && USE_GLOBAL
-    scheduler_resume_task(highest_priority_task);
+    scheduler_resume_task(selection.target_task);
   }
 }
 

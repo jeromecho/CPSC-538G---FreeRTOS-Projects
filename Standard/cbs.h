@@ -5,7 +5,7 @@
 
 #if USE_CBS
 
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "data_structures/queue.h"
 #include "types/scheduler_types.h"
 

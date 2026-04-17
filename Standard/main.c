@@ -42,7 +42,7 @@
  */
 
 /* Scheduler include files. */
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "semphr.h"
 #include "task.h"
 

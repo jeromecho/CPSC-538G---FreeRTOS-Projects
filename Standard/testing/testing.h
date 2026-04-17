@@ -1,7 +1,7 @@
 #ifndef TESTING_H
 #define TESTING_H
 
-#include "FreeRTOS_include.h"  // IWYU pragma: keep
+#include "FreeRTOS.h"          // IWYU pragma: keep
 #include "config/TestConfig.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
 
@@ -69,13 +69,13 @@ typedef struct {
   const TaskWorkload_t workload = {completion_time, steps_array};                                                      \
   task_execute(&workload, LEN(steps_array))
 
-void build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config);
-void build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config);
+void       build_periodic_task(const char *task_name, const PeriodicTaskParams_t *config);
+void       build_aperiodic_task(const char *task_name, const AperiodicTaskParams_t *config);
 BaseType_t build_periodic_task_with_handle(const char *task_name, const PeriodicTaskParams_t *config, TMB_t **handle);
 BaseType_t build_aperiodic_task_with_handle(const char *task_name, const AperiodicTaskParams_t *config, TMB_t **handle);
-void build_periodic_test(const char *test_name, const PeriodicTaskParams_t *config, size_t num_tasks);
-void build_aperiodic_test(const char *test_name, const AperiodicTaskParams_t *config, size_t num_tasks);
-void execute_for_ticks(const TickType_t execution_ticks);
-void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps);
+void       build_periodic_test(const char *test_name, const PeriodicTaskParams_t *config, size_t num_tasks);
+void       build_aperiodic_test(const char *test_name, const AperiodicTaskParams_t *config, size_t num_tasks);
+void       execute_for_ticks(const TickType_t execution_ticks);
+void       task_execute(const TaskWorkload_t *task_workload, const size_t num_steps);
 
 #endif // TESTING_H

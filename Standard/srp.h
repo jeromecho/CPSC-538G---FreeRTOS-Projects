@@ -5,7 +5,7 @@
 
 #if USE_SRP
 
-#include "FreeRTOS_include.h"  // IWYU pragma: keep
+#include "FreeRTOS.h"          // IWYU pragma: keep
 #include "config/TestConfig.h" // IWYU pragma: keep
 #include "task.h"
 #include "types/scheduler_types.h"

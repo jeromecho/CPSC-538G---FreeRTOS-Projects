@@ -5,6 +5,7 @@
 #include "edf_scheduler.h"
 #include "smp_shared.h"
 #include "tracer.h"
+#include <stdio.h>
 
 BaseType_t SMP_create_periodic_task(
   TaskFunction_t    task_function,
@@ -23,6 +24,7 @@ BaseType_t SMP_create_periodic_task(
   }
 #endif
   TMB_t     *handle = NULL;
+  size_t     core   = 0;
   BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
@@ -37,7 +39,7 @@ BaseType_t SMP_create_periodic_task(
     // TODO: initialize all tasks on core 0 - might have to modify this code so that
     // one iteration of EDF scheduling logic decides cores before the scheduler even
     // starts
-    0
+    core
   );
   if (result == pdPASS && handle != NULL) {
     if (TMB_handle != NULL) {
@@ -53,7 +55,7 @@ static TMB_t *SMP_highest_priority_task_multicore() {
   TMB_t *candidate = NULL;
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
     TMB_t *periodic_candidate =
-      scheduler_highest_priority_candidate(&periodic_tasks[core], &periodic_task_count[core], NULL);
+      scheduler_highest_priority_candidate(periodic_tasks[core], periodic_task_count[core], NULL);
     if (candidate == NULL || periodic_candidate->absolute_deadline < candidate->absolute_deadline) {
       candidate = periodic_candidate;
     }
@@ -61,7 +63,7 @@ static TMB_t *SMP_highest_priority_task_multicore() {
   return candidate;
 }
 
-TMB_t *SMP_produce_highest_priority_task_not_running(TMB_T **highest_priority_tasks) {
+TMB_t *SMP_produce_highest_priority_task_not_running(TMB_t **highest_priority_tasks) {
   TMB_t *candidate = NULL;
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
     bool task_suspended =
@@ -79,7 +81,7 @@ TMB_t *SMP_produce_highest_priority_task_not_running(TMB_T **highest_priority_ta
 void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
   // TOOD - if time, add support for aperiodic tasks
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
-    *highest_priority_tasks[core] = NULL;
+    highest_priority_tasks[core] = NULL;
   }
   TMB_t *first_candidate  = NULL;
   TMB_t *second_candidate = NULL;
@@ -88,12 +90,12 @@ void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
     return;
   }
   // HACK: temporarily modify done state of task to prevent selection
-  bool original_done_state   = first_candidate->is_done;
-  first_candidate->is_done   = false;
-  second_candidate           = SMP_highest_priority_task_multicore();
-  first_candidate->is_done   = original_done_state;
-  *highest_priority_tasks[0] = first_candidate;
-  *highest_priority_tasks[1] = second_candidate;
+  bool original_done_state  = first_candidate->is_done;
+  first_candidate->is_done  = false;
+  second_candidate          = SMP_highest_priority_task_multicore();
+  first_candidate->is_done  = original_done_state;
+  highest_priority_tasks[0] = first_candidate;
+  highest_priority_tasks[1] = second_candidate;
 }
 
 // TODO: (if time) - extend the below to support migration of aperiodic tasks
@@ -116,7 +118,7 @@ BaseType_t SMP_migrate_task_with_saved_state(TMB_t *task, const size_t core) {
 
   TMB_t temp                                      = periodic_tasks[location.core][location.index];
   temp.assigned_core                              = core;
-  periodic_tasks[location.core][location.index]   = periodic_tasks[location.core][last_idx];
+  periodic_tasks[location.core][location.index]   = periodic_tasks[location.core][last_idx_start];
   periodic_tasks[core][periodic_task_count[core]] = temp;
   periodic_task_count[core]++;
   return pdPASS;

@@ -5,7 +5,7 @@
 
 #if USE_EDF
 
-#include "FreeRTOS_include.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
 
 #define PRIORITY_RUNNING (tskIDLE_PRIORITY + 1)
