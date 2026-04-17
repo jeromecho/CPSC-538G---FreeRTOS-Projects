@@ -15,6 +15,28 @@ static size_t        trace_count[configNUMBER_OF_CORES] = {0};
 
 static bool tracing_enabled = true;
 
+static size_t TRACE_find_duplicate_background_event_slot(
+  const TickType_t trace_tick, const TraceEvent_t event, const TraceTaskType_t task_type, const uint8_t reported_core_id
+) {
+  if (task_type != TRACE_TASK_IDLE && task_type != TRACE_TASK_SYSTEM) {
+    return SIZE_MAX;
+  }
+
+  for (size_t i = trace_count[reported_core_id]; i > 0; --i) {
+    const TraceRecord_t *const existing = &trace_buffer[reported_core_id][i - 1];
+
+    if (existing->FreeRTOS_tick != trace_tick) {
+      break;
+    }
+
+    if (existing->event.type == event.type && existing->task_type == task_type) {
+      return i - 1;
+    }
+  }
+
+  return SIZE_MAX;
+}
+
 // TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
 // bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
 // to 0 when SRP is not enabled.
@@ -87,9 +109,10 @@ void TRACE_record( //
     debug_code = event.data.debug_code;
   }
 
-  const size_t slot = trace_count[reported_core_id];
-
   const TickType_t trace_tick = in_ISR ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
+  const size_t     duplicate_slot =
+    TRACE_find_duplicate_background_event_slot(trace_tick, event, task_type, reported_core_id);
+  const size_t slot = (duplicate_slot != SIZE_MAX) ? duplicate_slot : trace_count[reported_core_id];
 
   trace_buffer[reported_core_id][slot] = (TraceRecord_t){
     .FreeRTOS_tick  = trace_tick,
@@ -107,7 +130,9 @@ void TRACE_record( //
     .preempt_level  = preempt_level,
   };
 
-  trace_count[reported_core_id]++;
+  if (duplicate_slot == SIZE_MAX) {
+    trace_count[reported_core_id]++;
+  }
   if (!in_ISR) {
     taskEXIT_CRITICAL();
   }
