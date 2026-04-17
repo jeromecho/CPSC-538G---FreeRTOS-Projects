@@ -2543,7 +2543,7 @@ TEST_CASES = {
         },
     },
     "SMP13": {
-        "name": "Migrate-to-core",
+        "name": "Migrate-to-busy-core",
         "expected_admission_failure": None,
         "ignore_traces": False,
         "expected_events": {
@@ -2578,6 +2578,75 @@ TEST_CASES = {
                 (32, TraceEvent.TRACE_SWITCH_IN, 1),
                 (34, TraceEvent.TRACE_DONE, 1),
                 (34, TraceEvent.TRACE_SWITCH_OUT, 1),
+            ],
+        },
+    },
+    "SMP14": {
+        "name": "Migrate-to-available-core",
+        "expected_admission_failure": None,
+        "ignore_traces": False,
+        "expected_events": {
+            0: [
+                (0, TraceEvent.TRACE_RELEASE, 0),
+                (3, TraceEvent.TRACE_SWITCH_IN, 0),
+                (8, TraceEvent.TRACE_DONE, 0),
+                (8, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (12, TraceEvent.TRACE_RELEASE, 0),
+                (12, TraceEvent.TRACE_SWITCH_IN, 0),
+                (15, TraceEvent.TRACE_SWITCH_OUT, 0),
+                (15, TraceEvent.TRACE_REMOVED_FROM_CORE, 0),
+                #
+                (15, TraceEvent.TRACE_MIGRATED_TO_CORE, 1),
+                (15, TraceEvent.TRACE_RELEASE, 1),
+                (15, TraceEvent.TRACE_SWITCH_IN, 1),
+                (20, TraceEvent.TRACE_DONE, 1),
+                (20, TraceEvent.TRACE_SWITCH_OUT, 1),
+                #
+                (27, TraceEvent.TRACE_RELEASE, 1),
+                (27, TraceEvent.TRACE_SWITCH_IN, 1),
+                (32, TraceEvent.TRACE_DONE, 1),
+                (32, TraceEvent.TRACE_SWITCH_OUT, 1),
+                #
+                (39, TraceEvent.TRACE_RELEASE, 1),
+                (39, TraceEvent.TRACE_SWITCH_IN, 1),
+                (44, TraceEvent.TRACE_DONE, 1),
+                (44, TraceEvent.TRACE_SWITCH_OUT, 1),
+            ],
+            1: [
+                (0, TraceEvent.TRACE_RELEASE, 0),
+                (0, TraceEvent.TRACE_SWITCH_IN, 0),
+                (3, TraceEvent.TRACE_DONE, 0),
+                (3, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (8, TraceEvent.TRACE_RELEASE, 0),
+                (8, TraceEvent.TRACE_SWITCH_IN, 0),
+                (11, TraceEvent.TRACE_DONE, 0),
+                (11, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (16, TraceEvent.TRACE_RELEASE, 0),
+                (16, TraceEvent.TRACE_SWITCH_IN, 0),
+                (19, TraceEvent.TRACE_DONE, 0),
+                (19, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (24, TraceEvent.TRACE_RELEASE, 0),
+                (24, TraceEvent.TRACE_SWITCH_IN, 0),
+                (27, TraceEvent.TRACE_DONE, 0),
+                (27, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (32, TraceEvent.TRACE_RELEASE, 0),
+                (32, TraceEvent.TRACE_SWITCH_IN, 0),
+                (35, TraceEvent.TRACE_DONE, 0),
+                (35, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (40, TraceEvent.TRACE_RELEASE, 0),
+                (40, TraceEvent.TRACE_SWITCH_IN, 0),
+                (43, TraceEvent.TRACE_DONE, 0),
+                (43, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (48, TraceEvent.TRACE_RELEASE, 0),
+                (48, TraceEvent.TRACE_SWITCH_IN, 0),
+                (50, TraceEvent.TRACE_SWITCH_OUT, 0),
             ],
         },
     },

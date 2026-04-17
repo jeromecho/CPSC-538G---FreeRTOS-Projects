@@ -362,40 +362,48 @@ void partitioned_mp_test_13() {
 #endif // TEST_NR == 13
 
 #if TEST_NR == 14
+/// @brief Migrate a single periodic task from core 0 to core 1.
+/// Verifies that the migrated task executes on the correct core via trace output.
+static TaskHandle_t g_smp14_migrate_target = NULL;
+
+static void vPartitionedMPTestRunner14(void *pvParameters) {
+  (void)pvParameters;
+
+  vTaskDelay(pdMS_TO_TICKS(15));
+
+  TMB_t *migrated = NULL;
+  if (SMP_migrate_task_to_core(g_smp14_migrate_target, 1, &migrated) != pdPASS || migrated == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP14: Migration failed");
+  }
+
+  vTaskDelete(NULL);
+}
+
 void partitioned_mp_test_14() {
   const PeriodicTaskParams_t initial_tasks[MAXIMUM_PERIODIC_TASKS] = {
-    {EDF_periodic_task, 40, 120, 120, 0},
+    {EDF_periodic_task, 5, 12, 12, 0}, // Task to migrate
+    {EDF_periodic_task, 3, 8,  8,  0}, // Baseline task on core 0
   };
 
-  TMB_t *task = NULL;
-  if (build_periodic_task_with_handle("SMP14 Target", &initial_tasks[0], &task) != pdPASS || task == NULL) {
+  TMB_t *migrate_task = NULL;
+  TMB_t *baseline     = NULL;
+
+  if (build_periodic_task_with_handle("SMP14 Periodic C0, Migrate", &initial_tasks[0], &migrate_task) != pdPASS ||
+      build_periodic_task_with_handle("SMP14 Periodic C0, Baseline", &initial_tasks[1], &baseline) != pdPASS ||
+      migrate_task == NULL || baseline == NULL) {
     vTaskSuspendAll();
-    crash_without_trace("SMP14: Failed to create setup task");
+    crash_without_trace("SMP14: Failed to create initial tasks");
   }
 
-  if (SMP_remove_task_from_core(task->handle, 1) != pdFAIL) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP14: Remove should fail for incorrect core");
-  }
+  g_smp14_migrate_target = migrate_task->handle;
 
-  if (SMP_migrate_task_to_core(task->handle, configNUMBER_OF_CORES, NULL) != pdFAIL) {
+  TaskHandle_t runner = NULL;
+  if (xTaskCreate(
+        vPartitionedMPTestRunner14, "SMP14 Runner", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner
+      ) != pdPASS) {
     vTaskSuspendAll();
-    crash_without_trace("SMP14: Migration should fail for invalid destination core");
-  }
-
-  if (SMP_remove_task_from_core(NULL, 0) != pdFAIL) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP14: Remove should fail for NULL handle");
-  }
-
-  if (EDF_get_task_by_handle(task->handle) == NULL) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP14: Task disappeared after invalid API calls");
-  }
-
-  if (SMP_remove_task_from_core(task->handle, 0) != pdPASS) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP14: Cleanup remove failed");
+    crash_without_trace("SMP14: Failed to create runner task");
   }
 }
 #endif // TEST_NR == 14

@@ -269,6 +269,8 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
     task_name = "SMP Migrated Task";
   }
 
+  const TickType_t current_tick = xTaskGetTickCount();
+
   TMB_t     *new_task = NULL;
   BaseType_t created  = pdFAIL;
 
@@ -289,7 +291,6 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   }
 #if MAXIMUM_APERIODIC_TASKS > 0
   else {
-    const TickType_t current_tick = xTaskGetTickCount();
     const TickType_t release_time =
       (location.task->release_time > current_tick) ? location.task->release_time : current_tick;
     const TickType_t relative_deadline = location.task->absolute_deadline - location.task->release_time;
@@ -322,6 +323,11 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   }
 
   TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, new_task, false);
+
+  if (location.is_periodic && new_task != NULL && new_task->release_time == current_tick) {
+    scheduler_record_release(new_task);
+    scheduler_suspend_and_resume_tasks(destination_core);
+  }
 
   if (TMB_handle != NULL) {
     *TMB_handle = new_task;

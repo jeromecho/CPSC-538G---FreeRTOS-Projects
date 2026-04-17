@@ -73,7 +73,13 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 
 static void       scheduler_reschedule_periodic_tasks();
 static TMB_t     *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
-static TickType_t calculate_release_time_for_new_task(TickType_t new_period, const TMB_t *tasks, const size_t count);
+static TickType_t calculate_release_time_for_new_task(
+  TickType_t       new_period,
+  const TMB_t     *tasks,
+  const size_t     count,
+  const bool       scheduler_started,
+  const TickType_t current_tick
+);
 
 #if TRACE_WITH_LOGIC_ANALYZER
 static void
@@ -256,7 +262,10 @@ BaseType_t _create_periodic_task_internal(
   }
   configASSERT(relative_deadline <= period);
 
-  TMB_t *const new_task = &task_array[*task_count];
+  const size_t  existing_task_count = *task_count;
+  TMB_t *const   new_task           = &task_array[existing_task_count];
+  const bool     scheduler_started  = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
+  const TickType_t current_tick     = xTaskGetTickCount();
 
   SchedulerParameters_t parameters;
   parameters.completion_time      = completion_time;
@@ -285,18 +294,16 @@ BaseType_t _create_periodic_task_internal(
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
 
-  const bool scheduler_started = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
-  if (!scheduler_started) {
-    const TickType_t current_tick  = xTaskGetTickCount();
-    new_task->release_time         = current_tick;
-    new_task->periodic.next_period = current_tick + period;
-    new_task->absolute_deadline    = current_tick + relative_deadline;
-  } else {
-    TickType_t release_time        = calculate_release_time_for_new_task(period, task_array, *task_count);
-    new_task->release_time         = release_time;
-    new_task->periodic.next_period = release_time + period;
-    new_task->absolute_deadline    = release_time + relative_deadline;
-  }
+  const TickType_t release_time = calculate_release_time_for_new_task(
+    period,
+    task_array,
+    existing_task_count,
+    scheduler_started,
+    current_tick
+  );
+  new_task->release_time         = release_time;
+  new_task->periodic.next_period = release_time + period;
+  new_task->absolute_deadline    = release_time + relative_deadline;
 
   scheduler_suspend_task(new_task);
 
@@ -765,12 +772,18 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
 
 /// @brief Calculates release time for dropped task
 static TickType_t
-calculate_release_time_for_new_task(const TickType_t new_period, const TMB_t *tasks, const size_t count) {
-  const TickType_t H            = compute_hyperperiod(new_period, tasks, count);
-  const TickType_t current_tick = xTaskGetTickCount(); // TODO: Should this be xTaskGetTickCountFromISR?
+calculate_release_time_for_new_task(
+  const TickType_t new_period,
+  const TMB_t     *tasks,
+  const size_t     count,
+  const bool       scheduler_started,
+  const TickType_t current_tick
+) {
+  if (!scheduler_started || count == 0) {
+    return current_tick;
+  }
 
-  if (current_tick == 0)
-    return 0;
+  const TickType_t H = compute_hyperperiod(new_period, tasks, count);
   const TickType_t remainder = current_tick % H;
   if (remainder == 0) {
     return current_tick;

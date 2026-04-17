@@ -54,10 +54,9 @@
 #define MAXIMUM_APERIODIC_TASKS 0
 #define TEST_DURATION_TICKS     40
 #elif TEST_NR == 14
-#define MAXIMUM_PERIODIC_TASKS    1
-#define MAXIMUM_APERIODIC_TASKS   0
-#define PERFORM_ADMISSION_CONTROL 0
-#define TEST_DURATION_TICKS       200
+#define MAXIMUM_PERIODIC_TASKS  2
+#define MAXIMUM_APERIODIC_TASKS 0
+#define TEST_DURATION_TICKS     50
 #else
 #error "Invalid or undefined TEST_NR for partitioned MP profile"
 #endif // TEST_NR
