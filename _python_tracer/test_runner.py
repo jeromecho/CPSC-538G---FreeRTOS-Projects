@@ -272,24 +272,36 @@ def validate_expected_boot_name(found_boot_name, expected_boot_name, mem_usage):
 
 
 def validate_admission_failure(parsed_logs, test_case, mem_usage):
-    expected_failure_task = test_case.get("expected_admission_failure")
+    expected_failure_spec = test_case.get("expected_admission_failure")
     actual_admission_failures = [log for log in parsed_logs if log["event"] == TraceEvent.TRACE_ADMISSION_FAILED]
 
-    if expected_failure_task:
+    if expected_failure_spec:
+        # Normalize expected_failure_spec to a list of UIDs
+        if isinstance(expected_failure_spec, list):
+            expected_uids = expected_failure_spec
+        else:
+            # Single UID or string (backward compatibility)
+            expected_uids = [expected_failure_spec]
+
         if not actual_admission_failures:
-            print(f"    {C_RED}❌ FAILED: Expected admission failure for '{expected_failure_task}', but it did not occur.{C_RESET}")
+            expected_desc = " or ".join(str(uid) for uid in expected_uids)
+            print(f"    {C_RED}❌ FAILED: Expected admission failure for UID {expected_desc}, but it did not occur.{C_RESET}")
             return False
 
-        failed_task = actual_admission_failures[0]["task_name"]
-        if failed_task != expected_failure_task:
-            print(f"    {C_RED}❌ FAILED: Expected '{expected_failure_task}' to fail admission, but '{failed_task}' failed instead.{C_RESET}")
+        failed_log = actual_admission_failures[0]
+        failed_uid = failed_log.get("task_uid")
+
+        # Check if the failed UID matches any of the expected options
+        if failed_uid is not None and failed_uid not in expected_uids:
+            expected_desc = " or ".join(str(uid) for uid in expected_uids)
+            print(f"    {C_RED}❌ FAILED: Expected UID {expected_desc} to fail admission, but UID {failed_uid} failed instead.{C_RESET}")
             return False
 
         return True
 
     if actual_admission_failures:
-        failed_task = actual_admission_failures[0]["task_name"]
-        print(f"    {C_RED}❌ FAILED: Unexpected admission failure for task '{failed_task}'.{C_RESET}")
+        failed_uid = actual_admission_failures[0].get("task_uid")
+        print(f"    {C_RED}❌ FAILED: Unexpected admission failure for UID {failed_uid}.{C_RESET}")
         return False
 
     return True

@@ -2414,7 +2414,7 @@ TEST_CASES = {
     },
     "SMP10": {
         "name": "Inadmissible drop-in",
-        "expected_admission_failure": "Periodic 02 C0",
+        "expected_admission_failure": [1, 3],
         "expected_events": {
             0: [
                 (0, TraceEvent.TRACE_RELEASE, 0),
