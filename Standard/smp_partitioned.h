@@ -34,9 +34,11 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
 
 TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core);
 void   SMP_partitioned_reschedule_periodic_tasks(void);
-void   SMP_partitioned_check_deadlines(void);
-void   SMP_partitioned_record_releases(void);
-void   SMP_partitioned_suspend_and_resume_tasks(void);
+
+// TODO - might be able to remove below
+void SMP_partitioned_check_deadlines(void);
+void SMP_partitioned_record_releases(void);
+void SMP_partitioned_suspend_and_resume_tasks(void);
 
 #endif // USE_MP
 

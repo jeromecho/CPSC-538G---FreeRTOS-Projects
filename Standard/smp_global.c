@@ -3,6 +3,7 @@
 #if USE_MP && USE_GLOBAL
 #include "admission_control.h"
 #include "edf_scheduler.h"
+#include "smp_shared.h"
 #include "tracer.h"
 
 // TODO - might have to modify this to make it more similar to the parititioned
@@ -98,6 +99,32 @@ void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
   first_candidate->is_done   = original_done_state;
   *highest_priority_tasks[0] = first_candidate;
   *highest_priority_tasks[1] = second_candidate;
+}
+
+// TODO: (if time) - extend the below to support migration of aperiodic tasks
+BaseType_t SMP_migrate_task_with_saved_state(TMB_t *task, const size_t core) {
+  if (task == NULL) {
+    return pdFAIL;
+  }
+  if (task->assigned_core == core) {
+    return pdPASS;
+  }
+
+  size_t last_idx_start = periodic_task_count[task->assigned_core] - 1;
+
+  SMP_TaskLocation_t location;
+  BaseType_t         err = SMP_find_task_location(task->handle, &location);
+  if (err = pdFAIL) {
+    printf("SMP_migrate_task_with_saved_state - unexpected error\n");
+    return pdFAIL;
+  }
+
+  TMB_t temp                                      = periodic_tasks[location.core][location.index];
+  temp.assigned_core                              = core;
+  periodic_tasks[location.core][location.index]   = periodic_tasks[location.core][last_idx];
+  periodic_tasks[core][periodic_task_count[core]] = temp;
+  periodic_task_count[core]++;
+  return pdPASS;
 }
 
 #endif // USE_MP && USE_GLOBAL
