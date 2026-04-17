@@ -5,6 +5,8 @@
 #include "edf_scheduler.h"
 #include "tracer.h"
 
+// TODO - might have to modify this to make it more similar to the parititioned
+// SMP implementation
 BaseType_t SMP_create_periodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,
@@ -49,6 +51,53 @@ BaseType_t SMP_create_periodic_task(
   }
 
   return result;
+}
+
+static TMB_t *SMP_highest_priority_task_multicore() {
+  TMB_t *candidate = NULL;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    TMB_t *periodic_candidate =
+      scheduler_highest_priority_candidate(&periodic_tasks[core], &periodic_task_count[core], NULL);
+    if (candidate == NULL || periodic_candidate->absolute_deadline < candidate->absolute_deadline) {
+      candidate = periodic_candidate;
+    }
+  }
+  return candidate;
+}
+
+TMB_t *SMP_produce_highest_priority_task_not_running(TMB_T **highest_priority_tasks) {
+  TMB_t *candidate = NULL;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    bool task_suspended =
+      highest_priority_tasks[core] != NULL && eTaskGetState(highest_priority_tasks[core]->handle) == eSuspended;
+    if (
+      task_suspended && candidate != NULL &&
+      highest_priority_tasks[core]->absolute_deadline < candidate->absolute_deadline
+    ) {
+      candidate = highest_priority_tasks[core];
+    }
+  }
+  return candidate;
+}
+
+void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
+  // TOOD - if time, add support for aperiodic tasks
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    *highest_priority_tasks[core] = NULL;
+  }
+  TMB_t *first_candidate  = NULL;
+  TMB_t *second_candidate = NULL;
+  first_candidate         = SMP_highest_priority_task_multicore();
+  if (first_candidate == NULL) {
+    return;
+  }
+  // HACK: temporarily modify done state of task to prevent selection
+  bool original_done_state   = first_candidate->is_done;
+  first_candidate->is_done   = false;
+  second_candidate           = SMP_highest_priority_task_multicore();
+  first_candidate->is_done   = original_done_state;
+  *highest_priority_tasks[0] = first_candidate;
+  *highest_priority_tasks[1] = second_candidate;
 }
 
 #endif // USE_MP && USE_GLOBAL

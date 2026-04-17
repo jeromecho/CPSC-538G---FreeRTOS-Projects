@@ -26,6 +26,10 @@
 #include "smp_partitioned.h"
 #endif // USE_MP && USE_PARTITIONED
 
+#if USE_MP && USE_GLOBAL
+#include "smp_global.h"
+#endif // USE_MP && USE_GLOBAL
+
 #include "testing/testing.h"
 
 #include <stdio.h>
@@ -35,7 +39,7 @@
 ; // === GLOBAL TASK ARRAYS ===
 ; // ==========================
 
-#if USE_MP && USE_PARTITIONED
+#if USE_MP //  && USE_PARTITIONED
 TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count[configNUMBER_OF_CORES] = {0};
 
@@ -44,7 +48,7 @@ size_t aperiodic_task_count[configNUMBER_OF_CORES] = {0};
 
 StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
-#else // USE_MP && USE_PARTITIONED
+#else // USE_MP
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count = 0;
 
@@ -214,11 +218,15 @@ BaseType_t _create_task_internal(
   // Pin task to specified core before any trace events are recorded
 #if USE_MP
   new_task->assigned_core = (core < configNUMBER_OF_CORES) ? (uint8_t)core : UINT8_MAX;
+#if USE_PARTITIONED
   if (core < configNUMBER_OF_CORES) {
     if (pin_task_to_core(task_handle, core) != pdPASS) {
       return pdFAIL;
     }
   }
+#else
+  vTaskCoreAffinitySet(task_handle, -1);
+#endif // USE_PARTITIONED
 #else
   (void)core; // Suppress unused parameter warning when USE_MP is not enabled
 #endif
@@ -548,7 +556,8 @@ void starting_scheduler(void *xIdleTaskHandles) {
 
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 static void scheduler_reschedule_periodic_tasks() {
-#if USE_MP && USE_PARTITIONED
+#if USE_MP // && USE_PARTITIONED
+  // TODO: rename the below function call
   SMP_partitioned_reschedule_periodic_tasks();
 #else
   for (size_t i = 0; i < periodic_task_count; ++i) {
@@ -641,7 +650,7 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bo
 
 /// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
 void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core) {
-#if USE_MP && USE_PARTITIONED
+#if USE_MP // && USE_PARTITIONED
   for (size_t i = 0; i < periodic_task_count[core]; ++i) {
     TMB_t *const task = &periodic_tasks[core][i];
     if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
@@ -680,6 +689,52 @@ void scheduler_record_release(const TMB_t *const task) {
   TRACE_record(EVENT_BASIC(TRACE_RELEASE), TRACE_TASK_EITHER, task, true);
 }
 
+// TODO - might want to clean up the placement of flags here and there to make code
+// more readable
+// TODO - consider using strategy pattern here
+#if USE_MP && USE_GLOBAL
+/// @brief produce true if currently running task is different from the highest priority task
+bool scheduler_should_context_switch(TMB_t **const highest_priority_tasks, const size_t core) {
+  TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandleForCore(core);
+  TMB_t       *current_task_tmb    = EDF_get_task_by_handle(current_task_handle);
+  if (current_task_tmb != NULL) {
+    current_task_handle = current_task_tmb->handle;
+  }
+  bool no_edf_tasks = true;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    no_edf_tasks &= highest_priority_tasks[core] == NULL;
+  }
+  if (no_edf_tasks) {
+    // No EDF tasks want to run.
+    // We only need to update if an EDF task is currently running and needs to be stopped.
+    return (current_task_tmb != NULL);
+  }
+  // If no EDF task is currently running (idle/system task is running),
+  // and an EDF task is ready, we must update priorities to dispatch it.
+  if (current_task_tmb == NULL) {
+    return true;
+  }
+  // Prevent context switch between two tasks with the same deadline for hard-real time tasks
+  // NB: Design decision was made to match textbook expected traces and RTSim expected traces respectively
+  bool equal_deadlines = true;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    if (highest_priority_tasks[core] != NULL) {
+      equal_deadlines &= (current_task_tmb->absolute_deadline == highest_priority_tasks[core]->absolute_deadline);
+    }
+  }
+  // TODO: add support for CBS functionality in future
+  if (equal_deadlines && !current_task_tmb->is_done) {
+    return false;
+  }
+  bool context_switch = false;
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    if (highest_priority_tasks[core] != NULL) {
+      context_switch |= highest_priority_tasks[core]->handle != current_task_handle;
+    }
+  }
+  return context_switch;
+}
+#else
 /// @brief produce true if currently running task is different from the highest priority task
 bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core) {
   TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandleForCore(core);
@@ -711,23 +766,33 @@ bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, c
   // An EDF task wants to run. Only return true if it is not already running?
   return (highest_priority_task->handle != current_task_handle);
 }
+#endif // USE_MP && USE_GLOBAL
 
 /// @brief Deprioritizes all tasks which are not currently running.
 void scheduler_suspend_and_resume_tasks(const size_t core) {
-#if USE_MP && USE_PARTITIONED
+
+// TODO - abstract this into a helper function
+#if USE_MP && USE_GLOBAL
+  TMB_t *highest_priority_tasks[configNUMBER_OF_CORES] = {NULL, NULL};
+  SMP_produce_highest_priority_tasks(highest_priority_tasks);
+  // TODO - rename variable to `highest_priority_task` to run
+  TMB_t *const highest_priority_task = SMP_produce_highest_priority_task_not_running(highest_priority_tasks);
+#elif USE_MP && USE_PARTITIONED
   TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
 #else  // USE_MP && USE_PARTITIONED
   TMB_t *const highest_priority_task = scheduler_produce_highest_priority_task();
 #endif // USE_MP && USE_PARTITIONED
-
+#if USE_MP && USE_GLOBAL
+  // NB: Remember that highest_priority_tasks does not consist of tasks specific to this core
+  const bool should_update = scheduler_should_context_switch(highest_priority_tasks, core);
+#else
   const bool should_update = scheduler_should_context_switch(highest_priority_task, core);
+#endif
   if (!should_update) {
     return;
   }
-
   TRACE_record(EVENT_BASIC(TRACE_PREPARING_CONTEXT_SWITCH), TRACE_TASK_SYSTEM, NULL, true);
   scheduler_suspend_lower_priority_tasks(highest_priority_task, core);
-
   // If new_highest_priority_task is NULL, that means there are no schedulable tasks and we should be running the idle
   // task. In that case, we shouldn't set a new highest priority task, and the FreeRTOS scheduler should instead elect
   // to run the Idle task.
@@ -741,7 +806,9 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
       SRP_push_ceiling(highest_priority_task->preemption_level);
     }
 #endif // USE_SRP
-
+#if USE_MP && USE_GLOBAL
+    mp_migrate_task(highest_priority_task, core);
+#endif // USE_MP && USE_GLOBAL
     scheduler_resume_task(highest_priority_task);
   }
 }
@@ -797,9 +864,11 @@ void vApplicationTickHook(void) {
   if (current_task != NULL) {
     CBS_update_budget(current_task);
   }
-#endif // USE_CBS
+#endif     // USE_CBS
 
-#if USE_MP && USE_PARTITIONED
+#if USE_MP // && USE_PARTITIONED
+  // TODO: maybe change naming of below function to `SMP_check_deadlines and
+  // SMP_record_release`
   SMP_partitioned_check_deadlines();
   SMP_partitioned_record_releases();
   SMP_partitioned_suspend_and_resume_tasks();
