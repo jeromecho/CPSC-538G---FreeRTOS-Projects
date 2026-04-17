@@ -574,8 +574,7 @@ void starting_scheduler(void *xIdleTaskHandles) {
 /// @brief Re-schedules all periodic tasks whose periods have elapsed, and should run again
 static void scheduler_reschedule_periodic_tasks() {
 #if USE_MP // && USE_PARTITIONED
-  // TODO: rename the below function call
-  SMP_partitioned_reschedule_periodic_tasks();
+  SMP_reschedule_periodic_tasks();
 #else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const     task         = &periodic_tasks[i];
@@ -775,8 +774,9 @@ bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, c
   // Prevent context switch between two tasks with the same deadline for hard-real time tasks
   // NB: Design decision was made to match textbook expected traces and RTSim expected traces respectively
   const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
-  if (equal_deadlines && !current_task_tmb->is_done &&
-      (current_task_tmb->is_hard_rt && highest_priority_task->is_hard_rt)) {
+  if (
+    equal_deadlines && !current_task_tmb->is_done && (current_task_tmb->is_hard_rt && highest_priority_task->is_hard_rt)
+  ) {
     return false;
   }
 
@@ -785,25 +785,29 @@ bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, c
 }
 #endif // USE_MP && USE_GLOBAL
 
-/// @brief Deprioritizes all tasks which are not currently running.
-void scheduler_suspend_and_resume_tasks(const size_t core) {
-
-// TODO - abstract this into a helper function
+static SchedulerSelection_t select_next_task(const size_t core) {
+  SchedulerSelection_t result = {.is_global = false, .target_task = NULL};
 #if USE_MP && USE_GLOBAL
   TMB_t *highest_priority_tasks[configNUMBER_OF_CORES] = {NULL, NULL};
-  SMP_produce_highest_priority_tasks(highest_priority_tasks);
+  SMP_produce_highest_priority_tasks(result.all_candidates);
   // TODO - rename variable to `highest_priority_task` to run
-  TMB_t *const highest_priority_task = SMP_produce_highest_priority_task_not_running(highest_priority_tasks);
+  result.target_task = = SMP_produce_highest_priority_task_not_running(result.all_candidates);
 #elif USE_MP && USE_PARTITIONED
-  TMB_t *const highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
+  TMB_t *const result.highest_priority_task = SMP_partitioned_produce_highest_priority_task(core);
 #else  // USE_MP && USE_PARTITIONED
-  TMB_t *const highest_priority_task = scheduler_produce_highest_priority_task();
+  TMB_t *const result.highest_priority_task = scheduler_produce_highest_priority_task();
 #endif // USE_MP && USE_PARTITIONED
+  return result;
+}
+
+/// @brief Deprioritizes all tasks which are not currently running.
+void scheduler_suspend_and_resume_tasks(const size_t core) {
+  SchedulerSelection_t selection = select_next_task(core);
 #if USE_MP && USE_GLOBAL
   // NB: Remember that highest_priority_tasks does not consist of tasks specific to this core
-  const bool should_update = scheduler_should_context_switch(highest_priority_tasks, core);
+  const bool should_update = scheduler_should_context_switch(selection.all_candidates, core);
 #else
-  const bool should_update = scheduler_should_context_switch(highest_priority_task, core);
+  const bool should_update = scheduler_should_context_switch(selection.target_task, core);
 #endif
   if (!should_update) {
     return;
@@ -824,7 +828,7 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
     }
 #endif // USE_SRP
 #if USE_MP && USE_GLOBAL
-    mp_migrate_task(highest_priority_task, core);
+    SMP_migrate_task_with_saved_state(highest_priority_task, core);
 #endif // USE_MP && USE_GLOBAL
     scheduler_resume_task(highest_priority_task);
   }
@@ -884,11 +888,9 @@ void vApplicationTickHook(void) {
 #endif     // USE_CBS
 
 #if USE_MP // && USE_PARTITIONED
-  // TODO: maybe change naming of below function to `SMP_check_deadlines and
-  // SMP_record_release`
-  SMP_partitioned_check_deadlines();
-  SMP_partitioned_record_releases();
-  SMP_partitioned_suspend_and_resume_tasks();
+  SMP_check_deadlines();
+  SMP_record_releases();
+  SMP_suspend_and_resume_tasks();
 #else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
