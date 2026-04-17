@@ -6,8 +6,6 @@
 #include "smp_shared.h"
 #include "tracer.h"
 
-// TODO - might have to modify this to make it more similar to the parititioned
-// SMP implementation
 BaseType_t SMP_create_periodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,
@@ -24,25 +22,23 @@ BaseType_t SMP_create_periodic_task(
     return pdFALSE;
   }
 #endif
-
   TMB_t     *handle = NULL;
   BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
-    // TODO: Decouple SMP private stacks from EDF private stacks (add interface)
-    edf_private_stacks_periodic[periodic_task_count],
+    periodic_tasks[core],
+    &periodic_task_count[core],
+    private_stacks_periodic[core][periodic_task_count[core]],
     completion_time,
     period,
     relative_deadline,
+    UINT32_MAX,
     &handle,
     // TODO: initialize all tasks on core 0 - might have to modify this code so that
     // one iteration of EDF scheduling logic decides cores before the scheduler even
     // starts
     0
   );
-
   if (result == pdPASS && handle != NULL) {
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
@@ -50,7 +46,6 @@ BaseType_t SMP_create_periodic_task(
   } else if (result == pdPASS) {
     return pdFAIL;
   }
-
   return result;
 }
 
