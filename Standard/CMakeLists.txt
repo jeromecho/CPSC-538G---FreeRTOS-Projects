@@ -44,6 +44,7 @@ set(MY_SOURCES
         testing/testing.c
         testing/edf_tests.c
         testing/partitioned_mp_tests.c
+        testing/global_mp_tests.c
         testing/srp_tests.c
         testing/cbs_tests.c
 )
