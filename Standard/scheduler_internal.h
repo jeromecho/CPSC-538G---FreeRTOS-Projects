@@ -7,17 +7,17 @@
 #include "types/scheduler_types.h"
 
 BaseType_t _create_task_internal(
-  TaskFunction_t        task_function,
-  const char *const     task_name,
-  const TaskType_t      type,
-  const size_t          id,
-  const uint32_t        trace_uid_override,
-  TMB_t *const          new_task,
-  SchedulerParameters_t parameters,
-  StackType_t          *stack_buffer,
-  StaticTask_t         *task_buffer,
-  bool                  is_hard_rt,
-  const UBaseType_t     core
+  TaskFunction_t         task_function,
+  const char *const      task_name,
+  const TaskType_t       type,
+  const size_t           id,
+  const uint32_t         trace_uid_override,
+  TMB_t *const           new_task,
+  SchedulerParameters_t *parameters,
+  StackType_t           *stack_buffer,
+  StaticTask_t          *task_buffer,
+  bool                   is_hard_rt,
+  const UBaseType_t      core
 );
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,

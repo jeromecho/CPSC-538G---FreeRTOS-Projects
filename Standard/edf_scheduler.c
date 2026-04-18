@@ -47,10 +47,20 @@ static uint32_t allocate_trace_uid(void) {
 
 
 ; // ==========================
-;          // === GLOBAL TASK ARRAYS ===
-;          // ==========================
+; // === GLOBAL TASK ARRAYS ===
+; // ==========================
 
-#if USE_MP //  && USE_PARTITIONED
+
+// TODO: change the below into a single "linear" array (instead of nested)
+// TODO: refactor partitioned and other places in code that still treat
+// task buffer as a part of TCB
+StaticTask_t private_tcbs_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+StaticTask_t private_tcbs_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
+
+SchedulerParameters_t parameters_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+SchedulerParameters_t parameters_aperiodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+
+#if USE_MP && USE_PARTITIONED
 TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count[configNUMBER_OF_CORES] = {0};
 
@@ -59,6 +69,7 @@ size_t aperiodic_task_count[configNUMBER_OF_CORES] = {0};
 
 StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+
 #else // USE_MP
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count = 0;
@@ -190,25 +201,23 @@ void EDF_mark_task_done(TaskHandle_t task_handle) {
 
 /// @brief Creates an actual FreeRTOS task using the provided parameters, and sets common fields in the TMB afterwards.
 BaseType_t _create_task_internal(
-  TaskFunction_t        task_function,
-  const char *const     task_name,
-  const TaskType_t      type,
-  const size_t          id,
-  const uint32_t        trace_uid_override,
-  TMB_t *const          new_task,
-  SchedulerParameters_t parameters,
-  StackType_t          *stack_buffer,
-  StaticTask_t         *task_buffer,
-  bool                  is_hard_rt,
-  const UBaseType_t     core
+  TaskFunction_t         task_function,
+  const char *const      task_name,
+  const TaskType_t       type,
+  const size_t           id,
+  const uint32_t         trace_uid_override,
+  TMB_t *const           new_task,
+  SchedulerParameters_t *parameters,
+  StackType_t           *stack_buffer,
+  StaticTask_t          *task_buffer,
+  bool                   is_hard_rt,
+  const UBaseType_t      core
 ) {
-  new_task->parameters = parameters;
-
   TaskHandle_t task_handle = xTaskCreateStatic( //
     task_function,
     task_name,
     SHARED_STACK_SIZE,
-    (void *)&new_task->parameters,
+    (void *)parameters,
     PRIORITY_RUNNING,
     stack_buffer,
     task_buffer
@@ -227,7 +236,7 @@ BaseType_t _create_task_internal(
 
   new_task->is_done         = false;
   new_task->is_hard_rt      = is_hard_rt;
-  new_task->completion_time = parameters.completion_time;
+  new_task->completion_time = parameters->completion_time;
   new_task->ticks_executed  = 0;
 
   // Pin task to specified core before any trace events are recorded
@@ -240,11 +249,14 @@ BaseType_t _create_task_internal(
     }
   }
 #else
-  vTaskCoreAffinitySet(task_handle, -1);
+  const UBaseType_t core_affinity_mask = (1U << 0) | (1U << 1);
+  vTaskCoreAffinitySet(task_handle, core_affinity_mask);
 #endif // USE_PARTITIONED
 #else
   (void)core; // Suppress unused parameter warning when USE_MP is not enabled
 #endif
+
+  printf("successfully created task internally\n");
 
   return pdPASS;
 }
@@ -270,9 +282,11 @@ BaseType_t _create_periodic_task_internal(
 
   TMB_t *const new_task = &task_array[*task_count];
 
-  SchedulerParameters_t parameters;
-  parameters.completion_time      = completion_time;
-  parameters.parameters_remaining = NULL;
+
+  new_task->parameters                       = &parameters_periodic[core][(*task_count)];
+  new_task->parameters->completion_time      = completion_time;
+  new_task->parameters->parameters_remaining = NULL;
+  new_task->task_buffer                      = &private_tcbs_periodic[core][(*task_count)];
 
   BaseType_t result = _create_task_internal( //
     task_function,
@@ -281,9 +295,10 @@ BaseType_t _create_periodic_task_internal(
     *task_count,
     trace_uid_override,
     new_task,
-    parameters,
+    new_task->parameters,
     stack_buffer,
-    &new_task->task_buffer,
+    new_task->task_buffer,
+    // &new_task->task_buffer,
     true,
     core
   );
@@ -343,9 +358,12 @@ BaseType_t _create_aperiodic_task_internal(
 
   TMB_t *const new_task = &task_array[*task_count];
 
-  SchedulerParameters_t parameters;
-  parameters.completion_time      = completion_time;
-  parameters.parameters_remaining = parameters_remaining;
+
+  new_task->parameters                       = &parameters_aperiodic[core][(*task_count)];
+  new_task->parameters->completion_time      = completion_time;
+  new_task->parameters->parameters_remaining = parameters_remaining;
+
+  new_task->task_buffer = &private_tcbs_aperiodic[core][(*task_count)];
 
   BaseType_t result = _create_task_internal( //
     task_function,
@@ -354,9 +372,10 @@ BaseType_t _create_aperiodic_task_internal(
     *task_count,
     trace_uid_override,
     new_task,
-    parameters,
+    new_task->parameters,
     stack_buffer,
-    &new_task->task_buffer,
+    new_task->task_buffer,
+    // &new_task->task_buffer,
     is_hard_rt,
     core
   );
@@ -556,9 +575,14 @@ void starting_scheduler(void *xIdleTaskHandles) {
 
 #if USE_CBS
   CBS_release_tasks();
-#endif     // USE_CBS
+#endif // USE_CBS
 
-#if USE_MP // && USE_PARTITIONED
+#if USE_MP && USE_GLOBAL
+  SMP_global_check_deadlines();
+  SMP_global_record_releases();
+  SMP_global_suspend_and_resume_tasks();
+#elif USE_MP && USE_PARTITIONED
+  // TODO: might need to rename these
   SMP_check_deadlines();
   SMP_record_releases();
   SMP_suspend_and_resume_tasks();
@@ -602,6 +626,8 @@ void scheduler_suspend_task(const TMB_t *const task) {
 void scheduler_resume_task(const TMB_t *const task) {
   configASSERT(task != NULL);
   configASSERT(task->handle != NULL);
+
+  printf("Tick: %d resume: %d\n", xTaskGetTickCount(), task->handle);
 
   xTaskResumeFromISR(task->handle);
   TRACE_record(EVENT_BASIC(TRACE_RESUMED), TRACE_TASK_EITHER, task, true);
@@ -809,7 +835,10 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
   SchedulerSelection_t selection = select_next_task(core);
 #if USE_MP && USE_GLOBAL
   // NB: Remember that highest_priority_tasks does not consist of tasks specific to this core
+  // printf("all_candidates[0] %d\n", selection.all_candidates[0]);
+  // printf("aa\n");
   const bool should_update = scheduler_should_context_switch(selection.all_candidates, core);
+  // printf("ab\n");
 #else
   const bool should_update = scheduler_should_context_switch(selection.target_task, core);
 #endif
@@ -832,8 +861,9 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
     }
 #endif // USE_SRP
 #if USE_MP && USE_GLOBAL
-    SMP_migrate_task_with_saved_state(selection.target_task, core);
+    SMP_migrate_task_with_saved_state(&selection.target_task, core);
 #endif // USE_MP && USE_GLOBAL
+    printf("core: %d\n", core);
     scheduler_resume_task(selection.target_task);
   }
 }
@@ -871,15 +901,27 @@ void scheduler_register_deadline_miss(const TMB_t *const task) {
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
   // Record execution time for the task that ran this tick
+  // printf("z\n");
+
+  // TICK execution update for tasks running on different cores
+  // DOESN'T need to use core-aware `periodic_tasks` data structure
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    // printf("z0\n");
     const TaskHandle_t current_task_on_core = xTaskGetCurrentTaskHandleForCore(core);
-    TMB_t             *current_task         = EDF_get_task_by_handle(current_task_on_core);
+
+    // printf("z1\n");
+    TMB_t *current_task = EDF_get_task_by_handle(current_task_on_core);
+    // printf("z2\n");
+
     if (current_task != NULL) {
       current_task->ticks_executed += 1;
     }
   }
 
+  // printf("a\n");
+  // sets the `is_done` flag of periodic tasks to `false` if they are ready
   scheduler_reschedule_periodic_tasks();
+  // printf("b\n");
 
 #if USE_CBS
   CBS_release_tasks();
@@ -889,12 +931,20 @@ void vApplicationTickHook(void) {
   if (current_task != NULL) {
     CBS_update_budget(current_task);
   }
-#endif     // USE_CBS
+#endif // USE_CBS
 
-#if USE_MP // && USE_PARTITIONED
+#if USE_MP && USE_GLOBAL
+  SMP_global_check_deadlines();
+  SMP_global_record_releases();
+  SMP_global_suspend_and_resume_tasks();
+#elif USE_MP && USE_PARTITIONED
+  // TODO: might need to rename these
+  // Registers deadline miss
   SMP_check_deadlines();
+  // Performs tracing
   SMP_record_releases();
   SMP_suspend_and_resume_tasks();
+// printf("f\n");
 #else
   scheduler_check_deadlines(periodic_tasks, periodic_task_count);
   scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
@@ -902,6 +952,8 @@ void vApplicationTickHook(void) {
   scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
   scheduler_suspend_and_resume_tasks(0);
 #endif
+  /*
+   */
 }
 
 static void trace_task_switch(TraceEventType_t switch_event) {
