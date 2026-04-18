@@ -1,8 +1,11 @@
 #ifndef SCHEDULER_INTERNAL_H
 #define SCHEDULER_INTERNAL_H
 
-#include "FreeRTOS_include.h"
 #include "ProjectConfig.h"
+
+#if USE_EDF
+
+#include "FreeRTOS_include.h"
 #include "config/TestConfig.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
 
@@ -89,5 +92,7 @@ extern StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_ST
 extern StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 #endif // USE_SRP && ENABLE_STACK_SHARING
 #endif // USE_MP && USE_PARTITIONED
+
+#endif // USE_EDF
 
 #endif // SCHEDULER_INTERNAL_H

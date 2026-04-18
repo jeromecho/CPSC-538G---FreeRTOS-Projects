@@ -1,6 +1,10 @@
 #ifndef TRACER_H
 #define TRACER_H
 
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "FreeRTOS_include.h"
 #include "types/scheduler_types.h"
 
@@ -34,10 +38,10 @@ typedef enum {
 typedef struct {
   TraceEventType_t type;
   union {
-    uint8_t semaphore_index;
-    uint8_t task_index;
-    uint8_t debug_code;
-    uint32_t admission_failure_uid;  // UID of the task that failed admission
+    uint8_t  semaphore_index;
+    uint8_t  task_index;
+    uint8_t  debug_code;
+    uint32_t admission_failure_uid; // UID of the task that failed admission
   } data;
 } TraceEvent_t;
 
@@ -88,5 +92,7 @@ void TRACE_record( //
 
 void TRACE_print_buffer();
 void TRACE_disable();
+
+#endif // USE_EDF
 
 #endif // TRACER_H

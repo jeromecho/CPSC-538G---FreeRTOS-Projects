@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "helpers.h"
 
 #include "tracer.h"
@@ -63,3 +67,5 @@ void crash_with_trace(const char *format, ...) {
     __asm volatile("wfi");
   }
 }
+
+#endif // USE_EDF

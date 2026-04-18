@@ -2,6 +2,10 @@
 #ifndef ADMISSION_CONTROL_H
 #define ADMISSION_CONTROL_H
 
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "FreeRTOS_include.h" // IWYU pragma: keep
 #include "types/scheduler_types.h"
 
@@ -32,5 +36,7 @@ bool SRP_can_admit_periodic_task(
   const unsigned int preemption_level,
   const TickType_t  *resource_hold_times
 );
+
+#endif // USE_EDF
 
 #endif // ADMISSION_CONTROL_H

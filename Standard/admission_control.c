@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "admission_control.h"
 
 #include "edf_scheduler.h"
@@ -461,3 +465,5 @@ bool SRP_can_admit_periodic_task(
 }
 
 #endif
+
+#endif // USE_EDF

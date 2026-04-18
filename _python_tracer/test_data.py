@@ -35,6 +35,7 @@ TEST_SUITE_IDS = {
     "SRP": 2,
     "CBS": 3,
     "SMP": 4,
+    "FP": 6,
 }
 
 
@@ -55,6 +56,25 @@ def build_test_flags(suite, test_nr, overrides=None):
 
 # --- TEST DEFINITIONS ---
 TEST_CASES = {
+    # FIXED PRIORITY TESTS
+    "FP1": {
+        "name": "Single-core fixed-priority ordering (prio 2 beats prio 1)",
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (5, TraceEvent.TRACE_SWITCH_IN),
+                (6, TraceEvent.TRACE_SWITCH_OUT),
+                (10, TraceEvent.TRACE_SWITCH_IN),
+                (11, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+            "Periodic 02": [
+                (6, TraceEvent.TRACE_SWITCH_IN),
+                (7, TraceEvent.TRACE_SWITCH_OUT),
+                (11, TraceEvent.TRACE_SWITCH_IN),
+                (12, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
     # EDF TESTS
     "EDF1": {
         "name": "Smoke Test for Periodic Tasks",
@@ -2651,7 +2671,7 @@ TEST_CASES = {
         },
     },
 }
-TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|SMP)(\d+)$")
+TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|SMP|FP)(\d+)$")
 
 for test_id, test_case in TEST_CASES.items():
     match = TEST_ID_PATTERN.match(test_id)

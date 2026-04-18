@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "tracer.h"
 
 #include "pico/time.h"
@@ -104,7 +108,7 @@ void TRACE_record( //
 
   if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
-    task_id = emitting_core_id;
+    task_id  = emitting_core_id;
     task_uid = emitting_core_id;
   }
 
@@ -200,7 +204,7 @@ void TRACE_print_buffer() {
       resource_id = r->event.data.semaphore_index;
     }
 
-    uint8_t task_id = r->task_id;
+    uint8_t  task_id  = r->task_id;
     uint32_t task_uid = r->task_uid;
     if (r->event.type == TRACE_ADMISSION_FAILED) {
       // For admission failures, use the allocated UID stored in event data
@@ -232,3 +236,5 @@ void TRACE_print_buffer() {
 
 /// @brief Turns off the tracing functionality, preventing any additional traces from being recorded
 void TRACE_disable(void) { tracing_enabled = false; }
+
+#endif // USE_EDF

@@ -26,6 +26,7 @@ pico_sdk_init()
 set(MY_SOURCES
         main.c
         main_blinky.c
+        fixed_priority_support.c
 
         edf_scheduler.c
         srp.c

@@ -24,6 +24,8 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
+    "FP1",
+    #
     # "EDF1",
     # "EDF2",
     # "EDF3",
@@ -86,11 +88,13 @@ TRACE_RUN_BANNERS = (
     "Running SRP Test",
     "Running SMP Test",
     "Running CBS Test",
+    "Running FP Test",
 )
 
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 
 SUITE_PREFIXES = (
+    ("FP", "FP"),
     ("SMP", "SMP"),
     ("SRP", "SRP"),
     ("EDF", "EDF"),
