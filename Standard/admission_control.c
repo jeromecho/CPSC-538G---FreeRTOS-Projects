@@ -461,3 +461,11 @@ bool SRP_can_admit_periodic_task(
 }
 
 #endif
+
+#if TEST_SUITE == TEST_SUITE_GLOBAL_MP
+bool SMP_can_admit_periodic_task(
+  const TickType_t completion_time, const TickType_t period, const TickType_t relative_deadline
+) {
+  return true; // TODO: implement
+}
+#endif         // TEST_SUITE == TEST_SUITE_GLOBAL_MP
