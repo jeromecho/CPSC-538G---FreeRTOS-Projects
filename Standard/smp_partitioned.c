@@ -9,52 +9,61 @@
 #include "scheduler_internal.h"
 #include "tracer.h"
 
-typedef struct {
-  TMB_t      *task;
-  UBaseType_t core;
-  bool        is_periodic;
-} SMP_TaskLocation_t;
-
-typedef struct {
-  TMB_t **view;
-  size_t *count;
-  size_t  capacity;
-} SMP_ViewSet_t;
-
 #define SMP_MAX_PERIODIC_TASKS_TOTAL  (configNUMBER_OF_CORES * MAXIMUM_PERIODIC_TASKS)
 #define SMP_MAX_APERIODIC_TASKS_TOTAL (configNUMBER_OF_CORES * MAXIMUM_APERIODIC_TASKS)
 
-static TMB_t *periodic_sched_view[configNUMBER_OF_CORES][SMP_MAX_PERIODIC_TASKS_TOTAL];
-static size_t periodic_sched_count[configNUMBER_OF_CORES] = {0};
+static TMB_t *core_periodic_sched_view[configNUMBER_OF_CORES][SMP_MAX_PERIODIC_TASKS_TOTAL];
+static TMB_t *core_aperiodic_sched_view[configNUMBER_OF_CORES][SMP_MAX_APERIODIC_TASKS_TOTAL];
 
-static TMB_t g_periodic_snapshot_buffer[SMP_MAX_PERIODIC_TASKS_TOTAL];
+static TMBViewSet_t core_periodic_task_view_set[configNUMBER_OF_CORES] = {
+  {
+   .view     = core_periodic_sched_view[0],
+   .count    = 0,
+   .capacity = SMP_MAX_PERIODIC_TASKS_TOTAL,
+   },
+  {
+   .view     = core_periodic_sched_view[1],
+   .count    = 0,
+   .capacity = SMP_MAX_PERIODIC_TASKS_TOTAL,
+   }
+};
 
-static TMB_t *aperiodic_sched_view[configNUMBER_OF_CORES][SMP_MAX_APERIODIC_TASKS_TOTAL];
-static size_t aperiodic_sched_count[configNUMBER_OF_CORES] = {0};
+static TMBViewSet_t core_aperiodic_task_view_set[configNUMBER_OF_CORES] = {
+  {
+   .view     = core_aperiodic_sched_view[0],
+   .count    = 0,
+   .capacity = SMP_MAX_APERIODIC_TASKS_TOTAL,
+   },
+  {
+   .view     = core_aperiodic_sched_view[1],
+   .count    = 0,
+   .capacity = SMP_MAX_APERIODIC_TASKS_TOTAL,
+   }
+};
 
-static BaseType_t SMP_view_add(TMB_t **view, size_t *count, const size_t capacity, TMB_t *task) {
-  if (view == NULL || count == NULL || task == NULL || *count >= capacity) {
+static BaseType_t SMP_view_add(TMBViewSet_t *set, TMB_t *task) {
+  if (set == NULL || set->view == NULL || task == NULL || set->count >= set->capacity) {
     return pdFAIL;
   }
 
-  view[*count] = task;
-  (*count)++;
+  set->view[set->count] = task;
+  set->count++;
   return pdPASS;
 }
 
-static BaseType_t SMP_view_remove(TMB_t **view, size_t *count, TMB_t *task) {
-  if (view == NULL || count == NULL || task == NULL) {
+static BaseType_t SMP_view_remove(TMBViewSet_t *set, TMB_t *task) {
+  if (set == NULL || set->view == NULL || task == NULL) {
     return pdFAIL;
   }
 
-  for (size_t i = 0; i < *count; ++i) {
-    if (view[i] == task) {
-      const size_t last_index = (*count) - 1;
+  for (size_t i = 0; i < set->count; ++i) {
+    if (set->view[i] == task) {
+      const size_t last_index = set->count - 1;
       if (i != last_index) {
-        view[i] = view[last_index];
+        set->view[i] = set->view[last_index];
       }
-      view[last_index] = NULL;
-      (*count)--;
+      set->view[last_index] = NULL;
+      set->count--;
       return pdPASS;
     }
   }
@@ -62,18 +71,13 @@ static BaseType_t SMP_view_remove(TMB_t **view, size_t *count, TMB_t *task) {
   return pdFAIL;
 }
 
-static SMP_ViewSet_t SMP_get_view_set(const bool is_periodic, const UBaseType_t core) {
-  SMP_ViewSet_t set;
+static TMBViewSet_t *SMP_get_view_set(const bool is_periodic, const UBaseType_t core) {
+  configASSERT(core < configNUMBER_OF_CORES);
+
   if (is_periodic) {
-    set.view     = periodic_sched_view[core];
-    set.count    = &periodic_sched_count[core];
-    set.capacity = SMP_MAX_PERIODIC_TASKS_TOTAL;
-  } else {
-    set.view     = aperiodic_sched_view[core];
-    set.count    = &aperiodic_sched_count[core];
-    set.capacity = SMP_MAX_APERIODIC_TASKS_TOTAL;
+    return &core_periodic_task_view_set[core];
   }
-  return set;
+  return &core_aperiodic_task_view_set[core];
 }
 
 static TMB_t *SMP_find_task_in_view_by_handle(TMB_t *const *view, const size_t count, const TaskHandle_t handle) {
@@ -91,14 +95,15 @@ static TMB_t *SMP_find_task_in_view_by_handle(TMB_t *const *view, const size_t c
   return NULL;
 }
 
-static bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location) {
+bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location) {
   if (task_handle == NULL || location == NULL) {
     return false;
   }
 
   for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    TMB_t *periodic_match =
-      SMP_find_task_in_view_by_handle(periodic_sched_view[core], periodic_sched_count[core], task_handle);
+    const TMBViewSet_t *periodic_set  = SMP_get_view_set(true, core);
+    const TMBViewSet_t *aperiodic_set = SMP_get_view_set(false, core);
+    TMB_t *periodic_match = SMP_find_task_in_view_by_handle(periodic_set->view, periodic_set->count, task_handle);
     if (periodic_match != NULL) {
       location->task        = periodic_match;
       location->core        = core;
@@ -106,8 +111,7 @@ static bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocat
       return true;
     }
 
-    TMB_t *aperiodic_match =
-      SMP_find_task_in_view_by_handle(aperiodic_sched_view[core], aperiodic_sched_count[core], task_handle);
+    TMB_t *aperiodic_match = SMP_find_task_in_view_by_handle(aperiodic_set->view, aperiodic_set->count, task_handle);
     if (aperiodic_match != NULL) {
       location->task        = aperiodic_match;
       location->core        = core;
@@ -121,7 +125,7 @@ static bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocat
 
 static bool SMP_periodic_memory_slot_in_use(const UBaseType_t core, const size_t slot_index) {
   StackType_t *const candidate_stack = private_stacks_periodic[core][slot_index];
-  for (size_t i = 0; i < periodic_task_count; ++i) {
+  for (size_t i = 0; i < periodic_task_set.count; ++i) {
     TMB_t *const task = &periodic_tasks[i];
     if (task->handle != NULL && task->assigned_core == core && task->stack_buffer == candidate_stack) {
       return true;
@@ -147,7 +151,7 @@ static BaseType_t SMP_allocate_periodic_memory_slot(const UBaseType_t core, size
 
 static bool SMP_aperiodic_memory_slot_in_use(const UBaseType_t core, const size_t slot_index) {
   StackType_t *const candidate_stack = private_stacks_aperiodic[core][slot_index];
-  for (size_t i = 0; i < aperiodic_task_count; ++i) {
+  for (size_t i = 0; i < aperiodic_task_set.count; ++i) {
     TMB_t *const task = &aperiodic_tasks[i];
     if (task->handle != NULL && task->assigned_core == core && task->stack_buffer == candidate_stack) {
       return true;
@@ -180,8 +184,8 @@ static BaseType_t SMP_remove_task_at_location(const SMP_TaskLocation_t *location
     return pdFAIL;
   }
 
-  const SMP_ViewSet_t set = SMP_get_view_set(location->is_periodic, location->core);
-  if (SMP_view_remove(set.view, set.count, location->task) != pdPASS) {
+  TMBViewSet_t *set = SMP_get_view_set(location->is_periodic, location->core);
+  if (SMP_view_remove(set, location->task) != pdPASS) {
     return pdFAIL;
   }
 
@@ -193,18 +197,6 @@ static BaseType_t SMP_remove_task_at_location(const SMP_TaskLocation_t *location
   return pdPASS;
 }
 
-static size_t SMP_snapshot_periodic_tasks_for_core(const UBaseType_t core) {
-  if (SMP_MAX_PERIODIC_TASKS_TOTAL == 0) {
-    return 0;
-  }
-
-  const size_t count = periodic_sched_count[core];
-  for (size_t i = 0; i < count && i < SMP_MAX_PERIODIC_TASKS_TOTAL; ++i) {
-    g_periodic_snapshot_buffer[i] = *periodic_sched_view[core][i];
-  }
-  return (count <= SMP_MAX_PERIODIC_TASKS_TOTAL) ? count : SMP_MAX_PERIODIC_TASKS_TOTAL;
-}
-
 static bool SMP_can_admit_periodic_task_on_core( //
   const TickType_t  completion_time,
   const TickType_t  period,
@@ -213,13 +205,12 @@ static bool SMP_can_admit_periodic_task_on_core( //
 ) {
   bool can_admit = false;
   taskENTER_CRITICAL();
-  const size_t snapshot_count = SMP_snapshot_periodic_tasks_for_core(core);
-  can_admit                   = EDF_can_admit_periodic_task_for_task_set( //
+  const TMBViewSet_t *view_set = SMP_get_view_set(true, core);
+  can_admit                    = EDF_can_admit_periodic_task_for_task_set( //
     completion_time,
     period,
     relative_deadline,
-    g_periodic_snapshot_buffer,
-    snapshot_count
+    view_set
   );
   taskEXIT_CRITICAL();
   return can_admit;
@@ -232,13 +223,12 @@ static bool SMP_can_admit_migrated_periodic_task_on_core(const TMB_t *task, cons
 
   bool can_admit = false;
   taskENTER_CRITICAL();
-  const size_t snapshot_count = SMP_snapshot_periodic_tasks_for_core(core);
-  can_admit                   = EDF_can_admit_periodic_task_for_task_set(
+  const TMBViewSet_t *view_set = SMP_get_view_set(true, core);
+  can_admit                    = EDF_can_admit_periodic_task_for_task_set( //
     task->completion_time,
     task->periodic.period,
     task->periodic.relative_deadline,
-    g_periodic_snapshot_buffer,
-    snapshot_count
+    view_set
   );
   taskEXIT_CRITICAL();
   return can_admit;
@@ -256,9 +246,9 @@ static TickType_t SMP_calculate_aligned_release_for_migrated_periodic_task(
 
   TickType_t release_time = current_tick;
   taskENTER_CRITICAL();
-  const size_t snapshot_count = SMP_snapshot_periodic_tasks_for_core(destination_core);
-  if (snapshot_count > 0) {
-    const TickType_t H         = compute_hyperperiod(task->periodic.period, g_periodic_snapshot_buffer, snapshot_count);
+  const TMBViewSet_t *destination_view_set = SMP_get_view_set(true, destination_core);
+  if (destination_view_set->count > 0) {
+    const TickType_t H         = compute_hyperperiod(task->periodic.period, destination_view_set);
     const TickType_t remainder = current_tick % H;
     release_time               = (remainder == 0) ? current_tick : (current_tick + (H - remainder));
   }
@@ -294,12 +284,13 @@ BaseType_t SMP_create_periodic_task_on_core(
   }
 #endif
 
-  TMB_t     *handle = NULL;
-  BaseType_t result = _create_periodic_task_internal(
+  TMB_t        *handle                    = NULL;
+  TMBViewSet_t *destination_core_view_set = SMP_get_view_set(true, core);
+  BaseType_t    result                    = _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
+    &periodic_task_set,
+    destination_core_view_set,
     private_stacks_periodic[core][memory_slot_index],
     &private_task_buffers_periodic[core][memory_slot_index],
     completion_time,
@@ -311,8 +302,8 @@ BaseType_t SMP_create_periodic_task_on_core(
   );
 
   if (result == pdPASS && handle != NULL) {
-    if (SMP_view_add(periodic_sched_view[core], &periodic_sched_count[core], SMP_MAX_PERIODIC_TASKS_TOTAL, handle) !=
-        pdPASS) {
+    if (destination_core_view_set->count == 0 ||
+        destination_core_view_set->view[destination_core_view_set->count - 1] != handle) {
       vTaskDelete(handle->handle);
       handle->handle = NULL;
       return pdFAIL;
@@ -358,8 +349,7 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
-    aperiodic_tasks,
-    &aperiodic_task_count,
+    &aperiodic_task_set,
     private_stacks_aperiodic[core][memory_slot_index],
     &private_task_buffers_aperiodic[core][memory_slot_index],
     completion_time,
@@ -373,8 +363,8 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   );
 
   if (result == pdPASS && handle != NULL) {
-    if (SMP_view_add(aperiodic_sched_view[core], &aperiodic_sched_count[core], SMP_MAX_APERIODIC_TASKS_TOTAL, handle) !=
-        pdPASS) {
+    TMBViewSet_t *destination_core_view_set = SMP_get_view_set_ptr(false, core);
+    if (SMP_view_add(destination_core_view_set, handle) != pdPASS) {
       vTaskDelete(handle->handle);
       handle->handle = NULL;
       return pdFAIL;
@@ -419,15 +409,15 @@ BaseType_t SMP_remove_task_from_core(const TaskHandle_t task_handle, const UBase
 static BaseType_t SMP_move_task_between_core_views(
   TMB_t *task, const bool is_periodic, const UBaseType_t source_core, const UBaseType_t destination_core
 ) {
-  const SMP_ViewSet_t source      = SMP_get_view_set(is_periodic, source_core);
-  const SMP_ViewSet_t destination = SMP_get_view_set(is_periodic, destination_core);
+  TMBViewSet_t *source      = SMP_get_view_set(is_periodic, source_core);
+  TMBViewSet_t *destination = SMP_get_view_set(is_periodic, destination_core);
 
-  if (SMP_view_add(destination.view, destination.count, destination.capacity, task) != pdPASS) {
+  if (SMP_view_add(destination, task) != pdPASS) {
     return pdFAIL;
   }
 
-  if (SMP_view_remove(source.view, source.count, task) != pdPASS) {
-    (void)SMP_view_remove(destination.view, destination.count, task);
+  if (SMP_view_remove(source, task) != pdPASS) {
+    (void)SMP_view_remove(destination, task);
     return pdFAIL;
   }
 
@@ -529,10 +519,10 @@ static TMB_t *SMP_highest_priority_candidate_from_view(TMB_t *const *view, const
 }
 
 TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core) {
-  TMB_t *periodic_candidate =
-    SMP_highest_priority_candidate_from_view(periodic_sched_view[core], periodic_sched_count[core]);
-  TMB_t *aperiodic_candidate =
-    SMP_highest_priority_candidate_from_view(aperiodic_sched_view[core], aperiodic_sched_count[core]);
+  const TMBViewSet_t *periodic_set  = SMP_get_view_set(true, core);
+  const TMBViewSet_t *aperiodic_set = SMP_get_view_set(false, core);
+  TMB_t *periodic_candidate         = SMP_highest_priority_candidate_from_view(periodic_set->view, periodic_set->count);
+  TMB_t *aperiodic_candidate = SMP_highest_priority_candidate_from_view(aperiodic_set->view, aperiodic_set->count);
 
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
     return NULL;
@@ -564,8 +554,10 @@ static void SMP_visit_active_tasks_in_view(TMB_t *const *view, const size_t coun
 }
 
 static void SMP_visit_active_tasks_for_core(const UBaseType_t core, SMP_TaskVisitor_t visitor) {
-  SMP_visit_active_tasks_in_view(periodic_sched_view[core], periodic_sched_count[core], visitor);
-  SMP_visit_active_tasks_in_view(aperiodic_sched_view[core], aperiodic_sched_count[core], visitor);
+  const TMBViewSet_t *periodic_set  = SMP_get_view_set(true, core);
+  const TMBViewSet_t *aperiodic_set = SMP_get_view_set(false, core);
+  SMP_visit_active_tasks_in_view(periodic_set->view, periodic_set->count, visitor);
+  SMP_visit_active_tasks_in_view(aperiodic_set->view, aperiodic_set->count, visitor);
 }
 
 static void SMP_check_deadline_for_task(const TMB_t *task, const TickType_t current_tick) {
@@ -581,15 +573,18 @@ static void SMP_record_release_for_task(const TMB_t *task, const TickType_t curr
 }
 
 void SMP_partitioned_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core) {
-  for (size_t i = 0; i < periodic_sched_count[core]; ++i) {
-    TMB_t *const task = periodic_sched_view[core][i];
+  const TMBViewSet_t *periodic_set  = SMP_get_view_set(true, core);
+  const TMBViewSet_t *aperiodic_set = SMP_get_view_set(false, core);
+
+  for (size_t i = 0; i < periodic_set->count; ++i) {
+    TMB_t *const task = periodic_set->view[i];
     if (task != NULL && task != highest_priority_task && task->handle != NULL &&
         eTaskGetState(task->handle) != eSuspended) {
       scheduler_suspend_task(task);
     }
   }
-  for (size_t i = 0; i < aperiodic_sched_count[core]; ++i) {
-    TMB_t *const task = aperiodic_sched_view[core][i];
+  for (size_t i = 0; i < aperiodic_set->count; ++i) {
+    TMB_t *const task = aperiodic_set->view[i];
     if (task != NULL && task != highest_priority_task && task->handle != NULL &&
         eTaskGetState(task->handle) != eSuspended) {
       scheduler_suspend_task(task);
@@ -600,8 +595,9 @@ void SMP_partitioned_suspend_lower_priority_tasks(const TMB_t *const highest_pri
 void SMP_partitioned_reschedule_periodic_tasks(void) {
   const TickType_t current_tick = xTaskGetTickCountFromISR();
   for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    for (size_t i = 0; i < periodic_sched_count[core]; ++i) {
-      TMB_t *const task = periodic_sched_view[core][i];
+    const TMBViewSet_t *periodic_set = SMP_get_view_set(true, core);
+    for (size_t i = 0; i < periodic_set->count; ++i) {
+      TMB_t *const task = periodic_set->view[i];
       if (task == NULL || task->handle == NULL) {
         continue;
       }

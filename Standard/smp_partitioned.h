@@ -7,6 +7,12 @@
 
 #include "types/scheduler_types.h"
 
+typedef struct {
+  TMB_t      *task;
+  UBaseType_t core;
+  bool        is_periodic;
+} SMP_TaskLocation_t;
+
 BaseType_t SMP_create_periodic_task_on_core(
   TaskFunction_t    task_function,
   const char *const task_name,
@@ -38,6 +44,7 @@ void   SMP_partitioned_reschedule_periodic_tasks(void);
 void   SMP_partitioned_check_deadlines(void);
 void   SMP_partitioned_record_releases(void);
 void   SMP_partitioned_suspend_and_resume_tasks(void);
+bool   SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location);
 
 #endif // USE_MP
 

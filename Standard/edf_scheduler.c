@@ -46,10 +46,18 @@ uint32_t allocate_trace_uid(void) {
 
 #if USE_MP && USE_PARTITIONED
 TMB_t  periodic_tasks[configNUMBER_OF_CORES * MAXIMUM_PERIODIC_TASKS];
-size_t periodic_task_count = 0;
+TMBTaskSet_t periodic_task_set = {
+  .tasks = periodic_tasks,
+  .count = 0,
+  .capacity = configNUMBER_OF_CORES * MAXIMUM_PERIODIC_TASKS,
+};
 
 TMB_t  aperiodic_tasks[configNUMBER_OF_CORES * MAXIMUM_APERIODIC_TASKS];
-size_t aperiodic_task_count = 0;
+TMBTaskSet_t aperiodic_task_set = {
+  .tasks = aperiodic_tasks,
+  .count = 0,
+  .capacity = configNUMBER_OF_CORES * MAXIMUM_APERIODIC_TASKS,
+};
 
 StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
@@ -58,10 +66,30 @@ StaticTask_t private_task_buffers_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIOD
 StaticTask_t private_task_buffers_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
 #else // USE_MP && USE_PARTITIONED
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
-size_t periodic_task_count = 0;
+TMBTaskSet_t periodic_task_set = {
+  .tasks = periodic_tasks,
+  .count = 0,
+  .capacity = MAXIMUM_PERIODIC_TASKS,
+};
+TMB_t *periodic_sched_view[MAXIMUM_PERIODIC_TASKS];
+TMBViewSet_t periodic_task_view_set = {
+  .view = periodic_sched_view,
+  .count = 0,
+  .capacity = MAXIMUM_PERIODIC_TASKS,
+};
 
 TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
-size_t aperiodic_task_count = 0;
+TMBTaskSet_t aperiodic_task_set = {
+  .tasks = aperiodic_tasks,
+  .count = 0,
+  .capacity = MAXIMUM_APERIODIC_TASKS,
+};
+TMB_t *aperiodic_sched_view[MAXIMUM_APERIODIC_TASKS];
+TMBViewSet_t aperiodic_task_view_set = {
+  .view = aperiodic_sched_view,
+  .count = 0,
+  .capacity = MAXIMUM_APERIODIC_TASKS,
+};
 
 StaticTask_t edf_private_task_buffers_periodic[MAXIMUM_PERIODIC_TASKS];
 StaticTask_t edf_private_task_buffers_aperiodic[MAXIMUM_APERIODIC_TASKS];
@@ -78,11 +106,9 @@ StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_S
 ; // ===================================
 
 static void       scheduler_reschedule_periodic_tasks();
-static TMB_t     *candidate_highest_priority(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
 static TickType_t calculate_release_time_for_new_task(
   TickType_t       new_period,
-  const TMB_t     *tasks,
-  const size_t     count,
+  const TMBViewSet_t *task_view_set,
   const bool       scheduler_started,
   const TickType_t current_tick
 );
@@ -130,9 +156,8 @@ TMB_t *scheduler_produce_highest_priority_task() {
 #if USE_MP && USE_PARTITIONED
   return SMP_partitioned_produce_highest_priority_task((UBaseType_t)portGET_CORE_ID());
 #else
-  TMB_t *periodic_candidate = scheduler_highest_priority_candidate(periodic_tasks, periodic_task_count, NULL);
-  TMB_t *aperiodic_candidate =
-    scheduler_highest_priority_candidate(aperiodic_tasks, aperiodic_task_count, is_aperiodic_ready);
+  TMB_t *periodic_candidate  = scheduler_highest_priority_candidate(&periodic_task_view_set, NULL);
+  TMB_t *aperiodic_candidate = scheduler_highest_priority_candidate(&aperiodic_task_view_set, is_aperiodic_ready);
 
   // // Early return if there are no tasks available
   if (periodic_candidate == NULL && aperiodic_candidate == NULL) {
@@ -254,8 +279,8 @@ BaseType_t _create_task_internal(
 BaseType_t _create_periodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
-  TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
-  size_t *const     task_count,
+  TMBTaskSet_t     *task_set,
+  TMBViewSet_t     *task_view_set,
   StackType_t      *stack_buffer,
   StaticTask_t     *task_buffer,
   const TickType_t  completion_time,
@@ -265,13 +290,16 @@ BaseType_t _create_periodic_task_internal(
   TMB_t **const     TMB_handle,
   const UBaseType_t core
 ) {
-  if (*task_count >= MAXIMUM_PERIODIC_TASKS) {
+  if (task_set == NULL || task_set->tasks == NULL || task_set->count >= task_set->capacity) {
+    return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
+  }
+  if (task_view_set == NULL || task_view_set->view == NULL || task_view_set->count >= task_view_set->capacity) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
   configASSERT(relative_deadline <= period);
 
-  const size_t     existing_task_count = *task_count;
-  TMB_t *const     new_task            = &task_array[existing_task_count];
+  const size_t     existing_task_count = task_set->count;
+  TMB_t *const     new_task            = &task_set->tasks[existing_task_count];
   const bool       scheduler_started   = (xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED);
   const TickType_t current_tick        = xTaskGetTickCount();
 
@@ -283,7 +311,7 @@ BaseType_t _create_periodic_task_internal(
     task_function,
     task_name,
     TASK_PERIODIC,
-    *task_count,
+    task_set->count,
     trace_uid_override,
     new_task,
     parameters,
@@ -297,15 +325,22 @@ BaseType_t _create_periodic_task_internal(
       *TMB_handle = NULL;
     return result;
   }
-  (*task_count)++;
+  task_set->count++;
+  task_view_set->view[task_view_set->count] = new_task;
+  task_view_set->count++;
 
   new_task->periodic.period            = period;
   new_task->periodic.relative_deadline = relative_deadline;
 
+  size_t pre_add_count = existing_task_count;
+  TMBViewSet_t alignment_view_set = {
+    .view = task_view_set->view,
+    .count = pre_add_count,
+    .capacity = task_view_set->capacity,
+  };
   const TickType_t release_time  = calculate_release_time_for_new_task( //
     period,
-    task_array,
-    existing_task_count,
+    &alignment_view_set,
     scheduler_started,
     current_tick
   );
@@ -325,8 +360,7 @@ BaseType_t _create_periodic_task_internal(
 BaseType_t _create_aperiodic_task_internal(
   TaskFunction_t    task_function,
   const char *const task_name,
-  TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
-  size_t *const     task_count,
+  TMBTaskSet_t     *task_set,
   StackType_t      *stack_buffer,
   StaticTask_t     *task_buffer,
   const TickType_t  completion_time,
@@ -338,14 +372,14 @@ BaseType_t _create_aperiodic_task_internal(
   bool              is_hard_rt,
   const UBaseType_t core
 ) {
-  if (*task_count >= MAXIMUM_APERIODIC_TASKS) {
+  if (task_set == NULL || task_set->tasks == NULL || task_set->count >= task_set->capacity) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
 
   const TickType_t current_tick = xTaskGetTickCount();
   configASSERT(release_time >= current_tick);
 
-  TMB_t *const new_task = &task_array[*task_count];
+  TMB_t *const new_task = &task_set->tasks[task_set->count];
 
   SchedulerParameters_t parameters;
   parameters.completion_time      = completion_time;
@@ -355,7 +389,7 @@ BaseType_t _create_aperiodic_task_internal(
     task_function,
     task_name,
     TASK_APERIODIC,
-    *task_count,
+    task_set->count,
     trace_uid_override,
     new_task,
     parameters,
@@ -369,7 +403,7 @@ BaseType_t _create_aperiodic_task_internal(
       *TMB_handle = NULL;
     return result;
   }
-  (*task_count)++;
+  task_set->count++;
 
   new_task->release_time      = release_time;
   new_task->absolute_deadline = release_time + relative_deadline;
@@ -408,10 +442,10 @@ BaseType_t EDF_create_periodic_task(
   return _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
-    edf_private_stacks_periodic[periodic_task_count],
-    &edf_private_task_buffers_periodic[periodic_task_count],
+    &periodic_task_set,
+    &periodic_task_view_set,
+    edf_private_stacks_periodic[periodic_task_set.count],
+    &edf_private_task_buffers_periodic[periodic_task_set.count],
     completion_time,
     period,
     relative_deadline,
@@ -443,13 +477,12 @@ BaseType_t EDF_create_aperiodic_task(
   bool              is_hard_rt
 ) {
 #if MAXIMUM_APERIODIC_TASKS > 0
-  return _create_aperiodic_task_internal(
+  BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
-    aperiodic_tasks,
-    &aperiodic_task_count,
-    edf_private_stacks_aperiodic[aperiodic_task_count],
-    &edf_private_task_buffers_aperiodic[aperiodic_task_count],
+    &aperiodic_task_set,
+    edf_private_stacks_aperiodic[aperiodic_task_set.count],
+    &edf_private_task_buffers_aperiodic[aperiodic_task_set.count],
     completion_time,
     release_time,
     relative_deadline,
@@ -459,6 +492,11 @@ BaseType_t EDF_create_aperiodic_task(
     is_hard_rt,
     0
   );
+  if (result == pdPASS && TMB_handle != NULL && *TMB_handle != NULL &&
+      aperiodic_task_view_set.count < aperiodic_task_view_set.capacity) {
+    aperiodic_task_view_set.view[aperiodic_task_view_set.count++] = *TMB_handle;
+  }
+  return result;
 #else
   // Fallback if no aperiodic tasks are allowed in this config
   (void)task_function;
@@ -517,10 +555,15 @@ void EDF_aperiodic_task(void *pvParameters) {
   vTaskDelete(NULL);
 }
 
-TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    if (tasks[i].handle == handle) {
-      return &tasks[i];
+TMB_t *scheduler_search_view_for_handle(const TaskHandle_t handle, const TMBViewSet_t *view_set) {
+  if (handle == NULL || view_set == NULL || view_set->view == NULL) {
+    return NULL;
+  }
+
+  for (size_t i = 0; i < view_set->count; ++i) {
+    TMB_t *task = view_set->view[i];
+    if (task != NULL && task->handle == handle) {
+      return task;
     }
   }
   return NULL;
@@ -534,27 +577,25 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t task_handle) {
     return NULL;
   }
 
+#if USE_MP && USE_PARTITIONED
+  SMP_TaskLocation_t location;
+  if (SMP_find_task_location(task_handle, &location)) {
+    return location.task;
+  }
+  return NULL;
+#else
   TMB_t *candidate = NULL;
 
-#if USE_MP && USE_PARTITIONED
-  candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks, periodic_task_count);
+  candidate = scheduler_search_view_for_handle(task_handle, &periodic_task_view_set);
   if (candidate)
     return candidate;
 
-  candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks, aperiodic_task_count);
+  candidate = scheduler_search_view_for_handle(task_handle, &aperiodic_task_view_set);
   if (candidate)
     return candidate;
-#else
-  candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks, periodic_task_count);
-  if (candidate)
-    return candidate;
-
-  candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks, aperiodic_task_count);
-  if (candidate)
-    return candidate;
-#endif
 
   return NULL;
+#endif
 }
 
 void starting_scheduler(void *xIdleTaskHandles) {
@@ -570,10 +611,10 @@ void starting_scheduler(void *xIdleTaskHandles) {
   SMP_partitioned_record_releases();
   SMP_partitioned_suspend_and_resume_tasks();
 #else
-  scheduler_check_deadlines(periodic_tasks, periodic_task_count);
-  scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
-  scheduler_record_releases(periodic_tasks, periodic_task_count);
-  scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_check_deadlines(&periodic_task_view_set);
+  scheduler_check_deadlines(&aperiodic_task_view_set);
+  scheduler_record_releases(&periodic_task_view_set);
+  scheduler_record_releases(&aperiodic_task_view_set);
   scheduler_suspend_and_resume_tasks(0);
 #endif
 }
@@ -587,8 +628,11 @@ static void scheduler_reschedule_periodic_tasks() {
 #if USE_MP && USE_PARTITIONED
   SMP_partitioned_reschedule_periodic_tasks();
 #else
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const     task         = &periodic_tasks[i];
+  for (size_t i = 0; i < periodic_task_view_set.count; ++i) {
+    TMB_t *const     task         = periodic_sched_view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     const TickType_t current_tick = xTaskGetTickCountFromISR();
     (void)scheduler_release_periodic_job_if_ready(task, current_tick);
   }
@@ -615,9 +659,16 @@ void scheduler_resume_task(const TMB_t *const task) {
 }
 
 /// @brief Loops through all tasks in an array and checks whether they have exceeded their deadline.
-void scheduler_check_deadlines(const TMB_t *const tasks, const size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    const TMB_t *const task         = &tasks[i];
+void scheduler_check_deadlines(const TMBViewSet_t *view_set) {
+  if (view_set == NULL || view_set->view == NULL) {
+    return;
+  }
+
+  for (size_t i = 0; i < view_set->count; ++i) {
+    const TMB_t *const task         = view_set->view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     const bool         task_done    = task->is_done;
     const TickType_t   current_tick = xTaskGetTickCountFromISR();
 
@@ -630,9 +681,16 @@ void scheduler_check_deadlines(const TMB_t *const tasks, const size_t count) {
 }
 
 /// @brief Loops through all tasks in an array and records release events for tasks released this tick.
-void scheduler_record_releases(const TMB_t *const tasks, const size_t count) {
-  for (size_t i = 0; i < count; ++i) {
-    const TMB_t *const task         = &tasks[i];
+void scheduler_record_releases(const TMBViewSet_t *view_set) {
+  if (view_set == NULL || view_set->view == NULL) {
+    return;
+  }
+
+  for (size_t i = 0; i < view_set->count; ++i) {
+    const TMB_t *const task         = view_set->view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     const TickType_t   current_tick = xTaskGetTickCountFromISR();
 
     // Checks if the release time for a task has arrived
@@ -644,13 +702,20 @@ void scheduler_record_releases(const TMB_t *const tasks, const size_t count) {
 }
 
 /// @brief Helper function to find the pending task with the nearest deadline
-TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *)) {
+TMB_t *scheduler_highest_priority_candidate(const TMBViewSet_t *view_set, bool (*is_eligible)(TMB_t *)) {
   const TickType_t current_tick      = xTaskGetTickCountFromISR();
   TMB_t           *candidate         = NULL;
   TickType_t       earliest_deadline = portMAX_DELAY;
 
-  for (size_t i = 0; i < count; ++i) {
-    TMB_t *task = &tasks[i];
+  if (view_set == NULL || view_set->view == NULL) {
+    return NULL;
+  }
+
+  for (size_t i = 0; i < view_set->count; ++i) {
+    TMB_t *task = view_set->view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
 
     // Skip tasks that are done or haven't been released yet
     if (task->is_done || current_tick < task->release_time || (is_eligible != NULL && !is_eligible(task))) {
@@ -681,15 +746,21 @@ void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_
   SMP_partitioned_suspend_lower_priority_tasks(highest_priority_task, core);
   return;
 #else
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const task = &periodic_tasks[i];
+  for (size_t i = 0; i < periodic_task_view_set.count; ++i) {
+    TMB_t *const task = periodic_sched_view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
       scheduler_suspend_task(task);
     }
   }
 
-  for (size_t i = 0; i < aperiodic_task_count; ++i) {
-    TMB_t *const task = &aperiodic_tasks[i];
+  for (size_t i = 0; i < aperiodic_task_view_set.count; ++i) {
+    TMB_t *const task = aperiodic_sched_view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
       scheduler_suspend_task(task);
     }
@@ -774,16 +845,15 @@ void scheduler_suspend_and_resume_tasks(const size_t core) {
 /// @brief Calculates release time for dropped task
 static TickType_t calculate_release_time_for_new_task(
   const TickType_t new_period,
-  const TMB_t     *tasks,
-  const size_t     count,
+  const TMBViewSet_t *task_view_set,
   const bool       scheduler_started,
   const TickType_t current_tick
 ) {
-  if (!scheduler_started || count == 0) {
+  if (!scheduler_started || task_view_set == NULL || task_view_set->count == 0) {
     return current_tick;
   }
 
-  const TickType_t H         = compute_hyperperiod(new_period, tasks, count);
+  const TickType_t H         = compute_hyperperiod(new_period, task_view_set);
   const TickType_t remainder = current_tick % H;
   if (remainder == 0) {
     return current_tick;
@@ -841,10 +911,10 @@ void vApplicationTickHook(void) {
   SMP_partitioned_record_releases();
   SMP_partitioned_suspend_and_resume_tasks();
 #else
-  scheduler_check_deadlines(periodic_tasks, periodic_task_count);
-  scheduler_check_deadlines(aperiodic_tasks, aperiodic_task_count);
-  scheduler_record_releases(periodic_tasks, periodic_task_count);
-  scheduler_record_releases(aperiodic_tasks, aperiodic_task_count);
+  scheduler_check_deadlines(&periodic_task_view_set);
+  scheduler_check_deadlines(&aperiodic_task_view_set);
+  scheduler_record_releases(&periodic_task_view_set);
+  scheduler_record_releases(&aperiodic_task_view_set);
   scheduler_suspend_and_resume_tasks(0);
 #endif
 }
@@ -902,13 +972,14 @@ static void update_gpio_pin( //
     return;
   }
 
-  const size_t task_count = (current_task_tmb->type == TASK_PERIODIC) ? periodic_task_count : aperiodic_task_count;
-  TMB_t       *task_array = (current_task_tmb->type == TASK_PERIODIC) ? periodic_tasks : aperiodic_tasks;
+  const TMBViewSet_t *task_view_set =
+    (current_task_tmb->type == TASK_PERIODIC) ? &periodic_task_view_set : &aperiodic_task_view_set;
   int          gpio_base =
     (current_task_tmb->type == TASK_PERIODIC) ? mainGPIO_PERIODIC_TASK_BASE : mainGPIO_APERIODIC_TASK_BASE;
 
-  for (size_t i = 0; i < task_count; i++) {
-    if (current_task_handle == task_array[i].handle) {
+  for (size_t i = 0; i < task_view_set->count; i++) {
+    const TMB_t *task = task_view_set->view[i];
+    if (task != NULL && current_task_handle == task->handle) {
       gpio_put(gpio_base + i, gpio_state);
       break;
     }

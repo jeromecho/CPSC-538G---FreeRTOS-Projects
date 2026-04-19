@@ -15,8 +15,7 @@ bool EDF_can_admit_periodic_task_for_task_set(
   const TickType_t completion_time,
   const TickType_t period,
   const TickType_t relative_deadline,
-  const TMB_t     *tasks,
-  const size_t     task_count
+  const TMBViewSet_t *task_view_set
 );
 
 void admission_control_handle_failure(const uint32_t uid);

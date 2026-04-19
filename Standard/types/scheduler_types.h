@@ -70,6 +70,18 @@ typedef struct TMB_t {
   };
 } TMB_t;
 
+typedef struct {
+  TMB_t  *tasks;
+  size_t  count;
+  size_t  capacity;
+} TMBTaskSet_t;
+
+typedef struct {
+  TMB_t **view;
+  size_t  count;
+  size_t  capacity;
+} TMBViewSet_t;
+
 #endif // USE_EDF
 
 #endif // SCHEDULER_TYPES_H

@@ -145,17 +145,17 @@ BaseType_t SRP_create_periodic_task(
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
 #else
-  StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_count];
+  StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_set.count];
 #endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
+    &periodic_task_set,
+    &periodic_task_view_set,
     stack_buffer,
-    &edf_private_task_buffers_periodic[periodic_task_count],
+    &edf_private_task_buffers_periodic[periodic_task_set.count],
     completion_time,
     period,
     relative_deadline,
@@ -205,17 +205,16 @@ BaseType_t SRP_create_aperiodic_task(
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
 #else
-  StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_count];
+  StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_set.count];
 #endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
-    aperiodic_tasks,
-    &aperiodic_task_count,
+    &aperiodic_task_set,
     stack_buffer,
-    &edf_private_task_buffers_aperiodic[aperiodic_task_count],
+    &edf_private_task_buffers_aperiodic[aperiodic_task_set.count],
     completion_time,
     release_time,
     relative_deadline,
@@ -225,6 +224,10 @@ BaseType_t SRP_create_aperiodic_task(
     true,
     0
   );
+
+  if (result == pdPASS && handle != NULL && aperiodic_task_view_set.count < aperiodic_task_view_set.capacity) {
+    aperiodic_task_view_set.view[aperiodic_task_view_set.count++] = handle;
+  }
 
   if (result == pdPASS) {
     srp_specific_initialization(handle, preemption_level, resource_hold_times);
