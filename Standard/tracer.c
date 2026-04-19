@@ -148,8 +148,6 @@ void TRACE_record( //
 
 /// @brief Prints all recorded traces to the host computer
 void TRACE_print_buffer() {
-  TRACE_disable();
-
 #if configNUMBER_OF_CORES > 2
 #error "Only two cores are supported"
 #endif

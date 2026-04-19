@@ -53,12 +53,18 @@ size_t aperiodic_task_count[configNUMBER_OF_CORES] = {0};
 
 StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+
+StaticTask_t private_task_buffers_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+StaticTask_t private_task_buffers_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
 #else // USE_MP && USE_PARTITIONED
 TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 size_t periodic_task_count = 0;
 
 TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 size_t aperiodic_task_count = 0;
+
+StaticTask_t edf_private_task_buffers_periodic[MAXIMUM_PERIODIC_TASKS];
+StaticTask_t edf_private_task_buffers_aperiodic[MAXIMUM_APERIODIC_TASKS];
 
 #if !(USE_SRP && ENABLE_STACK_SHARING)
 StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
@@ -217,6 +223,7 @@ BaseType_t _create_task_internal(
 
   new_task->handle        = task_handle;
   new_task->task_function = task_function;
+  new_task->task_buffer   = task_buffer;
   new_task->stack_buffer  = stack_buffer;
 
   new_task->type      = type;
@@ -250,6 +257,7 @@ BaseType_t _create_periodic_task_internal(
   TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
   size_t *const     task_count,
   StackType_t      *stack_buffer,
+  StaticTask_t     *task_buffer,
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
@@ -280,7 +288,7 @@ BaseType_t _create_periodic_task_internal(
     new_task,
     parameters,
     stack_buffer,
-    &new_task->task_buffer,
+    task_buffer,
     true,
     core
   );
@@ -320,6 +328,7 @@ BaseType_t _create_aperiodic_task_internal(
   TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
   size_t *const     task_count,
   StackType_t      *stack_buffer,
+  StaticTask_t     *task_buffer,
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
@@ -351,7 +360,7 @@ BaseType_t _create_aperiodic_task_internal(
     new_task,
     parameters,
     stack_buffer,
-    &new_task->task_buffer,
+    task_buffer,
     is_hard_rt,
     core
   );
@@ -402,6 +411,7 @@ BaseType_t EDF_create_periodic_task(
     periodic_tasks,
     &periodic_task_count,
     edf_private_stacks_periodic[periodic_task_count],
+    &edf_private_task_buffers_periodic[periodic_task_count],
     completion_time,
     period,
     relative_deadline,
@@ -439,6 +449,7 @@ BaseType_t EDF_create_aperiodic_task(
     aperiodic_tasks,
     &aperiodic_task_count,
     edf_private_stacks_aperiodic[aperiodic_task_count],
+    &edf_private_task_buffers_aperiodic[aperiodic_task_count],
     completion_time,
     release_time,
     relative_deadline,
@@ -812,6 +823,7 @@ void scheduler_register_deadline_miss(const TMB_t *const task) {
 void vApplicationTickHook(void) {
   const TickType_t current_tick = xTaskGetTickCountFromISR();
   if (current_tick >= TEST_DURATION_TICKS) {
+    TRACE_disable();
     xTaskNotifyGive(monitor_task_handle);
     return;
   }

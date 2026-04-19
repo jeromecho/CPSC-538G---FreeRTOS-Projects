@@ -18,7 +18,7 @@ BaseType_t _create_task_internal(
   TMB_t *const          new_task,
   SchedulerParameters_t parameters,
   StackType_t          *stack_buffer,
-  StaticTask_t         *task_buffer,
+  StaticTask_t         *task_buffer, // Task Buffers hold the TCBs for a task
   bool                  is_hard_rt,
   const UBaseType_t     core
 );
@@ -28,6 +28,7 @@ BaseType_t _create_aperiodic_task_internal(
   TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
   size_t *const     task_count,
   StackType_t      *stack_buffer,
+  StaticTask_t     *task_buffer, // Task Buffers hold the TCBs for a task
   const TickType_t  completion_time,
   const TickType_t  release_time,
   const TickType_t  relative_deadline,
@@ -43,6 +44,7 @@ BaseType_t _create_periodic_task_internal(
   TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
   size_t *const     task_count,
   StackType_t      *stack_buffer,
+  StaticTask_t     *task_buffer, // Task Buffers hold the TCBs for a task
   const TickType_t  completion_time,
   const TickType_t  period,
   const TickType_t  relative_deadline,
@@ -78,12 +80,18 @@ extern size_t aperiodic_task_count[configNUMBER_OF_CORES];
 
 extern StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+
+extern StaticTask_t private_task_buffers_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+extern StaticTask_t private_task_buffers_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
 #else // USE_MP && USE_PARTITIONED
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
 
 extern TMB_t  aperiodic_tasks[MAXIMUM_APERIODIC_TASKS];
 extern size_t aperiodic_task_count;
+
+extern StaticTask_t edf_private_task_buffers_periodic[MAXIMUM_PERIODIC_TASKS];
+extern StaticTask_t edf_private_task_buffers_aperiodic[MAXIMUM_APERIODIC_TASKS];
 
 #if USE_SRP && ENABLE_STACK_SHARING
 extern StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];

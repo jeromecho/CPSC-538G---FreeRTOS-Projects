@@ -9,6 +9,7 @@
 #include "smp_partitioned.h"
 
 #include "helpers.h" // for crash_without_trace
+#include "tracer.h"
 
 #include <stdio.h>
 
@@ -407,5 +408,78 @@ void partitioned_mp_test_14() {
   }
 }
 #endif // TEST_NR == 14
+
+#if TEST_NR == 15
+/// @brief Migrate a periodic task from core 0 to core 1 and back to core 0.
+/// Verifies repeated migration updates the assigned core each time.
+static TaskHandle_t g_smp15_migrate_target = NULL;
+
+static void vPartitionedMPTestRunner15(void *pvParameters) {
+  (void)pvParameters;
+
+  // First migration while task is active on core 0.
+  vTaskDelay(pdMS_TO_TICKS(12));
+
+  TMB_t *migrated_to_c1 = NULL;
+  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 1, &migrated_to_c1) != pdPASS || migrated_to_c1 == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: First migration to core 1 failed");
+  }
+
+  if (migrated_to_c1->assigned_core != 1) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: First migration did not assign destination core");
+  }
+
+  g_smp15_migrate_target = migrated_to_c1->handle;
+
+  // Second migration back to original core after the migrated job completes.
+  vTaskDelay(pdMS_TO_TICKS(11));
+
+  TMB_t *migrated_to_c0 = NULL;
+  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 0, &migrated_to_c0) != pdPASS || migrated_to_c0 == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: Second migration back to core 0 failed");
+  }
+
+  if (migrated_to_c0->assigned_core != 0) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: Second migration did not assign destination core");
+  }
+
+  g_smp15_migrate_target = migrated_to_c0->handle;
+  vTaskDelete(NULL);
+}
+
+void partitioned_mp_test_15() {
+  const PeriodicTaskParams_t initial_tasks[3] = {
+    {EDF_periodic_task, 4, 10, 8,  0}, // Task to migrate forth and back
+    {EDF_periodic_task, 2, 10, 10, 0}, // Baseline on core 0
+    {EDF_periodic_task, 2, 10, 10, 1}, // Baseline on core 1
+  };
+
+  TMB_t *migrate_task    = NULL;
+  TMB_t *baseline_core_0 = NULL;
+  TMB_t *baseline_core_1 = NULL;
+
+  if (build_periodic_task_with_handle("SMP15 Migrating", &initial_tasks[0], &migrate_task) != pdPASS ||
+      build_periodic_task_with_handle("SMP15 Baseline C0", &initial_tasks[1], &baseline_core_0) != pdPASS ||
+      build_periodic_task_with_handle("SMP15 Baseline C1", &initial_tasks[2], &baseline_core_1) != pdPASS ||
+      migrate_task == NULL || baseline_core_0 == NULL || baseline_core_1 == NULL) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: Failed to create initial tasks");
+  }
+
+  g_smp15_migrate_target = migrate_task->handle;
+
+  TaskHandle_t runner = NULL;
+  if (xTaskCreate(
+        vPartitionedMPTestRunner15, "SMP15 Runner", configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &runner
+      ) != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("SMP15: Failed to create runner task");
+  }
+}
+#endif // TEST_NR == 15
 
 #endif // TEST_SUITE == TEST_SUITE_PARTITIONED_MP

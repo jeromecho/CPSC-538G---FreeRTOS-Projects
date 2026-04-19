@@ -45,6 +45,58 @@ static bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocat
   return false;
 }
 
+static bool SMP_periodic_memory_slot_in_use(const UBaseType_t core, const size_t slot_index) {
+  StackType_t *const candidate_stack = private_stacks_periodic[core][slot_index];
+  for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+    if (periodic_tasks[core][i].stack_buffer == candidate_stack) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static BaseType_t SMP_allocate_periodic_memory_slot(const UBaseType_t core, size_t *const slot_index) {
+  if (slot_index == NULL) {
+    return pdFAIL;
+  }
+
+  for (size_t i = 0; i < MAXIMUM_PERIODIC_TASKS; ++i) {
+    if (!SMP_periodic_memory_slot_in_use(core, i)) {
+      *slot_index = i;
+      return pdPASS;
+    }
+  }
+
+  return pdFAIL;
+}
+
+#if MAXIMUM_APERIODIC_TASKS > 0
+static bool SMP_aperiodic_memory_slot_in_use(const UBaseType_t core, const size_t slot_index) {
+  StackType_t *const candidate_stack = private_stacks_aperiodic[core][slot_index];
+  for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
+    if (aperiodic_tasks[core][i].stack_buffer == candidate_stack) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static BaseType_t SMP_allocate_aperiodic_memory_slot(const UBaseType_t core, size_t *const slot_index) {
+  if (slot_index == NULL) {
+    return pdFAIL;
+  }
+
+  for (size_t i = 0; i < MAXIMUM_APERIODIC_TASKS; ++i) {
+    if (!SMP_aperiodic_memory_slot_in_use(core, i)) {
+      *slot_index = i;
+      return pdPASS;
+    }
+  }
+
+  return pdFAIL;
+}
+#endif
+
 static BaseType_t SMP_remove_task_at_location(const SMP_TaskLocation_t *location) {
   if (location == NULL || location->task == NULL || location->core >= configNUMBER_OF_CORES) {
     return pdFAIL;
@@ -134,6 +186,11 @@ BaseType_t SMP_create_periodic_task_on_core(
 #if MAXIMUM_PERIODIC_TASKS > 0
   configASSERT(core < configNUMBER_OF_CORES);
 
+  size_t memory_slot_index = 0;
+  if (SMP_allocate_periodic_memory_slot(core, &memory_slot_index) != pdPASS) {
+    return pdFAIL;
+  }
+
   // Allocate UID early so we can use it for both failure and success paths
   const uint32_t allocated_uid = allocate_trace_uid();
 
@@ -150,7 +207,8 @@ BaseType_t SMP_create_periodic_task_on_core(
     task_name,
     periodic_tasks[core],
     &periodic_task_count[core],
-    private_stacks_periodic[core][periodic_task_count[core]],
+    private_stacks_periodic[core][memory_slot_index],
+    &private_task_buffers_periodic[core][memory_slot_index],
     completion_time,
     period,
     relative_deadline,
@@ -192,13 +250,19 @@ BaseType_t SMP_create_aperiodic_task_on_core(
 #if MAXIMUM_APERIODIC_TASKS > 0
   configASSERT(core < configNUMBER_OF_CORES);
 
+  size_t memory_slot_index = 0;
+  if (SMP_allocate_aperiodic_memory_slot(core, &memory_slot_index) != pdPASS) {
+    return pdFAIL;
+  }
+
   TMB_t     *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
     aperiodic_tasks[core],
     &aperiodic_task_count[core],
-    private_stacks_aperiodic[core][aperiodic_task_count[core]],
+    private_stacks_aperiodic[core][memory_slot_index],
+    &private_task_buffers_aperiodic[core][memory_slot_index],
     completion_time,
     release_time,
     relative_deadline,
@@ -278,12 +342,18 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   BaseType_t created  = pdFAIL;
 
   if (location.is_periodic) {
+    size_t memory_slot_index = 0;
+    if (SMP_allocate_periodic_memory_slot(destination_core, &memory_slot_index) != pdPASS) {
+      return pdFAIL;
+    }
+
     created = _create_periodic_task_internal(
       location.task->task_function,
       task_name,
       periodic_tasks[destination_core],
       &periodic_task_count[destination_core],
-      private_stacks_periodic[destination_core][periodic_task_count[destination_core]],
+      private_stacks_periodic[destination_core][memory_slot_index],
+      &private_task_buffers_periodic[destination_core][memory_slot_index],
       location.task->completion_time,
       location.task->periodic.period,
       location.task->periodic.relative_deadline,
@@ -292,29 +362,6 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
       destination_core
     );
   }
-#if MAXIMUM_APERIODIC_TASKS > 0
-  else {
-    const TickType_t release_time =
-      (location.task->release_time > current_tick) ? location.task->release_time : current_tick;
-    const TickType_t relative_deadline = location.task->absolute_deadline - location.task->release_time;
-
-    created = _create_aperiodic_task_internal(
-      location.task->task_function,
-      task_name,
-      aperiodic_tasks[destination_core],
-      &aperiodic_task_count[destination_core],
-      private_stacks_aperiodic[destination_core][aperiodic_task_count[destination_core]],
-      location.task->completion_time,
-      release_time,
-      relative_deadline,
-      location.task->trace_uid,
-      &new_task,
-      NULL,
-      true,
-      destination_core
-    );
-  }
-#endif
 
   if (created != pdPASS || new_task == NULL) {
     return pdFAIL;

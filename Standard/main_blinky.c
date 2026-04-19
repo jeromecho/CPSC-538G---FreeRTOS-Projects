@@ -127,9 +127,6 @@ void vTraceMonitorTask(void *pvParameters) {
   (void)pvParameters;
   ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
 
-  // The test is over, so output trace
-  TRACE_disable();
-
 #if TEST_SUITE == TEST_SUITE_EDF
   printf("Results for EDF Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_SRP

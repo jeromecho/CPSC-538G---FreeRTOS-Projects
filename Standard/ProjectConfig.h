@@ -8,8 +8,8 @@
 #define TEST_SUITE_GLOBAL_MP      5
 #define TEST_SUITE_FP             6
 
-#define TEST_SUITE 6
-#define TEST_NR    1
+#define TEST_SUITE 4
+#define TEST_NR    15
 
 #define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0

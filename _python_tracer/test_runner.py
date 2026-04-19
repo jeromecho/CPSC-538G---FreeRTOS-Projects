@@ -24,7 +24,7 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
-    "FP1",
+    # "FP1",
     #
     # "EDF1",
     # "EDF2",
@@ -81,6 +81,7 @@ TESTS_TO_RUN: list[str] = [  #
     # "SMP12",
     # "SMP13",
     # "SMP14",
+    # "SMP15",
 ]
 
 TRACE_RUN_BANNERS = (
