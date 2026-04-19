@@ -17,12 +17,6 @@ BaseType_t SMP_create_periodic_task(
   TMB_t **const     TMB_handle
 );
 
-// TODO - consider defining shared helpers between the logic below and the migration logic
-// implemented inside of SMP_Partitioned
-/**
- * @brief migrates a running task from one core to another, saving TMB state
- */
-BaseType_t SMP_migrate_task_with_saved_state(TMB_t *highest_priority_task, const size_t core);
 
 /**
  * @brief produce highest priority tasks among highest priority tasks that isn't currently running
@@ -35,6 +29,13 @@ TMB_t *SMP_produce_highest_priority_task_not_running(TMB_t **highest_priority_ta
  */
 void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks);
 
-#endif // USE_MP
+void SMP_global_check_deadlines(void);
 
+void SMP_global_record_releases(void);
+
+void SMP_global_suspend_and_resume_tasks(void);
+
+void SMP_global_reschedule_periodic_tasks();
+
+#endif // USE_MP && USE_GLOBAL
 #endif // SMP_GLOBAL_H

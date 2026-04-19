@@ -31,7 +31,6 @@ set(MY_SOURCES
         srp.c
         smp_partitioned.c
         smp_global.c
-        smp_shared.c
         admission_control.c
 
         tracer.c

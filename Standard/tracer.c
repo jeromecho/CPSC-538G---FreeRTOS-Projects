@@ -57,7 +57,7 @@ void TRACE_record( //
 
   const uint8_t emitting_core_id = (uint8_t)portGET_CORE_ID();
   uint8_t       reported_core_id = emitting_core_id;
-#if USE_MP
+#if USE_MP && USE_PARTITIONED
   if (task != NULL) {
     reported_core_id = task->assigned_core;
   }
@@ -104,7 +104,6 @@ void TRACE_record( //
 
   if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
-    task_id = emitting_core_id;
     task_uid = emitting_core_id;
   }
 
@@ -157,8 +156,10 @@ void TRACE_print_buffer() {
 
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);
-  printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
-         "PREEMPT_LVL,DEADLINE,TASK_UID\n");
+  printf(
+    "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
+    "PREEMPT_LVL,DEADLINE,TASK_UID\n"
+  );
 
   size_t head[configNUMBER_OF_CORES] = {0};
 
@@ -181,9 +182,11 @@ void TRACE_print_buffer() {
       const uint64_t candidate_us = to_us_since_boot(candidate->time);
       const uint64_t best_us      = to_us_since_boot(best->time);
 
-      if (candidate_us < best_us ||
-          (candidate_us == best_us && (candidate->core_id < best->core_id || (candidate->core_id == best->core_id &&
-                                                                              candidate->core_seq < best->core_seq)))) {
+      if (
+        candidate_us < best_us ||
+        (candidate_us == best_us && (candidate->core_id < best->core_id ||
+                                     (candidate->core_id == best->core_id && candidate->core_seq < best->core_seq)))
+      ) {
         best_core = core;
       }
     }

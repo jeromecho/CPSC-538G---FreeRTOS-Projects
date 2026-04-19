@@ -3,7 +3,6 @@
 #if USE_MP && USE_PARTITIONED
 
 #include "smp_partitioned.h"
-#include "smp_shared.h"
 
 #include "admission_control.h"
 #include "scheduler_internal.h"
@@ -112,6 +111,8 @@ BaseType_t SMP_create_periodic_task_on_core(
     periodic_tasks[core],
     &periodic_task_count[core],
     private_stacks_periodic[core][periodic_task_count[core]],
+    &parameters_periodic[core][periodic_task_count[core]],
+    &private_tcbs_periodic[core][periodic_task_count[core]],
     completion_time,
     period,
     relative_deadline,
@@ -160,6 +161,8 @@ BaseType_t SMP_create_aperiodic_task_on_core(
     aperiodic_tasks[core],
     &aperiodic_task_count[core],
     private_stacks_aperiodic[core][aperiodic_task_count[core]],
+    parameters_aperiodic[core][aperiodic_task_count[core]],
+    private_tcbs_aperiodic[core][aperiodic_task_count[core]],
     completion_time,
     release_time,
     relative_deadline,
@@ -187,6 +190,35 @@ BaseType_t SMP_create_aperiodic_task_on_core(
   (void)TMB_handle;
   return pdFAIL;
 #endif
+}
+j static bool SMP_find_task_location(const TaskHandle_t task_handle, SMP_TaskLocation_t *location) {
+  if (task_handle == NULL || location == NULL) {
+    return false;
+  }
+
+  for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    TMB_t *periodic_match =
+      scheduler_search_array_for_handle(task_handle, periodic_tasks[core], periodic_task_count[core]);
+    if (periodic_match != NULL) {
+      location->task        = periodic_match;
+      location->core        = core;
+      location->index       = periodic_match->id;
+      location->is_periodic = true;
+      return true;
+    }
+
+    TMB_t *aperiodic_match =
+      scheduler_search_array_for_handle(task_handle, aperiodic_tasks[core], aperiodic_task_count[core]);
+    if (aperiodic_match != NULL) {
+      location->task        = aperiodic_match;
+      location->core        = core;
+      location->index       = aperiodic_match->id;
+      location->is_periodic = false;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 BaseType_t SMP_remove_task_from_core(const TaskHandle_t task_handle, const UBaseType_t core) {
@@ -243,6 +275,8 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
       periodic_tasks[destination_core],
       &periodic_task_count[destination_core],
       private_stacks_periodic[destination_core][periodic_task_count[destination_core]],
+      &parameters_periodic[core][periodic_task_count[core]],
+      &private_tcbs_periodic[core][periodic_task_count[core]],
       location.task->completion_time,
       location.task->periodic.period,
       location.task->periodic.relative_deadline,
@@ -264,6 +298,8 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
       aperiodic_tasks[destination_core],
       &aperiodic_task_count[destination_core],
       private_stacks_aperiodic[destination_core][aperiodic_task_count[destination_core]],
+      parameters_aperiodic[destination_core][aperiodic_task_count[destination_core]],
+      private_tcbs_aperiodic[destination_core][aperiodic_task_count[destination_core]],
       location.task->completion_time,
       release_time,
       relative_deadline,
@@ -312,13 +348,34 @@ TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core) {
   return (periodic_deadline < aperiodic_deadline) ? periodic_candidate : aperiodic_candidate;
 }
 
-// TODO - might be able to remove below functions if not called anywhere
-void SMP_partitioned_reschedule_periodic_tasks() { SMP_reschedule_periodic_tasks(); }
+void SMP_partitioned_reschedule_periodic_tasks(void) {
+  const TickType_t current_tick = xTaskGetTickCountFromISR();
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    for (size_t i = 0; i < periodic_task_count[core]; ++i) {
+      TMB_t *const task = &periodic_tasks[core][i];
+      (void)scheduler_release_periodic_job_if_ready(task, current_tick);
+    }
+  }
+}
 
-void SMP_partitioned_check_deadlines() { SMP_check_deadlines(); }
+void SMP_partitioned_check_deadlines()(void) {
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    scheduler_check_deadlines(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_check_deadlines(aperiodic_tasks[core], aperiodic_task_count[core]);
+  }
+}
 
-void SMP_partitioned_record_releases() { SMP_record_releases(); }
+void SMP_partitioned_record_releases(void) {
+  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    scheduler_record_releases(periodic_tasks[core], periodic_task_count[core]);
+    scheduler_record_releases(aperiodic_tasks[core], aperiodic_task_count[core]);
+  }
+}
 
-void SMP_partitioned_suspend_and_resume_tasks() { SMP_suspend_and_resume_tasks(); }
+void SMP_partitioned_suspend_and_resume_tasks(void) {
+  for (UBaseType_t core = 0; core < configNUMBER_OF_CORES; ++core) {
+    scheduler_suspend_and_resume_tasks(core);
+  }
+}
 
 #endif

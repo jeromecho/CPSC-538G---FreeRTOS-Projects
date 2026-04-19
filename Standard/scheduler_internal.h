@@ -20,39 +20,49 @@ BaseType_t _create_task_internal(
   const UBaseType_t      core
 );
 BaseType_t _create_aperiodic_task_internal(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  TMB_t             task_array[MAXIMUM_APERIODIC_TASKS],
-  size_t *const     task_count,
-  StackType_t      *stack_buffer,
-  const TickType_t  completion_time,
-  const TickType_t  release_time,
-  const TickType_t  relative_deadline,
-  const uint32_t    trace_uid_override,
-  TMB_t **const     TMB_handle,
-  void             *parameters_remaining,
-  bool              is_hard_rt,
-  const UBaseType_t core
+  TaskFunction_t         task_function,
+  const char *const      task_name,
+  TMB_t                  task_array[MAXIMUM_APERIODIC_TASKS],
+  size_t *const          task_count,
+  StackType_t           *stack_buffer,
+  SchedulerParameters_t *parameter_buffer,
+  StaticTask_t          *task_buffer,
+  const TickType_t       completion_time,
+  const TickType_t       release_time,
+  const TickType_t       relative_deadline,
+  const uint32_t         trace_uid_override,
+  TMB_t **const          TMB_handle,
+  void                  *parameters_remaining,
+  bool                   is_hard_rt,
+  const UBaseType_t      core
 );
 BaseType_t _create_periodic_task_internal(
-  TaskFunction_t    task_function,
-  const char *const task_name,
-  TMB_t             task_array[MAXIMUM_PERIODIC_TASKS],
-  size_t *const     task_count,
-  StackType_t      *stack_buffer,
-  const TickType_t  completion_time,
-  const TickType_t  period,
-  const TickType_t  relative_deadline,
-  const uint32_t    trace_uid_override,
-  TMB_t **const     TMB_handle,
-  const UBaseType_t core
+  TaskFunction_t         task_function,
+  const char *const      task_name,
+  TMB_t                  task_array[MAXIMUM_PERIODIC_TASKS],
+  size_t *const          task_count,
+  StackType_t           *stack_buffer,
+  SchedulerParameters_t *parameter_buffer,
+  StaticTask_t          *task_buffer,
+  const TickType_t       completion_time,
+  const TickType_t       period,
+  const TickType_t       relative_deadline,
+  const uint32_t         trace_uid_override,
+  TMB_t **const          TMB_handle,
+  const UBaseType_t      core
 );
+
+typedef bool (*task_comparator_t)(TMB_t *new_task, TMB_t *current_best);
 
 void   scheduler_suspend_task(const TMB_t *const task);
 void   scheduler_resume_task(const TMB_t *const task);
 void   scheduler_check_deadlines(const TMB_t *const tasks, const size_t count);
 void   scheduler_record_releases(const TMB_t *const tasks, const size_t count);
 TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *));
+TMB_t *scheduler_highest_priority_candidate_ext(
+  TMB_t *tasks, const size_t count, bool (*is_eligible)(TMB_t *), task_comparator_t is_better
+);
+
 TMB_t *scheduler_search_array_for_handle(const TaskHandle_t handle, TMB_t *tasks, const size_t count);
 void   scheduler_suspend_and_resume_tasks(const size_t core);
 void   scheduler_record_release(const TMB_t *const task);
@@ -61,15 +71,11 @@ bool   scheduler_release_periodic_job_if_ready(TMB_t *task, TickType_t current_t
 void   scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core);
 TMB_t *scheduler_produce_highest_priority_task();
 
-#if USE_MP && USE_GLOBAL
-bool scheduler_should_context_switch(TMB_t **const highest_priority_tasks, const size_t core);
-#else
 bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, const size_t core);
-#endif // USE_MP && USE_GLOBAL
 
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 
-#if USE_MP // && USE_PARTITIONED
+#if USE_MP && USE_PARTITIONED
 extern TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count[configNUMBER_OF_CORES];
 
@@ -78,6 +84,13 @@ extern size_t aperiodic_task_count[configNUMBER_OF_CORES];
 
 extern StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
+
+extern StaticTask_t private_tcbs_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+extern StaticTask_t private_tcbs_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
+
+extern SchedulerParameters_t parameters_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+extern SchedulerParameters_t parameters_aperiodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
+
 #else // USE_MP && USE_PARTITIONED
 extern TMB_t  periodic_tasks[MAXIMUM_PERIODIC_TASKS];
 extern size_t periodic_task_count;
@@ -91,6 +104,11 @@ extern StackType_t shared_stacks[N_PREEMPTION_LEVELS][SHARED_STACK_SIZE];
 extern StackType_t edf_private_stacks_periodic[MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t edf_private_stacks_aperiodic[MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
 #endif // USE_SRP && ENABLE_STACK_SHARING
+extern StaticTask_t private_tcbs_periodic[MAXIMUM_PERIODIC_TASKS];
+extern StaticTask_t private_tcbs_aperiodic[MAXIMUM_APERIODIC_TASKS];
+
+extern SchedulerParameters_t parameters_periodic[MAXIMUM_PERIODIC_TASKS];
+extern SchedulerParameters_t parameters_aperiodic[MAXIMUM_APERIODIC_TASKS];
 #endif // USE_MP && USE_PARTITIONED
 
 #endif // SCHEDULER_INTERNAL_H

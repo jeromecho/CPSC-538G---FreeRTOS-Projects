@@ -11,14 +11,6 @@
 #define PRIORITY_RUNNING (tskIDLE_PRIORITY + 1)
 #define PRIORITY_IDLE    (tskIDLE_PRIORITY)
 
-typedef struct {
-  TMB_t *target_task;
-  TMB_t *all_candidates[configNUMBER_OF_CORES];
-#if USE_MP && USE_GLOBAL
-  bool is_global;
-#endif
-} SchedulerSelection_t;
-
 BaseType_t EDF_create_periodic_task(
   TaskFunction_t    task_function,
   const char *const task_name,

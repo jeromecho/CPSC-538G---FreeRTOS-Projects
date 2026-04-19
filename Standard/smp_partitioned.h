@@ -7,6 +7,13 @@
 
 #include "types/scheduler_types.h"
 
+typedef struct {
+  TMB_t      *task;
+  UBaseType_t core;
+  size_t      index;
+  bool        is_periodic;
+} SMP_TaskLocation_t;
+
 BaseType_t SMP_create_periodic_task_on_core(
   TaskFunction_t    task_function,
   const char *const task_name,

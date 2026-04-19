@@ -23,7 +23,7 @@ typedef struct SchedulerParameters {
 typedef struct TMB_t {
   // --- FreeRTOS-specific data ---
   TaskFunction_t task_function;
-  StaticTask_t   task_buffer;
+  StaticTask_t  *task_buffer; //  task_buffer;
   StackType_t   *stack_buffer;
 
   // --- Common Metadata ---
@@ -44,7 +44,7 @@ typedef struct TMB_t {
 #endif
 
   // --- Task Parameters ---
-  SchedulerParameters_t parameters;
+  SchedulerParameters_t *parameters;
 
   // --- Execution Tracking ---
   volatile TickType_t ticks_executed; // Incremented by scheduler in vApplicationTickHook when task is running
