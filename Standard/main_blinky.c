@@ -128,7 +128,6 @@ void vTraceMonitorTask(void *pvParameters) {
   ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
 
   // The test is over, so output trace
-  vTaskSuspendAll();
   TRACE_disable();
 
 #if TEST_SUITE == TEST_SUITE_EDF
@@ -259,8 +258,8 @@ static void vFPTraceMonitorTask(void *pvParameters) {
 
 static void prvFixedPriorityTask(void *pvParameters) {
   const FPTaskParams_t *const task_params = (const FPTaskParams_t *)pvParameters;
-  const uint32_t             gpio_pin     = task_params->gpio_pin;
-  TickType_t                 last_wake    = xTaskGetTickCount();
+  const uint32_t              gpio_pin    = task_params->gpio_pin;
+  TickType_t                  last_wake   = xTaskGetTickCount();
 
   for (;;) {
     vTaskDelayUntil(&last_wake, task_params->period_ticks);
@@ -291,7 +290,7 @@ void main_blinky(void) {
   TaskHandle_t fp_high_handle = NULL;
   TaskHandle_t fp_low_handle  = NULL;
 
-  const BaseType_t high_task_created = xTaskCreate(
+  const BaseType_t high_task_created = xTaskCreate( //
     prvFixedPriorityTask,
     "FP High",
     configMINIMAL_STACK_SIZE + 128,
@@ -300,7 +299,7 @@ void main_blinky(void) {
     &fp_high_handle
   );
 
-  const BaseType_t low_task_created = xTaskCreate(
+  const BaseType_t low_task_created = xTaskCreate( //
     prvFixedPriorityTask,
     "FP Low",
     configMINIMAL_STACK_SIZE + 128,
@@ -309,8 +308,8 @@ void main_blinky(void) {
     &fp_low_handle
   );
 
-  TaskHandle_t monitor_handle = NULL;
-  const BaseType_t monitor_created = xTaskCreate(
+  TaskHandle_t     monitor_handle  = NULL;
+  const BaseType_t monitor_created = xTaskCreate( //
     vFPTraceMonitorTask,
     "FP Monitor",
     configMINIMAL_STACK_SIZE + 256,

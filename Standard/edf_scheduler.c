@@ -810,6 +810,12 @@ void scheduler_register_deadline_miss(const TMB_t *const task) {
 
 /// @brief Tick hook to ensure the EDF extension's logic is run before the FreeRTOS scheduler every tick
 void vApplicationTickHook(void) {
+  const TickType_t current_tick = xTaskGetTickCountFromISR();
+  if (current_tick >= TEST_DURATION_TICKS) {
+    xTaskNotifyGive(monitor_task_handle);
+    return;
+  }
+
   // Record execution time for the task that ran this tick
   for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
     const TaskHandle_t current_task_on_core = xTaskGetCurrentTaskHandleForCore(core);
