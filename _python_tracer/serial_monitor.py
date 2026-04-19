@@ -234,7 +234,9 @@ def parse_trace_dataframe(csv_data):
     if not has_stable_uid:
         df["TASK_UID"] = df["TASK_ID"]
 
+    trace_start_us = int(df["ABS_TIME"].min())
     df["EVENT"] = df["EVENT"].map(TraceEvent)
+    df["ELAPSED_US"] = df["ABS_TIME"] - trace_start_us
     df["TASK_NAME"] = df.apply(get_task_name, axis=1)
     if has_stable_uid:
         df["TASK_LABEL"] = df["TASK_NAME"]
@@ -254,6 +256,9 @@ def parse_trace_dataframe(csv_data):
 
     df_sorted = df.sort_values(by=["ABS_TIME", "CORE", "CORE_SEQ"], kind="stable").copy()
     df_exec = build_execution_segments(df_sorted)
+    if not df_exec.empty:
+        df_exec["ELAPSED_START_US"] = df_exec["ABS_START"] - trace_start_us
+        df_exec["ELAPSED_END_US"] = df_exec["ABS_END"] - trace_start_us
 
     return df, df_exec
 
@@ -309,12 +314,13 @@ def _build_marker_offset_map(df):
 
 
 def _event_hover(row_data, event_label):
+    elapsed_us = int(row_data.get("ELAPSED_US", row_data["ABS_TIME"]))
     lines = [
         f"<b>{event_label}</b>",
         f"Task: {row_data['TASK_LABEL']}",
         f"Core: {int(row_data['CORE'])}",
         f"Tick: {int(row_data['TIMESTAMP'])}",
-        f"Abs Time: {int(row_data['ABS_TIME'])} us",
+        f"Time: {elapsed_us} us",
     ]
     if int(row_data["TASK_UID"]) != UINT32_MAX:
         lines.append(f"Task UID: {int(row_data['TASK_UID'])}")
@@ -367,13 +373,14 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=Non
 
     for _, row_data in background_rows + foreground_rows:
         us_duration = row_data["ABS_END"] - row_data["ABS_START"]
+        relative_start_us = int(row_data.get("ELAPSED_START_US", row_data["ABS_START"]))
         duration = int(row_data["DURATION"])
         hover_lines = [
             f"<b>{row_data['TASK_LABEL']}</b>",
             f"Core: {row_data['CORE']}",
             f"Start Tick: {row_data['START_TICK']}",
             f"Duration: {row_data['DURATION']} ticks ({us_duration} us)",
-            f"Abs Start: {row_data['ABS_START']} us",
+            f"Start: {relative_start_us} us",
         ]
         if int(row_data["TASK_UID"]) != UINT32_MAX:
             hover_lines.append(f"Task UID: {int(row_data['TASK_UID'])}")
