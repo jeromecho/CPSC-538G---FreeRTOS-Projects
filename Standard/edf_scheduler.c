@@ -45,11 +45,11 @@ uint32_t allocate_trace_uid(void) {
 ; // ==========================
 
 #if USE_MP && USE_PARTITIONED
-TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
-size_t periodic_task_count[configNUMBER_OF_CORES] = {0};
+TMB_t  periodic_tasks[configNUMBER_OF_CORES * MAXIMUM_PERIODIC_TASKS];
+size_t periodic_task_count = 0;
 
-TMB_t  aperiodic_tasks[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
-size_t aperiodic_task_count[configNUMBER_OF_CORES] = {0};
+TMB_t  aperiodic_tasks[configNUMBER_OF_CORES * MAXIMUM_APERIODIC_TASKS];
+size_t aperiodic_task_count = 0;
 
 StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];
@@ -537,15 +537,13 @@ TMB_t *EDF_get_task_by_handle(const TaskHandle_t task_handle) {
   TMB_t *candidate = NULL;
 
 #if USE_MP && USE_PARTITIONED
-  for (size_t core = 0; core < configNUMBER_OF_CORES; ++core) {
-    candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks[core], periodic_task_count[core]);
-    if (candidate)
-      return candidate;
+  candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks, periodic_task_count);
+  if (candidate)
+    return candidate;
 
-    candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks[core], aperiodic_task_count[core]);
-    if (candidate)
-      return candidate;
-  }
+  candidate = scheduler_search_array_for_handle(task_handle, aperiodic_tasks, aperiodic_task_count);
+  if (candidate)
+    return candidate;
 #else
   candidate = scheduler_search_array_for_handle(task_handle, periodic_tasks, periodic_task_count);
   if (candidate)
@@ -680,19 +678,8 @@ TMB_t *scheduler_highest_priority_candidate(TMB_t *tasks, const size_t count, bo
 /// @brief Lowers the priority of all EDF tasks except the selected highest-priority task.
 void scheduler_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core) {
 #if USE_MP && USE_PARTITIONED
-  for (size_t i = 0; i < periodic_task_count[core]; ++i) {
-    TMB_t *const task = &periodic_tasks[core][i];
-    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
-      scheduler_suspend_task(task);
-    }
-  }
-
-  for (size_t i = 0; i < aperiodic_task_count[core]; ++i) {
-    TMB_t *const task = &aperiodic_tasks[core][i];
-    if (task != highest_priority_task && eTaskGetState(task->handle) != eSuspended) {
-      scheduler_suspend_task(task);
-    }
-  }
+  SMP_partitioned_suspend_lower_priority_tasks(highest_priority_task, core);
+  return;
 #else
   for (size_t i = 0; i < periodic_task_count; ++i) {
     TMB_t *const task = &periodic_tasks[i];

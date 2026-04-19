@@ -72,11 +72,11 @@ uint32_t allocate_trace_uid(void);
 BaseType_t pin_task_to_core(const TaskHandle_t task_handle, const UBaseType_t core);
 
 #if USE_MP && USE_PARTITIONED
-extern TMB_t  periodic_tasks[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS];
-extern size_t periodic_task_count[configNUMBER_OF_CORES];
+extern TMB_t  periodic_tasks[configNUMBER_OF_CORES * MAXIMUM_PERIODIC_TASKS];
+extern size_t periodic_task_count;
 
-extern TMB_t  aperiodic_tasks[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS];
-extern size_t aperiodic_task_count[configNUMBER_OF_CORES];
+extern TMB_t  aperiodic_tasks[configNUMBER_OF_CORES * MAXIMUM_APERIODIC_TASKS];
+extern size_t aperiodic_task_count;
 
 extern StackType_t private_stacks_periodic[configNUMBER_OF_CORES][MAXIMUM_PERIODIC_TASKS][SHARED_STACK_SIZE];
 extern StackType_t private_stacks_aperiodic[configNUMBER_OF_CORES][MAXIMUM_APERIODIC_TASKS][SHARED_STACK_SIZE];

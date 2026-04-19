@@ -78,10 +78,12 @@ TESTS_TO_RUN: list[str] = [  #
     # "SMP9",
     # "SMP10",
     # "SMP11",
-    # "SMP12",
-    # "SMP13",
-    # "SMP14",
-    # "SMP15",
+    "SMP12",
+    "SMP13",
+    "SMP14",
+    "SMP15",
+    "SMP16",
+    "SMP17",
 ]
 
 TRACE_RUN_BANNERS = (
