@@ -30,6 +30,7 @@ EXPECTED_HEADERS = {
 
 DEFAULT_TRACE_TITLE = "FreeRTOS Scheduling Trace"
 
+UINT8_MAX = 255
 UINT32_MAX = 4294967295
 
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
@@ -313,7 +314,7 @@ def _build_marker_offset_map(df):
     return {event: -top + (idx * step) for idx, event in enumerate(events_present)}
 
 
-def _event_hover(row_data, event_label):
+def _event_hover(row_data, event_label, event):
     elapsed_us = int(row_data.get("ELAPSED_US", row_data["ABS_TIME"]))
     lines = [
         f"<b>{event_label}</b>",
@@ -328,7 +329,7 @@ def _event_hover(row_data, event_label):
         lines.append(f"Deadline: {int(row_data['DEADLINE'])}")
     if int(row_data["PRIORITY"]) != UINT32_MAX:
         lines.append(f"Priority: {int(row_data['PRIORITY'])}")
-    if "DEBUG_CODE" in row_data and int(row_data["DEBUG_CODE"]) != UINT32_MAX:
+    if event == TraceEvent.TRACE_DEBUG_MARKER and "DEBUG_CODE" in row_data and int(row_data["DEBUG_CODE"]) != UINT8_MAX:
         lines.append(f"Debug Code: {int(row_data['DEBUG_CODE'])}")
     return "<br>".join(lines)
 
@@ -352,7 +353,7 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
             mode="markers",
             name=event_label,
             marker=dict(symbol=symbol, size=9, color=color, line=dict(color="black", width=1)),
-            hovertext=df_evt.apply(lambda r: _event_hover(r, event_label), axis=1),
+            hovertext=df_evt.apply(lambda r: _event_hover(r, event_label, event), axis=1),
             hoverinfo="text",
             showlegend=showlegend,
         )
