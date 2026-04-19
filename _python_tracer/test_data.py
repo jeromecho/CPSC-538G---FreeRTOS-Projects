@@ -2790,6 +2790,63 @@ TEST_CASES = {
             ],
         },
     },
+    "SMP16": {
+        "name": "Two tasks migrate at the same time while suspended",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {
+            0: [
+                (0, TraceEvent.TRACE_RELEASE, 0),
+                (0, TraceEvent.TRACE_SWITCH_IN, 0),
+                (2, TraceEvent.TRACE_DONE, 0),
+                (2, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (4, TraceEvent.TRACE_REMOVED_FROM_CORE, 0),
+                (4, TraceEvent.TRACE_MIGRATED_TO_CORE, 1),
+                #
+                (5, TraceEvent.TRACE_RELEASE, 1),
+                (5, TraceEvent.TRACE_SWITCH_IN, 1),
+                (7, TraceEvent.TRACE_DONE, 1),
+                (7, TraceEvent.TRACE_SWITCH_OUT, 1),
+            ],
+            1: [
+                (0, TraceEvent.TRACE_RELEASE, 0),
+                (2, TraceEvent.TRACE_SWITCH_IN, 0),
+                (3, TraceEvent.TRACE_DONE, 0),
+                (3, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
+                (5, TraceEvent.TRACE_RELEASE, 0),
+                (7, TraceEvent.TRACE_SWITCH_IN, 0),
+                (8, TraceEvent.TRACE_DONE, 0),
+                (8, TraceEvent.TRACE_SWITCH_OUT, 0),
+            ],
+            2: [
+                (0, TraceEvent.TRACE_RELEASE, 1),
+                (0, TraceEvent.TRACE_SWITCH_IN, 1),
+                (2, TraceEvent.TRACE_DONE, 1),
+                (2, TraceEvent.TRACE_SWITCH_OUT, 1),
+                #
+                (4, TraceEvent.TRACE_MIGRATED_TO_CORE, 0),
+                (4, TraceEvent.TRACE_REMOVED_FROM_CORE, 1),
+                #
+                (5, TraceEvent.TRACE_RELEASE, 0),
+                (5, TraceEvent.TRACE_SWITCH_IN, 0),
+                (7, TraceEvent.TRACE_DONE, 0),
+                (7, TraceEvent.TRACE_SWITCH_OUT, 0),
+            ],
+            3: [
+                (0, TraceEvent.TRACE_RELEASE, 1),
+                (2, TraceEvent.TRACE_SWITCH_IN, 1),
+                (3, TraceEvent.TRACE_DONE, 1),
+                (3, TraceEvent.TRACE_SWITCH_OUT, 1),
+                #
+                (5, TraceEvent.TRACE_RELEASE, 1),
+                (7, TraceEvent.TRACE_SWITCH_IN, 1),
+                (8, TraceEvent.TRACE_DONE, 1),
+                (8, TraceEvent.TRACE_SWITCH_OUT, 1),
+            ],
+        },
+    },
 }
 TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|SMP|FP)(\d+)$")
 
