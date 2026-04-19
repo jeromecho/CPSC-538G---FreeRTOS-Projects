@@ -37,14 +37,6 @@ BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 TASK_COLOR_PALETTE = qualitative.Plotly + qualitative.Dark24 + qualitative.Alphabet
 
 
-def _rgba_from_hex(hex_color, alpha):
-    hex_color = hex_color.lstrip("#")
-    red = int(hex_color[0:2], 16)
-    green = int(hex_color[2:4], 16)
-    blue = int(hex_color[4:6], 16)
-    return f"rgba({red}, {green}, {blue}, {alpha})"
-
-
 EVENT_STYLE = {
     TraceEvent.TRACE_RELEASE: ("Release", "star", "#2ca02c"),
     TraceEvent.TRACE_SWITCH_IN: ("Switch In", "triangle-right", "#3cb44b"),
@@ -218,10 +210,11 @@ def build_task_color_map(task_names):
     return task_colors
 
 
-def _core_shaded_color(base_color, core):
-    if core == 0:
-        return base_color
-    return _rgba_from_hex(base_color, 0.55)
+def _core_pattern_for_task_view(core):
+    # Keep task color stable and use 45-degree diagonal hatching for core 1.
+    if core == 1:
+        return dict(shape="/", fgcolor="rgba(0,0,0,0.55)", solidity=0.22)
+    return dict(shape="")
 
 
 def build_marker_display_x(df, df_exec):
@@ -390,15 +383,16 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, row=None, col=Non
             hover_lines.append(f"Priority: {row_data['PRIORITY']}")
 
         bar_color = task_colors[row_data["TASK_LABEL"]]
+        marker_pattern = None
         if shade_by_core:
-            bar_color = _core_shaded_color(bar_color, int(row_data["CORE"]))
+            marker_pattern = _core_pattern_for_task_view(int(row_data["CORE"]))
 
         trace = go.Bar(
             base=[row_data["START_TICK"]],
             x=[float(duration)],
             y=[y_map_func(row_data)],
             orientation="h",
-            marker=dict(color=bar_color, line=dict(color="black", width=1)),
+            marker=dict(color=bar_color, line=dict(color="black", width=1), pattern=marker_pattern),
             hovertext=["<br>".join(hover_lines)],
             hoverinfo="text",
             showlegend=False,
@@ -417,6 +411,8 @@ def build_trace_figure(df, df_exec, title, view):
     marker_offsets = _build_marker_offset_map(df)
     df_plot = df.copy()
     df_plot["DISPLAY_X"] = build_marker_display_x(df_plot, df_exec)
+    df_exec_core = df_exec[~df_exec["TASK_LABEL"].apply(is_background_task_name)].copy()
+    df_plot_core = df_plot[~df_plot["TASK_LABEL"].apply(is_background_task_name)].copy()
     task_colors = build_task_color_map(ordered_task_names(df, df_exec))
 
     if view == "combined":
@@ -433,20 +429,21 @@ def build_trace_figure(df, df_exec, title, view):
 
         _add_execution_bars(
             fig,
-            df_exec,
+            df_exec_core,
             y_map_func=lambda r: core_to_y[r["CORE"]],
             task_colors=task_colors,
             row=1,
             col=1,
+            shade_by_core=True,
         )
         _add_event_markers(
             fig,
-            df_plot,
+            df_plot_core,
             y_map_func=lambda r: core_to_y[int(r["CORE"])],
             marker_offsets=marker_offsets,
             row=1,
             col=1,
-            showlegend=True,
+            showlegend=False,
         )
 
         _add_execution_bars(
@@ -465,7 +462,7 @@ def build_trace_figure(df, df_exec, title, view):
             marker_offsets=marker_offsets,
             row=2,
             col=1,
-            showlegend=False,
+            showlegend=True,
         )
 
         fig.update_yaxes(
@@ -490,8 +487,14 @@ def build_trace_figure(df, df_exec, title, view):
         return fig
 
     fig = go.Figure()
-    _add_execution_bars(fig, df_exec, y_map_func=lambda r: core_to_y[r["CORE"]], task_colors=task_colors)
-    _add_event_markers(fig, df_plot, y_map_func=lambda r: core_to_y[int(r["CORE"])], marker_offsets=marker_offsets)
+    _add_execution_bars(
+        fig,
+        df_exec_core,
+        y_map_func=lambda r: core_to_y[r["CORE"]],
+        task_colors=task_colors,
+        shade_by_core=True,
+    )
+    _add_event_markers(fig, df_plot_core, y_map_func=lambda r: core_to_y[int(r["CORE"])], marker_offsets=marker_offsets)
 
     fig.update_layout(
         title=title,
