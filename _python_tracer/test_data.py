@@ -30,13 +30,16 @@ TASK_TYPES = {
     3: "System Task",
 }
 
-TEST_SUITE_IDS = {
-    "EDF": 1,
-    "SRP": 2,
-    "CBS": 3,
-    "PSMP": 4,
-    "FP": 6,
+SUITE_INFO = {
+    "EDF": {"suite_id": 1, "display_name": "EDF"},
+    "SRP": {"suite_id": 2, "display_name": "SRP"},
+    "CBS": {"suite_id": 3, "display_name": "CBS"},
+    "PSMP": {"suite_id": 4, "display_name": "SMP (Partitioned)"},
+    "GSMP": {"suite_id": 5, "display_name": "SMP (Global)"},
+    "FP": {"suite_id": 6, "display_name": "FP"},
 }
+
+TEST_SUITE_IDS = {suite: info["suite_id"] for suite, info in SUITE_INFO.items()}
 
 
 def build_test_flags(suite, test_nr, overrides=None):
@@ -2907,8 +2910,76 @@ TEST_CASES = {
             ],
         },
     },
+    # (GLOBAL) SMP TESTS
+    "GSMP1": {
+        "name": "",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP2": {
+        "name": "",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP3": {
+        "name": "",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP4": {
+        "name": "",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP5": {
+        "name": "",
+        "expected_admission_failure": None,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP6": {
+        "name": "Admission Failure - Implicit Deadline, Unschedulable (Total Utilization)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP7": {
+        "name": "Admission Failure - Implicit Deadline, Unschedulable (Interference)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP8": {
+        "name": "Admission Failure - Implicit Deadline, Schedulable, But Rejected (Interference)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP9": {
+        "name": "Admission Failure - Constrained Deadline, Unschedulable (Total Utilization)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP10": {
+        "name": "Admission Failure - Constrained Deadline, Unschedulable (Interference)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
+    "GSMP11": {
+        "name": "Admission Failure - Constrained Deadline, Schedulable, But Rejected (Interference)",
+        "expected_admission_failure": 2,
+        "ignore_traces": True,
+        "expected_events": {},
+    },
 }
-TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|PSMP|FP)(\d+)$")
+_suite_prefix_pattern = "|".join(re.escape(str(suite)) for suite in sorted(SUITE_INFO.keys(), key=len, reverse=True))
+TEST_ID_PATTERN = re.compile(rf"^({_suite_prefix_pattern})(\d+)$")
 
 for test_id, test_case in TEST_CASES.items():
     match = TEST_ID_PATTERN.match(test_id)

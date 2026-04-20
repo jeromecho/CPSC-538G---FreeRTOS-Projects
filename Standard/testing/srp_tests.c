@@ -48,9 +48,8 @@ void srp_test_1() {
     MAXIMUM_APERIODIC_TASKS
   );
 }
-#endif
 
-#if TEST_NR == 2
+#elif TEST_NR == 2
 /// Test 2: Complex Multi-Resource SRP Validation
 ///
 /// Uses 4 tasks and 3 distinct resources (semaphores) to validate nested resource locking and system ceiling dynamic
@@ -104,9 +103,8 @@ void srp_test_2() {
     MAXIMUM_APERIODIC_TASKS
   );
 }
-#endif
 
-#if TEST_NR == 3 || TEST_NR == 4
+#elif TEST_NR == 3 || TEST_NR == 4
 /// Test 3 & 4: Comparison of execution traces when Stack Sharing is enabled vs. disabled.
 ///
 /// Since tasks at the same preemption level cannot preempt each other under SRP, this enables stack sharing. This
@@ -135,9 +133,8 @@ void srp_test_4() {
     MAXIMUM_APERIODIC_TASKS
   );
 }
-#endif
 
-#if TEST_NR == 5 || TEST_NR == 6
+#elif TEST_NR == 5 || TEST_NR == 6
 /// Tests 5 & 6: Quantitative Analysis of Stack Sharing RAM Usage
 ///
 /// A stress test designed to measure the memory reduction achieved by SRP.
@@ -167,9 +164,8 @@ void srp_test_5() {
 }
 
 void srp_test_6() { srp_test_5(); }
-#endif
 
-#if TEST_NR == 7
+#elif TEST_NR == 7
 void vSRPTest7Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {0, TASK_TAKE_SEMAPHORE, 0},
@@ -196,9 +192,8 @@ void srp_test_7() {
     MAXIMUM_PERIODIC_TASKS
   );
 }
-#endif
 
-#if TEST_NR == 8
+#elif TEST_NR == 8
 void vSRPTest8Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {0, TASK_TAKE_SEMAPHORE, 0},
@@ -225,9 +220,8 @@ void srp_test_8() {
     MAXIMUM_PERIODIC_TASKS
   );
 }
-#endif
 
-#if TEST_NR == 9
+#elif TEST_NR == 9
 void vSRPTest9Task1(void *pvParameters) {
   const TaskStep_t steps[] = {
     {0, TASK_TAKE_SEMAPHORE, 0},

@@ -17,7 +17,7 @@ typedef struct {
   TickType_t  resources[N_RESOURCES]; // Hold times for different resources
 #endif
 
-#if USE_MP
+#if USE_MP && USE_PARTITIONED
   uint8_t core; // Preferred core for the task
 #endif
 } PeriodicTaskParams_t;

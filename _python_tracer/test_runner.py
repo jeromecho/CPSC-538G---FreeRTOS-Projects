@@ -4,7 +4,7 @@ import argparse
 import serial
 
 # Import definitions from our data module
-from test_data import TEST_CASES, TraceEvent, TASK_TYPES
+from test_data import TEST_CASES, TraceEvent, TASK_TYPES, SUITE_INFO
 
 # Import utilities from our environment module
 from pico_env import (
@@ -84,6 +84,18 @@ TESTS_TO_RUN: list[str] = [  #
     # "PSMP15",
     # "PSMP16",
     # "PSMP17",
+    #
+    # "GSMP1",
+    # "GSMP2",
+    # "GSMP3",
+    # "GSMP4",
+    # "GSMP5",
+    # "GSMP6",
+    # "GSMP7",
+    # "GSMP8",
+    # "GSMP9",
+    # "GSMP10",
+    # "GSMP11",
 ]
 
 TRACE_RUN_BANNERS = (
@@ -97,22 +109,6 @@ TRACE_RUN_BANNERS = (
 
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 
-SUITE_PREFIXES = (
-    ("FP", "FP"),
-    ("EDF", "EDF"),
-    ("SRP", "SRP"),
-    ("CBS", "CBS"),
-    ("PSMP", "SMP (Partitioned)"),
-)
-
-SUITE_DISPLAY_NAMES = {
-    "FP": "FP",
-    "EDF": "EDF",
-    "SRP": "SRP",
-    "CBS": "CBS",
-    "PSMP": "SMP (Partitioned)",
-}
-
 STRICT_POLICED_EVENTS = {  #
     TraceEvent.TRACE_RELEASE,
     TraceEvent.TRACE_SWITCH_IN,
@@ -122,6 +118,8 @@ STRICT_POLICED_EVENTS = {  #
     TraceEvent.TRACE_SEMAPHORE_TAKE,
     TraceEvent.TRACE_SEMAPHORE_GIVE,
     TraceEvent.TRACE_BUDGET_RUN_OUT,
+    TraceEvent.TRACE_REMOVED_FROM_CORE,
+    TraceEvent.TRACE_MIGRATED_TO_CORE,
 }
 
 
@@ -138,15 +136,15 @@ def get_task_name(t_type, t_id, core=None, include_core_for_realtime=False):
 
 def infer_suite_label(test_id):
     upper_test_id = test_id.upper()
-    for prefix, label in SUITE_PREFIXES:
-        if prefix in upper_test_id:
-            return label
+    for prefix in sorted(SUITE_INFO.keys(), key=len, reverse=True):
+        if upper_test_id.startswith(prefix):
+            return SUITE_INFO[str(prefix)]["display_name"]
     return "EDF"
 
 
 def build_expected_boot_name(test_id, test_case):
     raw_suite_label = str(test_case.get("suite", infer_suite_label(test_id))).strip()
-    normalized_suite_label = SUITE_DISPLAY_NAMES.get(raw_suite_label.upper(), raw_suite_label)
+    normalized_suite_label = SUITE_INFO.get(raw_suite_label.upper(), {}).get("display_name", raw_suite_label)
     test_num = "".join(filter(str.isdigit, test_id))
     return f"Results for {normalized_suite_label} Test {test_num}"
 

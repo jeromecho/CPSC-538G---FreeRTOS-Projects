@@ -52,6 +52,8 @@ BaseType_t platform_create_periodic_task(
 ; // === Tests for Base Functionality ===
 ; // ====================================
 
+#if TEST_NR == 1
+
 // Smoke test #1 (textbook pg.190): 1 periodic task with 2 aperiodic tasks; 1 CBS server
 void cbs_test_1() {
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -67,11 +69,15 @@ void cbs_test_1() {
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(13));
 }
 
+#elif TEST_NR == 2
+
 // Single aperiodic task running on CBS server
 void cbs_test_2() {
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
 }
+
+#elif TEST_NR == 3
 
 // Multiple tasks queueing up to max capacity on 1 CBS server
 void cbs_test_3() {
@@ -80,6 +86,8 @@ void cbs_test_3() {
     CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
   }
 }
+
+#elif TEST_NR == 4
 
 // Smoke Test #2: Different setup with 1 periodic task and 1 CBS server
 void cbs_test_4() {
@@ -91,6 +99,8 @@ void cbs_test_4() {
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
 }
 
+#elif TEST_NR == 5
+
 // Smoke Test #3: Multiple Periodic Tasks Running Alongside Single CBS Server
 void cbs_test_5() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(10), CBS_SERVER1_ID);
@@ -101,6 +111,8 @@ void cbs_test_5() {
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, 0);
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 0);
 }
+
+#elif TEST_NR == 6
 
 // Smoke Test #4: Multiple Periodic Tasks Running Alongside 2 symmetric CBS servers
 void cbs_test_6() {
@@ -119,6 +131,8 @@ void cbs_test_6() {
   CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
 }
+
+#elif TEST_NR == 7
 
 // Smoke Test #4: Multiple Periodic Tasks Running Alongside 2 asymmetric CBS servers
 void cbs_test_7() {
@@ -139,6 +153,8 @@ void cbs_test_7() {
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
 }
 
+#elif TEST_NR == 8
+
 // Multiple (2) symmetric CBS servers in isolation
 void cbs_test_8() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -151,6 +167,8 @@ void cbs_test_8() {
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
 }
 
+#elif TEST_NR == 9
+
 // Multiple (2) asymmetric CBS servers in isolation
 void cbs_test_9() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -162,6 +180,8 @@ void cbs_test_9() {
   CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
 }
+
+#elif TEST_NR == 10
 
 // Multiple (3) asymmetric CBS servers in isolation
 void cbs_test_10() {
@@ -179,6 +199,8 @@ void cbs_test_10() {
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER3_ID, pdMS_TO_TICKS(60));
 }
 
+#elif TEST_NR == 11
+
 // Multiple (2) CBS servers running alongside 1 periodic task
 void cbs_test_11() {
   create_cbs_server(pdMS_TO_TICKS(1), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -193,6 +215,8 @@ void cbs_test_11() {
   CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, pdMS_TO_TICKS(40));
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER2_ID, pdMS_TO_TICKS(40));
 }
+
+#elif TEST_NR == 12
 
 // Multiple (3) CBS servers running alongside 1 periodic task
 void cbs_test_12() {
@@ -213,6 +237,8 @@ void cbs_test_12() {
   CBS_create_aperiodic_task(CBS_task_2, CBS_SERVER3_ID, pdMS_TO_TICKS(60));
 }
 
+#elif TEST_NR == 13
+
 // 1 CBS Server, 1 periodic task. Bandwidth is high but load of aperiodic tasks is low.
 // No deadline miss.
 void cbs_test_13() {
@@ -224,6 +250,8 @@ void cbs_test_13() {
   CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, 8);
   CBS_create_aperiodic_task(CBS_task_1, CBS_SERVER1_ID, 16);
 }
+
+#elif TEST_NR == 14
 
 // 1 CBS Server, 1 periodic task. Bandwidth is high and load of aperiodic tasks is high.
 // Deadline miss.
@@ -239,6 +267,8 @@ void cbs_test_14() {
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, 4);
 }
 
+#elif TEST_NR == 15
+
 // Bandwidth just under deadline miss threshold (Total Utilization < 100%)
 void cbs_test_15() {
   create_cbs_server(pdMS_TO_TICKS(3), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -252,6 +282,8 @@ void cbs_test_15() {
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
 }
+
+#elif TEST_NR == 16
 
 // Bandwidth at deadline miss threshold (Total Utilization = 100%)
 void cbs_test_16() {
@@ -267,6 +299,8 @@ void cbs_test_16() {
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
 }
 
+#elif TEST_NR == 17
+
 // Bandwidth just over deadline miss threshold (Total Utilization > 100%)
 void cbs_test_17() {
   create_cbs_server(pdMS_TO_TICKS(4), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -281,6 +315,8 @@ void cbs_test_17() {
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
 }
 
+#elif TEST_NR == 18
+
 // 100% server bandwidth
 void cbs_test_18() {
   create_cbs_server(pdMS_TO_TICKS(8), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
@@ -294,5 +330,7 @@ void cbs_test_18() {
   CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
 }
+
+#endif // TEST_NR
 
 #endif // USE_CBS
