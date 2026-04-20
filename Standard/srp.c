@@ -132,9 +132,12 @@ BaseType_t SRP_create_periodic_task(
   configASSERT(preemption_level > 0);
   configASSERT(N_PREEMPTION_LEVELS <= MAXIMUM_PERIODIC_TASKS + MAXIMUM_APERIODIC_TASKS);
 
+  // Allocate UID early so we can use it for both failure and success paths
+  const uint32_t allocated_uid = allocate_trace_uid();
+
 #if PERFORM_ADMISSION_CONTROL
   if (!SRP_can_admit_periodic_task(completion_time, period, relative_deadline, preemption_level, resource_hold_times)) {
-    admission_control_handle_failure(periodic_task_count);
+    admission_control_handle_failure(allocated_uid);
     return pdFALSE;
   }
 #endif
@@ -142,22 +145,22 @@ BaseType_t SRP_create_periodic_task(
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
 #else
-  StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_count];
+  StackType_t *stack_buffer = edf_private_stacks_periodic[periodic_task_set.count];
 #endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
+    &periodic_task_set,
+    &periodic_task_view_set,
     stack_buffer,
-    &parameters_aperiodic[aperiodic_task_count],
-    &private_tcbs_aperiodic[aperiodic_task_count],
+    &parameters_periodic[periodic_task_set.count],
+    &edf_private_task_buffers_periodic[periodic_task_set.count],
     completion_time,
     period,
     relative_deadline,
-    UINT32_MAX,
+    allocated_uid,
     &handle,
     configNUMBER_OF_CORES
   );
@@ -203,18 +206,17 @@ BaseType_t SRP_create_aperiodic_task(
 #if ENABLE_STACK_SHARING
   StackType_t *stack_buffer = shared_stacks[preemption_level - 1];
 #else
-  StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_count];
+  StackType_t *stack_buffer = edf_private_stacks_aperiodic[aperiodic_task_set.count];
 #endif
 
   TMB_t     *handle = NULL;
   BaseType_t result = _create_aperiodic_task_internal(
     task_function,
     task_name,
-    aperiodic_tasks,
-    &aperiodic_task_count,
+    &aperiodic_task_set,
     stack_buffer,
-    &parameters_aperiodic[aperiodic_task_count],
-    &private_tcbs_aperiodic[aperiodic_task_count],
+    &parameters_aperiodic[aperiodic_task_set.count],
+    &edf_private_task_buffers_aperiodic[aperiodic_task_set.count],
     completion_time,
     release_time,
     relative_deadline,
@@ -224,6 +226,10 @@ BaseType_t SRP_create_aperiodic_task(
     true,
     0
   );
+
+  if (result == pdPASS && handle != NULL && aperiodic_task_view_set.count < aperiodic_task_view_set.capacity) {
+    aperiodic_task_view_set.view[aperiodic_task_view_set.count++] = handle;
+  }
 
   if (result == pdPASS) {
     srp_specific_initialization(handle, preemption_level, resource_hold_times);
@@ -262,7 +268,7 @@ void SRP_reset_TCB(const TMB_t *const task) {
 
   // Rebuild the ARM hardware stack frame (PC, LR, xPSR, etc.)
   // We pass the completion time back in as the parameter to mimic task creation.
-  StackType_t *new_top_of_stack = pxPortInitialiseStack(pxTopOfStack, task->task_function, (void *)&task->parameters);
+  StackType_t *new_top_of_stack = pxPortInitialiseStack(pxTopOfStack, task->task_function, (void *)task->parameters);
 
   // Overwrite the TCB's stack pointer
   *((StackType_t **)task->handle) = new_top_of_stack;

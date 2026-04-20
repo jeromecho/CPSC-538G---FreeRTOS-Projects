@@ -6,9 +6,10 @@
 #define TEST_SUITE_CBS            3
 #define TEST_SUITE_PARTITIONED_MP 4
 #define TEST_SUITE_GLOBAL_MP      5
+#define TEST_SUITE_FP             6
 
 #define TEST_SUITE 5
-#define TEST_NR    1
+#define TEST_NR    5
 
 #define MAX_TRACE_RECORDS         1000
 #define TRACE_WITH_LOGIC_ANALYZER 0
@@ -42,6 +43,11 @@
 #define USE_MP          1
 #define USE_PARTITIONED 0
 #define USE_GLOBAL      1
+#elif TEST_SUITE == TEST_SUITE_FP
+#define USE_EDF 0
+#define USE_SRP 0
+#define USE_CBS 0
+#define USE_MP  0
 #else
 #error "Invalid TEST_SUITE in ProjectConfig.h"
 #endif

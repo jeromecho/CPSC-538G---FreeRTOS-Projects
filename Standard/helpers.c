@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "helpers.h"
 
 #include "tracer.h"
@@ -18,11 +22,19 @@ TickType_t lcm(const TickType_t a, const TickType_t b) { return (a / gcd(a, b)) 
 
 /// @brief Computes hyperperiod between existing periods and period of newly added task.
 /// Defined in the book Hard Real-Time Computing Systems, Fourth Edition, on page 71 (Section 4.1 - Introduction)
-TickType_t compute_hyperperiod(const TickType_t new_period, const TMB_t *tasks_array, const size_t array_size) {
+TickType_t compute_hyperperiod(const TickType_t new_period, const TMBViewSet_t *task_view_set) {
   TickType_t H = new_period;
 
-  for (size_t i = 0; i < array_size; i++) {
-    H = lcm(H, tasks_array[i].periodic.period);
+  if (task_view_set == NULL || task_view_set->view == NULL) {
+    return H;
+  }
+
+  for (size_t i = 0; i < task_view_set->count; i++) {
+    const TMB_t *task = task_view_set->view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
+    H = lcm(H, task->periodic.period);
   }
 
   return H;
@@ -63,3 +75,5 @@ void crash_with_trace(const char *format, ...) {
     __asm volatile("wfi");
   }
 }
+
+#endif // USE_EDF

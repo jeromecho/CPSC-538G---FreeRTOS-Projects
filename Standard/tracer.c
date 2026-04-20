@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "tracer.h"
 
 #include "pico/time.h"
@@ -104,6 +108,7 @@ void TRACE_record( //
 
   if (task_type == TRACE_TASK_IDLE || task_type == TRACE_TASK_SYSTEM) {
     // Distinguish per-core idle tasks in SMP traces.
+    task_id  = emitting_core_id;
     task_uid = emitting_core_id;
   }
 
@@ -143,8 +148,6 @@ void TRACE_record( //
 
 /// @brief Prints all recorded traces to the host computer
 void TRACE_print_buffer() {
-  TRACE_disable();
-
 #if configNUMBER_OF_CORES > 2
 #error "Only two cores are supported"
 #endif
@@ -156,10 +159,8 @@ void TRACE_print_buffer() {
 
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);
-  printf(
-    "TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
-    "PREEMPT_LVL,DEADLINE,TASK_UID\n"
-  );
+  printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
+         "PREEMPT_LVL,DEADLINE,TASK_UID\n");
 
   size_t head[configNUMBER_OF_CORES] = {0};
 
@@ -182,11 +183,9 @@ void TRACE_print_buffer() {
       const uint64_t candidate_us = to_us_since_boot(candidate->time);
       const uint64_t best_us      = to_us_since_boot(best->time);
 
-      if (
-        candidate_us < best_us ||
-        (candidate_us == best_us && (candidate->core_id < best->core_id ||
-                                     (candidate->core_id == best->core_id && candidate->core_seq < best->core_seq)))
-      ) {
+      if (candidate_us < best_us ||
+          (candidate_us == best_us && (candidate->core_id < best->core_id || (candidate->core_id == best->core_id &&
+                                                                              candidate->core_seq < best->core_seq)))) {
         best_core = core;
       }
     }
@@ -203,9 +202,11 @@ void TRACE_print_buffer() {
       resource_id = r->event.data.semaphore_index;
     }
 
-    uint8_t task_id = r->task_id;
+    uint8_t  task_id  = r->task_id;
+    uint32_t task_uid = r->task_uid;
     if (r->event.type == TRACE_ADMISSION_FAILED) {
-      task_id = r->event.data.task_index;
+      // For admission failures, use the allocated UID stored in event data
+      task_uid = r->event.data.admission_failure_uid;
     }
 
     printf(
@@ -224,7 +225,7 @@ void TRACE_print_buffer() {
       r->system_ceiling,
       r->preempt_level,
       r->deadline,
-      r->task_uid
+      task_uid
     );
   }
 
@@ -233,3 +234,5 @@ void TRACE_print_buffer() {
 
 /// @brief Turns off the tracing functionality, preventing any additional traces from being recorded
 void TRACE_disable(void) { tracing_enabled = false; }
+
+#endif // USE_EDF

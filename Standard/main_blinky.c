@@ -63,12 +63,16 @@
 
 #include "main_blinky.h"
 
+#include "ProjectConfig.h"
+
 /* Kernel includes. */
 #include "FreeRTOS.h" // IWYU pragma: keep
 
 /* Library includes. */
 #include "hardware/gpio.h"
 #include <stdio.h>
+
+#if USE_EDF
 
 // Custom scheduler includes
 #include "edf_scheduler.h"
@@ -91,9 +95,14 @@
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #include "testing/global_mp_tests.h" // IWYU pragma: keep
 #endif
+#endif                               // USE_EDF
 
 // Other includes
 #include "pico/stdlib.h" // IWYU pragma: keep
+
+#if !USE_EDF
+#include "fixed_priority_support.h"
+#endif
 
 /*-----------------------------------------------------------*/
 
@@ -113,15 +122,13 @@ void run_test();
 
 TaskHandle_t monitor_task_handle = NULL;
 
+#if USE_EDF
+
 void vTraceMonitorTask(void *pvParameters) {
   // Either sleeps for the specified duration, or is forced to wake by task notification due to something like a
   // deadline miss
   (void)pvParameters;
   ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
-
-  // The test is over, so output trace
-  vTaskSuspendAll();
-  TRACE_disable();
 
 #if TEST_SUITE == TEST_SUITE_EDF
   printf("Results for EDF Test %d\n", TEST_NR);
@@ -130,9 +137,9 @@ void vTraceMonitorTask(void *pvParameters) {
 #elif TEST_SUITE == TEST_SUITE_CBS
   printf("Results for CBS Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-  printf("Results for SMP Test (Partitioned) %d\n", TEST_NR);
+  printf("Results for SMP (Partitioned) Test %d\n", TEST_NR);
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-  printf("Results for SMP Test (Global) %d\n", TEST_NR);
+  printf("Results for SMP (Global) Test %d\n", TEST_NR);
 #endif
 
   crash_with_trace("");
@@ -218,12 +225,129 @@ void run_test() {
   printf("Running CBS Test %d\n", TEST_NR);
   PASTE_EXPAND(cbs_test_, TEST_NR)();
 #elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
-  printf("Running Partitioned MP Test %d\n", TEST_NR);
+  printf("Running SMP (Partitioned) Test %d\n", TEST_NR);
   PASTE_EXPAND(partitioned_mp_test_, TEST_NR)();
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-  printf("Running Global MP Test %d\n", TEST_NR);
+  printf("Running SMP (Global) Test %d\n", TEST_NR);
   PASTE_EXPAND(global_mp_test_, TEST_NR)();
 #else
 #error "invalid test suite"
 #endif
 }
+#else
+
+#define FP_TEST_DURATION_TICKS 14
+
+typedef struct {
+  uint8_t    task_id;
+  uint8_t    gpio_pin;
+  TickType_t period_ticks;
+} FPTaskParams_t;
+
+static FPTaskParams_t fp_high_params = {0, mainGPIO_PERIODIC_TASK_BASE, 5};
+static FPTaskParams_t fp_low_params  = {1, (mainGPIO_PERIODIC_TASK_BASE + 1), 5};
+
+static void vFPTraceMonitorTask(void *pvParameters) {
+  (void)pvParameters;
+
+  vTaskDelay(FP_TEST_DURATION_TICKS);
+  vTaskSuspendAll();
+
+  printf("Results for FP Test %d\n", TEST_NR);
+  FP_trace_print_buffer();
+
+  for (;;) {
+    __asm volatile("wfi");
+  }
+}
+
+static void prvFixedPriorityTask(void *pvParameters) {
+  const FPTaskParams_t *const task_params = (const FPTaskParams_t *)pvParameters;
+  const uint32_t              gpio_pin    = task_params->gpio_pin;
+  TickType_t                  last_wake   = xTaskGetTickCount();
+
+  for (;;) {
+    vTaskDelayUntil(&last_wake, task_params->period_ticks);
+
+    gpio_put(gpio_pin, 1);
+    const TickType_t start_tick = xTaskGetTickCount();
+    while (xTaskGetTickCount() == start_tick) {
+      ;
+    }
+    gpio_put(gpio_pin, 0);
+  }
+}
+
+void main_blinky(void) {
+// Block execution until the host opens the USB serial port
+#if !TRACE_WITH_LOGIC_ANALYZER
+  while (!stdio_usb_connected()) {
+    sleep_ms(100);
+  }
+#endif
+
+  printf("Starting main_blinky in fixed-priority mode.\n");
+  printf("Running FP Test %d\n", TEST_NR);
+  initialize_gpio_pins();
+
+  FP_trace_reset();
+
+  TaskHandle_t fp_high_handle = NULL;
+  TaskHandle_t fp_low_handle  = NULL;
+
+  const BaseType_t high_task_created = xTaskCreate( //
+    prvFixedPriorityTask,
+    "FP High",
+    configMINIMAL_STACK_SIZE + 128,
+    (void *)&fp_high_params,
+    tskIDLE_PRIORITY + 2,
+    &fp_high_handle
+  );
+
+  const BaseType_t low_task_created = xTaskCreate( //
+    prvFixedPriorityTask,
+    "FP Low",
+    configMINIMAL_STACK_SIZE + 128,
+    (void *)&fp_low_params,
+    tskIDLE_PRIORITY + 1,
+    &fp_low_handle
+  );
+
+  TaskHandle_t     monitor_handle  = NULL;
+  const BaseType_t monitor_created = xTaskCreate( //
+    vFPTraceMonitorTask,
+    "FP Monitor",
+    configMINIMAL_STACK_SIZE + 256,
+    NULL,
+    configMAX_PRIORITIES - 1,
+    &monitor_handle
+  );
+
+  if (high_task_created != pdPASS || low_task_created != pdPASS || monitor_created != pdPASS) {
+    printf("Failed to create fixed-priority demo tasks.\n");
+    for (;;)
+      ;
+  }
+
+  FP_trace_register_tasks(fp_high_handle, fp_low_handle);
+
+  printf("Starting scheduler.\n");
+  vTaskStartScheduler();
+
+  for (;;)
+    ;
+}
+
+void initialize_gpio_pins(void) {
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  gpio_put(mainGPIO_IDLE_TASK, 0);
+
+  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i < mainGPIO_PERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i < mainGPIO_APERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+}
+
+#endif

@@ -24,65 +24,94 @@ from pico_env import (
 
 # Define which tests to run. Leave empty to run all tests
 TESTS_TO_RUN: list[str] = [  #
-    "EDF1",
-    "EDF2",
-    "EDF3",
-    "EDF4",
-    "EDF5",
-    "EDF6",
-    "EDF7",
-    "EDF8",
-    "EDF9",
-    "EDF10",
-    "EDF11",
+    # "FP1",
     #
-    "SRP1",
-    "SRP2",
-    "SRP3",
-    "SRP4",
-    "SRP5",
-    "SRP6",
-    "SRP7",
-    "SRP8",
-    "SRP9",
+    # "EDF1",
+    # "EDF2",
+    # "EDF3",
+    # "EDF4",
+    # "EDF5",
+    # "EDF6",
+    # "EDF7",
+    # "EDF8",
+    # "EDF9",
+    # "EDF10",
+    # "EDF11",
     #
-    "CBS1",
-    "CBS2",
-    "CBS3",
-    "CBS4",
-    "CBS5",
-    "CBS6",
-    "CBS7",
-    "CBS8",
-    "CBS9",
-    "CBS10",
-    "CBS11",
-    "CBS12",
-    "CBS13",
-    "CBS14",
-    "CBS15",
-    "CBS16",
-    "CBS17",
-    "CBS18",
+    # "SRP1",
+    # "SRP2",
+    # "SRP3",
+    # "SRP4",
+    # "SRP5",
+    # "SRP6",
+    # "SRP7",
+    # "SRP8",
+    # "SRP9",
     #
-    # "SMP1",
+    # "CBS1",
+    # "CBS2",
+    # "CBS3",
+    # "CBS4",
+    # "CBS5",
+    # "CBS6",
+    # "CBS7",
+    # "CBS8",
+    # "CBS9",
+    # "CBS10",
+    # "CBS11",
+    # "CBS12",
+    # "CBS13",
+    # "CBS14",
+    # "CBS15",
+    # "CBS16",
+    # "CBS17",
+    # "CBS18",
+    #
+    # "PARTSMP1",
+    # "PARTSMP2",
+    # "PARTSMP3",
+    # "PARTSMP4",
+    # "PARTSMP5",
+    # "PARTSMP6",
+    # "PARTSMP7",
+    # "PARTSMP8",
+    # "PARTSMP9",
+    # "PARTSMP10",
+    # "PARTSMP11",
+    # "PARTSMP12",
+    # "PARTSMP13",
+    # "PARTSMP14",
+    # "PARTSMP15",
+    # "PARTSMP16",
+    # "PARTSMP17",
 ]
 
 TRACE_RUN_BANNERS = (
+    "Running FP Test",
     "Running EDF Test",
     "Running SRP Test",
-    "Running SMP Test",
     "Running CBS Test",
+    "Running SMP (Partitioned) Test",
+    "Running SMP (Global) Test",
 )
 
 BACKGROUND_TASK_PREFIXES = ("Idle Task", "System Task")
 
 SUITE_PREFIXES = (
-    ("SMP", "SMP"),
-    ("SRP", "SRP"),
+    ("FP", "FP"),
     ("EDF", "EDF"),
+    ("SRP", "SRP"),
     ("CBS", "CBS"),
+    ("PARTSMP", "SMP (Partitioned)"),
 )
+
+SUITE_DISPLAY_NAMES = {
+    "FP": "FP",
+    "EDF": "EDF",
+    "SRP": "SRP",
+    "CBS": "CBS",
+    "PARTSMP": "SMP (Partitioned)",
+}
 
 STRICT_POLICED_EVENTS = {  #
     TraceEvent.TRACE_RELEASE,
@@ -116,9 +145,10 @@ def infer_suite_label(test_id):
 
 
 def build_expected_boot_name(test_id, test_case):
-    suite_label = test_case.get("suite", infer_suite_label(test_id))
+    raw_suite_label = str(test_case.get("suite", infer_suite_label(test_id))).strip()
+    normalized_suite_label = SUITE_DISPLAY_NAMES.get(raw_suite_label.upper(), raw_suite_label)
     test_num = "".join(filter(str.isdigit, test_id))
-    return f"Results for {suite_label} Test {test_num}"
+    return f"Results for {normalized_suite_label} Test {test_num}"
 
 
 def detect_run_banner(line):
@@ -134,23 +164,80 @@ def parse_trace_record(line, include_core_for_realtime=False):
         return None
 
     try:
-        if len(parts) >= 13:
+        if len(parts) >= 15:
             core = int(parts[3])
             task_type = int(parts[5])
             task_id = int(parts[6])
+            task_uid = int(parts[14])
+        elif len(parts) >= 13:
+            core = int(parts[3])
+            task_type = int(parts[5])
+            task_id = int(parts[6])
+            task_uid = task_id
         else:
             core = None
             task_type = int(parts[3])
             task_id = int(parts[4])
+            task_uid = task_id
 
         return {
             "tick": int(parts[0]),
             "event": TraceEvent(int(parts[1])),
+            "core": core,
+            "task_uid": task_uid,
             "task_name": get_task_name(task_type, task_id, core, include_core_for_realtime),
             "raw": line,
         }
     except ValueError:
         return None
+
+
+def normalize_expected_core(expected_core):
+    if expected_core is None:
+        return None
+
+    if isinstance(expected_core, int):
+        return expected_core
+
+    if isinstance(expected_core, str):
+        core_text = expected_core.strip().upper()
+        if core_text.startswith("C"):
+            core_text = core_text[1:]
+        return int(core_text)
+
+    return int(expected_core)
+
+
+def matches_expected_task_reference(log, expected_task_ref):
+    if isinstance(expected_task_ref, int):
+        return int(log["task_uid"]) == expected_task_ref
+
+    if isinstance(expected_task_ref, str):
+        stripped_ref = expected_task_ref.strip()
+        if stripped_ref.isdigit():
+            return int(log["task_uid"]) == int(stripped_ref)
+        return log["task_name"] == expected_task_ref
+
+    return int(log["task_uid"]) == int(expected_task_ref)
+
+
+def format_expected_task_reference(expected_task_ref):
+    if isinstance(expected_task_ref, int):
+        return f"UID {expected_task_ref}"
+    return str(expected_task_ref)
+
+
+def matches_expected_event(log, expected_task_ref, exp_tick, exp_event, exp_core=None):
+    if log["tick"] != exp_tick or log["event"] != exp_event:
+        return False
+
+    if not matches_expected_task_reference(log, expected_task_ref):
+        return False
+
+    if exp_core is not None and int(log["core"]) != exp_core:
+        return False
+
+    return True
 
 
 def stream_test_output(port, expected_boot_name, include_core_for_realtime=False):
@@ -215,24 +302,36 @@ def validate_expected_boot_name(found_boot_name, expected_boot_name, mem_usage):
 
 
 def validate_admission_failure(parsed_logs, test_case, mem_usage):
-    expected_failure_task = test_case.get("expected_admission_failure")
+    expected_failure_spec = test_case.get("expected_admission_failure")
     actual_admission_failures = [log for log in parsed_logs if log["event"] == TraceEvent.TRACE_ADMISSION_FAILED]
 
-    if expected_failure_task:
+    if expected_failure_spec:
+        # Normalize expected_failure_spec to a list of UIDs
+        if isinstance(expected_failure_spec, list):
+            expected_uids = expected_failure_spec
+        else:
+            # Single UID or string (backward compatibility)
+            expected_uids = [expected_failure_spec]
+
         if not actual_admission_failures:
-            print(f"    {C_RED}❌ FAILED: Expected admission failure for '{expected_failure_task}', but it did not occur.{C_RESET}")
+            expected_desc = " or ".join(str(uid) for uid in expected_uids)
+            print(f"    {C_RED}❌ FAILED: Expected admission failure for UID {expected_desc}, but it did not occur.{C_RESET}")
             return False
 
-        failed_task = actual_admission_failures[0]["task_name"]
-        if failed_task != expected_failure_task:
-            print(f"    {C_RED}❌ FAILED: Expected '{expected_failure_task}' to fail admission, but '{failed_task}' failed instead.{C_RESET}")
+        failed_log = actual_admission_failures[0]
+        failed_uid = failed_log.get("task_uid")
+
+        # Check if the failed UID matches any of the expected options
+        if failed_uid is not None and failed_uid not in expected_uids:
+            expected_desc = " or ".join(str(uid) for uid in expected_uids)
+            print(f"    {C_RED}❌ FAILED: Expected UID {expected_desc} to fail admission, but UID {failed_uid} failed instead.{C_RESET}")
             return False
 
         return True
 
     if actual_admission_failures:
-        failed_task = actual_admission_failures[0]["task_name"]
-        print(f"    {C_RED}❌ FAILED: Unexpected admission failure for task '{failed_task}'.{C_RESET}")
+        failed_uid = actual_admission_failures[0].get("task_uid")
+        print(f"    {C_RED}❌ FAILED: Unexpected admission failure for UID {failed_uid}.{C_RESET}")
         return False
 
     return True
@@ -242,29 +341,39 @@ def validate_trace_events(parsed_logs, test_case):
     if test_case.get("ignore_traces", False):
         return True
 
-    expected_set = set()
+    expected_entries = []
     for exp_task, events in test_case.get("expected_events", {}).items():
-        for exp_tick, exp_event in events:
-            expected_set.add((exp_tick, exp_task, exp_event))
+        for event_spec in events:
+            if len(event_spec) == 2:
+                exp_tick, exp_event = event_spec
+                exp_core = None
+            elif len(event_spec) == 3:
+                exp_tick, exp_event, exp_core = event_spec
+                exp_core = normalize_expected_core(exp_core)
+            else:
+                raise ValueError(f"Expected events must be 2- or 3-tuples, got {event_spec!r} for task {exp_task!r}")
+
+            expected_entries.append((exp_task, exp_tick, exp_event, exp_core))
 
     all_passed = True
-    sorted_expected_events = sorted(expected_set, key=lambda x: (x[0], x[1]))
+    sorted_expected_events = sorted(expected_entries, key=lambda x: (x[1], str(x[0])))
 
-    for exp_tick, exp_task, exp_event in sorted_expected_events:
+    for exp_task, exp_tick, exp_event, exp_core in sorted_expected_events:
         event_name = TraceEvent(exp_event).name
-        found = any(log["tick"] == exp_tick and log["task_name"] == exp_task and log["event"] == exp_event for log in parsed_logs)
+        found = any(matches_expected_event(log, exp_task, exp_tick, exp_event, exp_core) for log in parsed_logs)
 
         if not found:
-            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {exp_task} | {event_name}{C_RESET}")
+            core_suffix = f" | C{exp_core}" if exp_core is not None else ""
+            print(f"    {C_RED}❌ MISSING: Tick {exp_tick:04d} | {format_expected_task_reference(exp_task)}{core_suffix} | {event_name}{C_RESET}")
             all_passed = False
 
     for log in parsed_logs:
         is_background = any(log["task_name"].startswith(name) for name in BACKGROUND_TASK_PREFIXES)
         if not is_background and log["event"] in STRICT_POLICED_EVENTS:
-            actual_event_tuple = (log["tick"], log["task_name"], log["event"])
-            if actual_event_tuple not in expected_set:
+            if not any(matches_expected_event(log, exp_task, exp_tick, exp_event, exp_core) for exp_task, exp_tick, exp_event, exp_core in expected_entries):
                 event_name = TraceEvent(log["event"]).name
-                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {log['task_name']} | {event_name}{C_RESET}")
+                unexpected_task = f"UID {int(log['task_uid'])} ({log['task_name']})"
+                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {unexpected_task} | {event_name}{C_RESET}")
                 all_passed = False
 
     return all_passed
@@ -313,7 +422,7 @@ def run_test(test_id, test_case):
         port = auto_detect_port()
 
     expected_boot_name = build_expected_boot_name(test_id, test_case)
-    include_core_for_realtime = test_case.get("suite") == "SMP"
+    include_core_for_realtime = test_case.get("suite") == "PARTSMP"
 
     try:
         trace_result = stream_test_output(port, expected_boot_name, include_core_for_realtime)

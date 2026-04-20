@@ -1,5 +1,7 @@
 #include "queue.h"
 
+#include "task.h"
+
 #include <string.h>
 
 void q_init(Queue_t *q, uint8_t *storage, size_t element_size, uint16_t max_elements) {

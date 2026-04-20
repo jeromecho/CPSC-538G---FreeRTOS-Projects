@@ -1,3 +1,7 @@
+#include "ProjectConfig.h"
+
+#if USE_EDF
+
 #include "testing.h"
 
 #include "edf_scheduler.h"
@@ -11,6 +15,7 @@
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
 #include "smp_global.h"
 #endif
+
 
 /// @brief Creates a periodic task from a provided task configuration.
 // Handles API differences between SRP and EDF via preprocessor macros.
@@ -51,8 +56,13 @@ BaseType_t build_periodic_task_with_handle(const char *task_name, const Periodic
     handle
   );
 #elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
-  SMP_create_periodic_task(
-    config->func, task_name, pdMS_TO_TICKS(config->C), pdMS_TO_TICKS(config->T), pdMS_TO_TICKS(config->D), NULL
+  SMP_create_periodic_task( //
+    config->func,
+    task_name,
+    pdMS_TO_TICKS(config->C),
+    pdMS_TO_TICKS(config->T),
+    pdMS_TO_TICKS(config->D),
+    NULL
   );
 #else
 #error "Scheduler type not defined! Define USE_SRP or USE_EDF."
@@ -216,3 +226,5 @@ void task_execute(const TaskWorkload_t *task_workload, const size_t num_steps) {
   // Mark as done
   EDF_mark_task_done(NULL);
 }
+
+#endif // USE_EDF

@@ -27,7 +27,7 @@ TMB_t *SMP_produce_highest_priority_task_not_running(TMB_t **highest_priority_ta
  * @brief produce configNUMBER_OF_CORES highest priority tasks currently present inside
  *        the scheduler
  */
-void SMP_produce_highest_priority_tasks(TMB_t **highest_priority_tasks);
+void SMP_global_produce_highest_priority_tasks(TMB_t **highest_priority_tasks);
 
 void SMP_global_check_deadlines(void);
 

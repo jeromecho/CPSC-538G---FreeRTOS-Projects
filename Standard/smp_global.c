@@ -14,29 +14,30 @@ BaseType_t SMP_create_periodic_task(
   const TickType_t  relative_deadline,
   TMB_t **const     TMB_handle
 ) {
+  const uint32_t allocated_uid = allocate_trace_uid();
+
 #if PERFORM_ADMISSION_CONTROL
   if (!SMP_can_admit_periodic_task(completion_time, period, relative_deadline)) {
-    TRACE_record(EVENT_ADMISSION_FAIL(periodic_task_count), TRACE_TASK_PERIODIC, NULL, false);
-    TRACE_disable();
-    xTaskNotifyGive(monitor_task_handle);
+    admission_control_handle_failure(allocated_uid);
     return pdFALSE;
   }
 #endif
+
   TMB_t     *handle = NULL;
   // Initialize all cores on core 1 (arbitrary choice)
   size_t     core   = 1;
   BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
-    periodic_tasks,
-    &periodic_task_count,
-    edf_private_stacks_periodic[periodic_task_count],
-    &parameters_periodic[periodic_task_count],
-    &private_tcbs_periodic[periodic_task_count],
+    &periodic_task_set,
+    &periodic_task_view_set,
+    edf_private_stacks_periodic[periodic_task_set.count],
+    &parameters_periodic[periodic_task_set.count],
+    &edf_private_task_buffers_periodic[periodic_task_set.count],
     completion_time,
     period,
     relative_deadline,
-    UINT32_MAX,
+    allocated_uid,
     &handle,
     core
   );
@@ -65,9 +66,7 @@ static bool multicore_stability_comparator(TMB_t *new_task, TMB_t *current_best)
 
 // TODO - might be able to replace below function call with existing code
 static TMB_t *SMP_highest_priority_task_multicore() {
-  return scheduler_highest_priority_candidate_ext(
-    periodic_tasks, periodic_task_count, NULL, multicore_stability_comparator
-  );
+  return scheduler_highest_priority_candidate_ext(&periodic_task_view_set, NULL, multicore_stability_comparator);
 }
 
 void SMP_global_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
@@ -92,9 +91,9 @@ void SMP_global_produce_highest_priority_tasks(TMB_t **highest_priority_tasks) {
 }
 
 // TODO - add support for aperiodic tasks if time
-void SMP_global_check_deadlines(void) { scheduler_check_deadlines(periodic_tasks, periodic_task_count); }
+void SMP_global_check_deadlines(void) { scheduler_check_deadlines(&periodic_task_view_set); }
 
-void SMP_global_record_releases(void) { scheduler_record_releases(periodic_tasks, periodic_task_count); }
+void SMP_global_record_releases(void) { scheduler_record_releases(&periodic_task_view_set); }
 
 /// @brief produce true if currently running task on core not in the `highest_priority_tasks`
 static bool SMP_global_should_context_switch(TMB_t **const highest_priority_tasks, const size_t core) {
@@ -162,10 +161,8 @@ static TMB_t *SMP_global_get_target_task(TMB_t **highest_priority_tasks) {
 
     if (candidate == NULL && task_suspended) {
       candidate = highest_priority_tasks[core];
-    } else if (
-      task_suspended && candidate != NULL &&
-      highest_priority_tasks[core]->absolute_deadline < candidate->absolute_deadline
-    ) {
+    } else if (task_suspended && candidate != NULL &&
+               highest_priority_tasks[core]->absolute_deadline < candidate->absolute_deadline) {
       candidate = highest_priority_tasks[core];
     }
   }
@@ -174,12 +171,13 @@ static TMB_t *SMP_global_get_target_task(TMB_t **highest_priority_tasks) {
 
 // TODO - add support for aperiodic tasks if time
 static void SMP_global_suspend_lower_priority_tasks(TMB_t **highest_priority_tasks) {
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const task = &periodic_tasks[i];
-    if (
-      !(task == highest_priority_tasks[0] || task == highest_priority_tasks[1]) &&
-      eTaskGetState(task->handle) != eSuspended
-    ) {
+  for (size_t i = 0; i < periodic_task_view_set.count; ++i) {
+    TMB_t *const task = periodic_task_view_set.view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
+    if (!(task == highest_priority_tasks[0] || task == highest_priority_tasks[1]) &&
+        eTaskGetState(task->handle) != eSuspended) {
       scheduler_suspend_task(task);
     }
   }
@@ -220,8 +218,11 @@ void SMP_global_suspend_and_resume_tasks(void) {
 }
 
 void SMP_global_reschedule_periodic_tasks() {
-  for (size_t i = 0; i < periodic_task_count; ++i) {
-    TMB_t *const     task         = &periodic_tasks[i];
+  for (size_t i = 0; i < periodic_task_view_set.count; ++i) {
+    TMB_t *const task = periodic_task_view_set.view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
     const TickType_t current_tick = xTaskGetTickCountFromISR();
     (void)scheduler_release_periodic_job_if_ready(task, current_tick);
   }

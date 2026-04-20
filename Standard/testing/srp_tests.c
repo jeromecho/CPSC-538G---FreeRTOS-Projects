@@ -142,10 +142,8 @@ void srp_test_4() {
 ///
 /// A stress test designed to measure the memory reduction achieved by SRP.
 ///
-///  Generates a maximum load of tasks and distributes them across a smaller subset
-/// of preemption levels. Outputs the exact runtime static memory footprint
-/// using `sizeof()`. Proves that stack sharing significantly reduces the `.bss`
-/// memory allocation required for the RTOS.
+/// Generates a maximum load of tasks and distributes them across a smaller subset
+/// of preemption levels.
 ///
 void srp_test_5() {
   const unsigned int NUM_TASKS            = MAXIMUM_APERIODIC_TASKS;

@@ -23,7 +23,7 @@ typedef struct SchedulerParameters {
 typedef struct TMB_t {
   // --- FreeRTOS-specific data ---
   TaskFunction_t task_function;
-  StaticTask_t  *task_buffer; //  task_buffer;
+  StaticTask_t  *task_buffer;
   StackType_t   *stack_buffer;
 
   // --- Common Metadata ---
@@ -70,6 +70,18 @@ typedef struct TMB_t {
     } aperiodic;
   };
 } TMB_t;
+
+typedef struct {
+  TMB_t *tasks;
+  size_t count;
+  size_t capacity;
+} TMBTaskSet_t;
+
+typedef struct {
+  TMB_t **view;
+  size_t  count;
+  size_t  capacity;
+} TMBViewSet_t;
 
 #endif // USE_EDF
 
