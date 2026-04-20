@@ -203,17 +203,8 @@ static bool SMP_can_admit_periodic_task_on_core( //
   const TickType_t  relative_deadline,
   const UBaseType_t core
 ) {
-  bool can_admit = false;
-  taskENTER_CRITICAL();
   const TMBViewSet_t *view_set = SMP_get_view_set(true, core);
-  can_admit                    = EDF_can_admit_periodic_task_for_task_set( //
-    completion_time,
-    period,
-    relative_deadline,
-    view_set
-  );
-  taskEXIT_CRITICAL();
-  return can_admit;
+  return EDF_can_admit_periodic_task_for_task_set(completion_time, period, relative_deadline, view_set);
 }
 
 static bool SMP_can_admit_migrated_periodic_task_on_core(const TMB_t *task, const UBaseType_t core) {
@@ -269,51 +260,65 @@ BaseType_t SMP_create_periodic_task_on_core(
 #if MAXIMUM_PERIODIC_TASKS > 0
   configASSERT(core < configNUMBER_OF_CORES);
 
-  size_t memory_slot_index = 0;
-  if (SMP_allocate_periodic_memory_slot(core, &memory_slot_index) != pdPASS) {
-    return pdFAIL;
-  }
+  size_t     memory_slot_index = 0;
+  TMB_t     *handle            = NULL;
+  BaseType_t result            = pdFAIL;
+  bool       admission_failed  = false;
 
-  // Allocate UID early so we can use it for both failure and success paths
-  const uint32_t allocated_uid = allocate_trace_uid();
+  taskENTER_CRITICAL();
+
+  const uint32_t allocated_uid             = allocate_trace_uid();
+  TMBViewSet_t  *destination_core_view_set = SMP_get_view_set(true, core);
+
+  do {
+    if (SMP_allocate_periodic_memory_slot(core, &memory_slot_index) != pdPASS) {
+      break;
+    }
 
 #if PERFORM_ADMISSION_CONTROL
-  if (!SMP_can_admit_periodic_task_on_core(completion_time, period, relative_deadline, core)) {
-    admission_control_handle_failure(allocated_uid);
-    return pdFALSE;
-  }
+    if (!SMP_can_admit_periodic_task_on_core(completion_time, period, relative_deadline, core)) {
+      admission_failed = true;
+      break;
+    }
 #endif
 
-  TMB_t        *handle                    = NULL;
-  TMBViewSet_t *destination_core_view_set = SMP_get_view_set(true, core);
-  BaseType_t    result                    = _create_periodic_task_internal(
-    task_function,
-    task_name,
-    &periodic_task_set,
-    destination_core_view_set,
-    private_stacks_periodic[core][memory_slot_index],
-    &parameters_periodic[core][memory_slot_index],
-    &private_task_buffers_periodic[core][memory_slot_index],
-    completion_time,
-    period,
-    relative_deadline,
-    allocated_uid,
-    &handle,
-    core
-  );
+    result = _create_periodic_task_internal(
+      task_function,
+      task_name,
+      &periodic_task_set,
+      destination_core_view_set,
+      private_stacks_periodic[core][memory_slot_index],
+      &parameters_periodic[core][memory_slot_index],
+      &private_task_buffers_periodic[core][memory_slot_index],
+      completion_time,
+      period,
+      relative_deadline,
+      allocated_uid,
+      &handle,
+      core
+    );
 
-  if (result == pdPASS && handle != NULL) {
+    if (result != pdPASS || handle == NULL) {
+      break;
+    }
+
     if (destination_core_view_set->count == 0 ||
         destination_core_view_set->view[destination_core_view_set->count - 1] != handle) {
       vTaskDelete(handle->handle);
       handle->handle = NULL;
-      return pdFAIL;
+      result         = pdFAIL;
+      break;
     }
+
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
-  } else if (result == pdPASS) {
-    return pdFAIL;
+  } while (false);
+  taskEXIT_CRITICAL();
+
+  if (admission_failed) {
+    admission_control_handle_failure(allocated_uid);
+    return pdFALSE;
   }
 
   return result;
@@ -341,42 +346,49 @@ BaseType_t SMP_create_aperiodic_task_on_core(
 #if MAXIMUM_APERIODIC_TASKS > 0
   configASSERT(core < configNUMBER_OF_CORES);
 
-  size_t memory_slot_index = 0;
-  if (SMP_allocate_aperiodic_memory_slot(core, &memory_slot_index) != pdPASS) {
-    return pdFAIL;
-  }
+  TMB_t     *handle            = NULL;
+  size_t     memory_slot_index = 0;
+  BaseType_t result            = pdFAIL;
 
-  TMB_t     *handle = NULL;
-  BaseType_t result = _create_aperiodic_task_internal(
-    task_function,
-    task_name,
-    &aperiodic_task_set,
-    private_stacks_aperiodic[core][memory_slot_index],
-    &parameters_aperiodic[core][memory_slot_index],
-    &private_task_buffers_aperiodic[core][memory_slot_index],
-    completion_time,
-    release_time,
-    relative_deadline,
-    UINT32_MAX,
-    &handle,
-    NULL,
-    true,
-    core
-  );
+  taskENTER_CRITICAL();
+  do {
+    if (SMP_allocate_aperiodic_memory_slot(core, &memory_slot_index) != pdPASS) {
+      break;
+    }
 
-  if (result == pdPASS && handle != NULL) {
+    result = _create_aperiodic_task_internal(
+      task_function,
+      task_name,
+      &aperiodic_task_set,
+      private_stacks_aperiodic[core][memory_slot_index],
+      &parameters_aperiodic[core][memory_slot_index],
+      &private_task_buffers_aperiodic[core][memory_slot_index],
+      completion_time,
+      release_time,
+      relative_deadline,
+      UINT32_MAX,
+      &handle,
+      NULL,
+      true,
+      core
+    );
+
+    if (result != pdPASS || handle == NULL) {
+      break;
+    }
+
     TMBViewSet_t *destination_core_view_set = SMP_get_view_set(false, core);
     if (SMP_view_add(destination_core_view_set, handle) != pdPASS) {
       vTaskDelete(handle->handle);
       handle->handle = NULL;
-      return pdFAIL;
+      result         = pdFAIL;
+      break;
     }
     if (TMB_handle != NULL) {
       *TMB_handle = handle;
     }
-  } else if (result == pdPASS) {
-    return pdFAIL;
-  }
+  } while (false);
+  taskEXIT_CRITICAL();
 
   return result;
 #else

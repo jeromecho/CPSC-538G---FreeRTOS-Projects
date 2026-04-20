@@ -34,7 +34,7 @@ TEST_SUITE_IDS = {
     "EDF": 1,
     "SRP": 2,
     "CBS": 3,
-    "PARTSMP": 4,
+    "PSMP": 4,
     "FP": 6,
 }
 
@@ -135,7 +135,7 @@ TEST_CASES = {
                 #
                 (10, TraceEvent.TRACE_RELEASE),
                 (10, TraceEvent.TRACE_SWITCH_IN),
-                # (11, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (11, TraceEvent.TRACE_DONE),
                 (11, TraceEvent.TRACE_SWITCH_OUT),
             ],
         },
@@ -194,7 +194,7 @@ TEST_CASES = {
                 #
                 (18, TraceEvent.TRACE_RELEASE),
                 (20, TraceEvent.TRACE_SWITCH_IN),
-                # (23, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (23, TraceEvent.TRACE_DONE),
                 (23, TraceEvent.TRACE_SWITCH_OUT),
             ],
         },
@@ -253,7 +253,7 @@ TEST_CASES = {
             "Periodic 02": [
                 (800, TraceEvent.TRACE_RELEASE),
                 (960, TraceEvent.TRACE_SWITCH_IN),
-                # (1360, TraceEvent.TRACE_DONE),  # Doesn't happen since test ends first
+                (1360, TraceEvent.TRACE_DONE),
                 (1360, TraceEvent.TRACE_SWITCH_OUT),
             ],
         },
@@ -689,7 +689,7 @@ TEST_CASES = {
                 #
                 (48, TraceEvent.TRACE_RELEASE),
                 (48, TraceEvent.TRACE_SWITCH_IN),
-                (50, TraceEvent.TRACE_SWITCH_OUT),
+                # (50, TraceEvent.TRACE_SWITCH_OUT), # Doesn't happen since test ends first
             ],
             "Periodic 02": [
                 (0, TraceEvent.TRACE_RELEASE),
@@ -1010,37 +1010,44 @@ TEST_CASES = {
                 #
                 (99, TraceEvent.TRACE_RELEASE),
                 (99, TraceEvent.TRACE_SWITCH_IN),
-                (100, TraceEvent.TRACE_SWITCH_OUT),
+                # (100, TraceEvent.TRACE_SWITCH_OUT), # Doesn't happen since test ends first
             ],
             "Aperiodic 01": [
                 (0, TraceEvent.TRACE_RELEASE),
                 (4, TraceEvent.TRACE_SWITCH_IN),
                 (5, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (5, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (10, TraceEvent.TRACE_SWITCH_IN),
                 (11, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (11, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (16, TraceEvent.TRACE_SWITCH_IN),
                 (17, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (17, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (22, TraceEvent.TRACE_SWITCH_IN),
                 (23, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (23, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (28, TraceEvent.TRACE_SWITCH_IN),
                 (29, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (29, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (34, TraceEvent.TRACE_SWITCH_IN),
                 (35, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (35, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (40, TraceEvent.TRACE_SWITCH_IN),
                 (41, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (41, TraceEvent.TRACE_SWITCH_OUT),
+                #
                 (46, TraceEvent.TRACE_SWITCH_IN),
                 (47, TraceEvent.TRACE_BUDGET_RUN_OUT),
                 (47, TraceEvent.TRACE_SWITCH_OUT),
-                (52, TraceEvent.TRACE_DONE),
                 #
                 (52, TraceEvent.TRACE_SWITCH_IN),
+                (52, TraceEvent.TRACE_DONE),
                 (52, TraceEvent.TRACE_SWITCH_OUT),
             ],
             "Aperiodic 02": [
@@ -1287,7 +1294,7 @@ TEST_CASES = {
                 #
                 (198, TraceEvent.TRACE_RELEASE),
                 (198, TraceEvent.TRACE_SWITCH_IN),
-                (200, TraceEvent.TRACE_SWITCH_OUT),
+                # (200, TraceEvent.TRACE_SWITCH_OUT), # Doesn't happen since test ends first
             ],
             "Aperiodic 01": [
                 (0, TraceEvent.TRACE_RELEASE),
@@ -2008,7 +2015,7 @@ TEST_CASES = {
                 #
                 (49, TraceEvent.TRACE_RELEASE),
                 (49, TraceEvent.TRACE_SWITCH_IN),
-                (50, TraceEvent.TRACE_SWITCH_OUT),
+                # (50, TraceEvent.TRACE_SWITCH_OUT), # Doesn't happen since test ends first
             ],
             "Aperiodic 01": [
                 (0, TraceEvent.TRACE_RELEASE),
@@ -2084,7 +2091,7 @@ TEST_CASES = {
                 #
                 (49, TraceEvent.TRACE_RELEASE),
                 (49, TraceEvent.TRACE_SWITCH_IN),
-                (50, TraceEvent.TRACE_SWITCH_OUT),
+                # (50, TraceEvent.TRACE_SWITCH_OUT), # Doesn't happen since test ends first
             ],
             "Aperiodic 01": [
                 (0, TraceEvent.TRACE_RELEASE),
@@ -2191,7 +2198,7 @@ TEST_CASES = {
         },
     },
     # (PARTITIONED) SMP TESTS
-    "PARTSMP1": {
+    "PSMP1": {
         "name": "Simple EDF test on both cores",
         "expected_admission_failure": None,
         "expected_events": {
@@ -2199,6 +2206,7 @@ TEST_CASES = {
                 (0, TraceEvent.TRACE_RELEASE, 0),
                 (1, TraceEvent.TRACE_SWITCH_IN, 0),
                 (2, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
                 (3, TraceEvent.TRACE_SWITCH_IN, 0),
                 (4, TraceEvent.TRACE_DONE, 0),
                 (4, TraceEvent.TRACE_SWITCH_OUT, 0),
@@ -2206,6 +2214,7 @@ TEST_CASES = {
                 (6, TraceEvent.TRACE_RELEASE, 0),
                 (7, TraceEvent.TRACE_SWITCH_IN, 0),
                 (8, TraceEvent.TRACE_SWITCH_OUT, 0),
+                #
                 (9, TraceEvent.TRACE_SWITCH_IN, 0),
                 (10, TraceEvent.TRACE_DONE, 0),
                 (10, TraceEvent.TRACE_SWITCH_OUT, 0),
@@ -2238,7 +2247,7 @@ TEST_CASES = {
                 #
                 (10, TraceEvent.TRACE_RELEASE, 0),
                 (10, TraceEvent.TRACE_SWITCH_IN, 0),
-                # (11, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (11, TraceEvent.TRACE_DONE),
                 (11, TraceEvent.TRACE_SWITCH_OUT, 0),
             ],
             2: [
@@ -2284,12 +2293,12 @@ TEST_CASES = {
                 #
                 (10, TraceEvent.TRACE_RELEASE, 1),
                 (10, TraceEvent.TRACE_SWITCH_IN, 1),
-                # (11, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (11, TraceEvent.TRACE_DONE),
                 (11, TraceEvent.TRACE_SWITCH_OUT, 1),
             ],
         },
     },
-    "PARTSMP2": {
+    "PSMP2": {
         "name": "Mark's Proposed EDF Smoke Test",
         "expected_admission_failure": None,
         "expected_events": {
@@ -2343,7 +2352,7 @@ TEST_CASES = {
                 #
                 (18, TraceEvent.TRACE_RELEASE, 0),
                 (20, TraceEvent.TRACE_SWITCH_IN, 0),
-                # (23, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (23, TraceEvent.TRACE_DONE),
                 (23, TraceEvent.TRACE_SWITCH_OUT, 0),
             ],
             3: [
@@ -2396,48 +2405,48 @@ TEST_CASES = {
                 #
                 (18, TraceEvent.TRACE_RELEASE, 1),
                 (20, TraceEvent.TRACE_SWITCH_IN, 1),
-                # (23, TraceEvent.TRACE_DONE), # Doesn't happen since test ends first
+                (23, TraceEvent.TRACE_DONE),
                 (23, TraceEvent.TRACE_SWITCH_OUT, 1),
             ],
         },
     },
-    "PARTSMP3": {
+    "PSMP3": {
         "name": "100 Tasks NON-ADMISSIBLE",
         "expected_admission_failure": 33,
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP4": {
+    "PSMP4": {
         "name": "100 Tasks ADMISSIBLE",
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP5": {
+    "PSMP5": {
         "name": "Admissible by utilization",
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP6": {
+    "PSMP6": {
         "name": "Non-admissible by utilization",
         "expected_admission_failure": [9, 19],
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP7": {
+    "PSMP7": {
         "name": "Admissible by processor demand",
         "expected_admission_failure": None,
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP8": {
+    "PSMP8": {
         "name": "Non-admissible by processor demand",
         "expected_admission_failure": [1, 3],
         "ignore_traces": True,
         "expected_events": {},
     },
-    "PARTSMP9": {
+    "PSMP9": {
         "name": "Admissible drop-in",
         "expected_admission_failure": None,
         "expected_events": {
@@ -2453,10 +2462,10 @@ TEST_CASES = {
                 (960, TraceEvent.TRACE_SWITCH_OUT, 0),
             ],
             2: [
-                (800, TraceEvent.TRACE_RELEASE, 0),
-                (960, TraceEvent.TRACE_SWITCH_IN, 0),
-                # (1360, TraceEvent.TRACE_DONE),  # Doesn't happen since test ends first
-                (1360, TraceEvent.TRACE_SWITCH_OUT, 0),
+                (800, TraceEvent.TRACE_RELEASE, 1),
+                (960, TraceEvent.TRACE_SWITCH_IN, 1),
+                (1360, TraceEvent.TRACE_DONE, 1),
+                (1360, TraceEvent.TRACE_SWITCH_OUT, 1),
             ],
             1: [
                 (0, TraceEvent.TRACE_RELEASE, 1),
@@ -2470,14 +2479,14 @@ TEST_CASES = {
                 (960, TraceEvent.TRACE_SWITCH_OUT, 1),
             ],
             3: [
-                (800, TraceEvent.TRACE_RELEASE, 1),
-                (960, TraceEvent.TRACE_SWITCH_IN, 1),
-                # (1360, TraceEvent.TRACE_DONE),  # Doesn't happen since test ends first
-                (1360, TraceEvent.TRACE_SWITCH_OUT, 1),
+                (800, TraceEvent.TRACE_RELEASE, 0),
+                (960, TraceEvent.TRACE_SWITCH_IN, 0),
+                (1360, TraceEvent.TRACE_DONE, 0),
+                (1360, TraceEvent.TRACE_SWITCH_OUT, 0),
             ],
         },
     },
-    "PARTSMP10": {
+    "PSMP10": {
         "name": "Inadmissible drop-in",
         "expected_admission_failure": [2, 3],
         "expected_events": {
@@ -2539,7 +2548,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP11": {
+    "PSMP11": {
         "name": "Missed deadline",
         "expected_admission_failure": None,
         "expected_events": {
@@ -2580,7 +2589,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP12": {
+    "PSMP12": {
         "name": "Remove-from-core",
         "expected_admission_failure": None,
         "ignore_traces": False,
@@ -2607,7 +2616,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP13": {
+    "PSMP13": {
         "name": "Migrate-to-busy-core",
         "expected_admission_failure": None,
         "ignore_traces": False,
@@ -2646,7 +2655,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP14": {
+    "PSMP14": {
         "name": "Migrate-to-available-core",
         "expected_admission_failure": None,
         "ignore_traces": False,
@@ -2711,7 +2720,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP15": {
+    "PSMP15": {
         "name": "Migrate-to-core-and-back",
         "expected_admission_failure": None,
         "ignore_traces": False,
@@ -2784,7 +2793,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP16": {
+    "PSMP16": {
         "name": "Two tasks migrate at the same time while suspended",
         "expected_admission_failure": None,
         "ignore_traces": True,
@@ -2839,7 +2848,7 @@ TEST_CASES = {
             ],
         },
     },
-    "PARTSMP17": {
+    "PSMP17": {
         "name": "Two tasks migrate at the same time while running",
         "expected_admission_failure": None,
         "ignore_traces": True,
@@ -2899,7 +2908,7 @@ TEST_CASES = {
         },
     },
 }
-TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|PARTSMP|FP)(\d+)$")
+TEST_ID_PATTERN = re.compile(r"^(EDF|SRP|CBS|PSMP|FP)(\d+)$")
 
 for test_id, test_case in TEST_CASES.items():
     match = TEST_ID_PATTERN.match(test_id)

@@ -67,23 +67,23 @@ TESTS_TO_RUN: list[str] = [  #
     # "CBS17",
     # "CBS18",
     #
-    # "PARTSMP1",
-    # "PARTSMP2",
-    # "PARTSMP3",
-    # "PARTSMP4",
-    # "PARTSMP5",
-    # "PARTSMP6",
-    # "PARTSMP7",
-    # "PARTSMP8",
-    # "PARTSMP9",
-    # "PARTSMP10",
-    # "PARTSMP11",
-    # "PARTSMP12",
-    # "PARTSMP13",
-    # "PARTSMP14",
-    # "PARTSMP15",
-    # "PARTSMP16",
-    # "PARTSMP17",
+    # "PSMP1",
+    # "PSMP2",
+    # "PSMP3",
+    # "PSMP4",
+    # "PSMP5",
+    # "PSMP6",
+    # "PSMP7",
+    # "PSMP8",
+    # "PSMP9",
+    # "PSMP10",
+    # "PSMP11",
+    # "PSMP12",
+    # "PSMP13",
+    # "PSMP14",
+    # "PSMP15",
+    # "PSMP16",
+    # "PSMP17",
 ]
 
 TRACE_RUN_BANNERS = (
@@ -102,7 +102,7 @@ SUITE_PREFIXES = (
     ("EDF", "EDF"),
     ("SRP", "SRP"),
     ("CBS", "CBS"),
-    ("PARTSMP", "SMP (Partitioned)"),
+    ("PSMP", "SMP (Partitioned)"),
 )
 
 SUITE_DISPLAY_NAMES = {
@@ -110,7 +110,7 @@ SUITE_DISPLAY_NAMES = {
     "EDF": "EDF",
     "SRP": "SRP",
     "CBS": "CBS",
-    "PARTSMP": "SMP (Partitioned)",
+    "PSMP": "SMP (Partitioned)",
 }
 
 STRICT_POLICED_EVENTS = {  #
@@ -422,7 +422,7 @@ def run_test(test_id, test_case):
         port = auto_detect_port()
 
     expected_boot_name = build_expected_boot_name(test_id, test_case)
-    include_core_for_realtime = test_case.get("suite") == "PARTSMP"
+    include_core_for_realtime = test_case.get("suite") == "PSMP"
 
     try:
         trace_result = stream_test_output(port, expected_boot_name, include_core_for_realtime)
