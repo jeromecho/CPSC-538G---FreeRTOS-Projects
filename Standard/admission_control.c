@@ -509,45 +509,41 @@ bool SRP_can_admit_periodic_task(
   SRP_update_resource_ceilings(preemption_level, resource_hold_times, simulated_ceilings);
 #endif // N_RESOURCES > 0
 
-  if (periodic_task_view_set.view != NULL) {
-    for (size_t k = 0; k < periodic_task_view_set.count; k++) {
-      const TMB_t       *task_k             = periodic_task_view_set.view[k];
-      const TickType_t   D_k                = task_k->periodic.relative_deadline;
-      const TickType_t   T_k                = task_k->periodic.period;
-      const unsigned int preemption_level_k = task_k->preemption_level;
+  for (size_t k = 0; k < periodic_task_view_set.count; k++) {
+    const TMB_t       *task_k             = periodic_task_view_set.view[k];
+    const TickType_t   D_k                = task_k->periodic.relative_deadline;
+    const TickType_t   T_k                = task_k->periodic.period;
+    const unsigned int preemption_level_k = task_k->preemption_level;
 
-      double sum_U = 0.0;
-      for (size_t i = 0; i < periodic_task_view_set.count; i++) {
-        const TMB_t *task_i = periodic_task_view_set.view[i];
-        if (task_i->periodic.relative_deadline <= D_k) {
-          sum_U += (double)task_i->completion_time / task_i->periodic.period;
-        }
+    double sum_U = 0.0;
+    for (size_t i = 0; i < periodic_task_view_set.count; i++) {
+      const TMB_t *task_i = periodic_task_view_set.view[i];
+      if (task_i->periodic.relative_deadline <= D_k) {
+        sum_U += (double)task_i->completion_time / task_i->periodic.period;
       }
-      if (new_task.D <= D_k) {
-        sum_U += (double)new_task.C / new_task.T;
-      }
+    }
+    if (new_task.D <= D_k) {
+      sum_U += (double)new_task.C / new_task.T;
+    }
 
 #if N_RESOURCES > 0
-      const TickType_t B_k =
-        calculate_blocking_time(preemption_level_k, simulated_ceilings, preemption_level, resource_hold_times);
+    const TickType_t B_k =
+      calculate_blocking_time(preemption_level_k, simulated_ceilings, preemption_level, resource_hold_times);
 #else  // N_RESOURCES > 0
-      const TickType_t B_k = 0;
+    const TickType_t B_k = 0;
 #endif // N_RESOURCES > 0
-      if (sum_U + ((double)B_k / T_k) > 1.0)
-        return false;
-    }
+    if (sum_U + ((double)B_k / T_k) > 1.0)
+      return false;
   }
 
   double sum_U_new = 0.0;
-  if (periodic_task_view_set.view != NULL) {
-    for (size_t i = 0; i < periodic_task_view_set.count; i++) {
-      const TMB_t *task_i = periodic_task_view_set.view[i];
-      if (task_i->periodic.relative_deadline <= relative_deadline) {
-        sum_U_new += (double)task_i->completion_time / task_i->periodic.period;
-      }
+  for (size_t i = 0; i < periodic_task_view_set.count; i++) {
+    const TMB_t *task_i = periodic_task_view_set.view[i];
+    if (task_i->periodic.relative_deadline <= relative_deadline) {
+      sum_U_new += (double)task_i->completion_time / task_i->periodic.period;
     }
-    sum_U_new += (double)new_task.C / new_task.T;
   }
+  sum_U_new += (double)new_task.C / new_task.T;
 
 #if N_RESOURCES > 0
   const TickType_t B_new =
@@ -560,11 +556,9 @@ bool SRP_can_admit_periodic_task(
   }
 
   double U = (double)new_task.C / new_task.T;
-  if (periodic_task_view_set.view != NULL) {
-    for (size_t i = 0; i < periodic_task_view_set.count; i++) {
-      const TMB_t *task_i = periodic_task_view_set.view[i];
-      U += (double)task_i->completion_time / task_i->periodic.period;
-    }
+  for (size_t i = 0; i < periodic_task_view_set.count; i++) {
+    const TMB_t *task_i = periodic_task_view_set.view[i];
+    U += (double)task_i->completion_time / task_i->periodic.period;
   }
 
   PeriodicTask_t    existing_tasks[MAXIMUM_PERIODIC_TASKS];
@@ -757,20 +751,18 @@ bool SMP_can_admit_periodic_task( //
 
   // Global utilization check (necessary but not sufficient for global EDF)
   double U = (double)new_task.C / new_task.T;
-  if (periodic_task_view_set.view != NULL) {
-    for (size_t i = 0; i < periodic_task_view_set.count; i++) {
-      const TMB_t *task = periodic_task_view_set.view[i];
-      if (task == NULL || task->handle == NULL) {
-        continue;
-      }
-      const double Ci = (double)task->completion_time;
-      const double Ti = (double)task->periodic.period;
-      U += Ci / Ti;
+  for (size_t i = 0; i < periodic_task_view_set.count; i++) {
+    const TMB_t *task = periodic_task_view_set.view[i];
+    if (task == NULL || task->handle == NULL) {
+      continue;
+    }
+    const double Ci = (double)task->completion_time;
+    const double Ti = (double)task->periodic.period;
+    U += Ci / Ti;
 
-      // For global EDF on m processors, sufficiency requires U <= m
-      if (U > (double)m + EPSILON) {
-        return false;
-      }
+    // For global EDF on m processors, sufficiency requires U <= m
+    if (U > (double)m + EPSILON) {
+      return false;
     }
   }
 
