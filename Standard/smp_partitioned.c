@@ -465,6 +465,7 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
 
 #if PERFORM_ADMISSION_CONTROL
   if (location.is_periodic && !SMP_can_admit_migrated_periodic_task_on_core(task, destination_core)) {
+    admission_control_handle_failure(location.task->trace_uid);
     return pdFAIL;
   }
 #endif
@@ -484,6 +485,7 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   }
 
   vTaskSuspend(task->handle);
+  task->is_done        = false;
   task->ticks_executed = 0;
   task->assigned_core  = (uint8_t)destination_core;
 

@@ -147,10 +147,10 @@ bool scheduler_release_periodic_job_if_ready(TMB_t *task, const TickType_t curre
     return false;
   }
 
+  task->is_done           = false;
   task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
   task->release_time      = task->periodic.next_period;
   task->periodic.next_period += task->periodic.period;
-  task->is_done = false;
   return true;
 }
 

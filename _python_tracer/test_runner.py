@@ -84,6 +84,8 @@ TESTS_TO_RUN: list[str] = [  #
     # "PSMP15",
     # "PSMP16",
     # "PSMP17",
+    # "PSMP18",
+    # "PSMP19",
     #
     # "GSMP1",
     # "GSMP2",
@@ -303,7 +305,7 @@ def validate_admission_failure(parsed_logs, test_case, mem_usage):
     expected_failure_spec = test_case.get("expected_admission_failure")
     actual_admission_failures = [log for log in parsed_logs if log["event"] == TraceEvent.TRACE_ADMISSION_FAILED]
 
-    if expected_failure_spec:
+    if expected_failure_spec is not None:
         # Normalize expected_failure_spec to a list of UIDs
         if isinstance(expected_failure_spec, list):
             expected_uids = expected_failure_spec
