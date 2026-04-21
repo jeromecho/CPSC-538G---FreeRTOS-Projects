@@ -2862,10 +2862,6 @@ TEST_CASES = {
                 (1, TraceEvent.TRACE_SWITCH_OUT, 0),
                 (1, TraceEvent.TRACE_MIGRATED_TO_CORE, 1),
                 #
-                (1, TraceEvent.TRACE_SWITCH_IN, 1),
-                (3, TraceEvent.TRACE_DONE, 1),
-                (3, TraceEvent.TRACE_SWITCH_OUT, 1),
-                #
                 (5, TraceEvent.TRACE_RELEASE, 1),
                 (5, TraceEvent.TRACE_SWITCH_IN, 1),
                 (7, TraceEvent.TRACE_DONE, 1),
@@ -2873,9 +2869,9 @@ TEST_CASES = {
             ],
             1: [
                 (0, TraceEvent.TRACE_RELEASE, 0),
-                (3, TraceEvent.TRACE_SWITCH_IN, 0),
-                (4, TraceEvent.TRACE_DONE, 0),
-                (4, TraceEvent.TRACE_SWITCH_OUT, 0),
+                (2, TraceEvent.TRACE_SWITCH_IN, 0),
+                (3, TraceEvent.TRACE_DONE, 0),
+                (3, TraceEvent.TRACE_SWITCH_OUT, 0),
                 #
                 (5, TraceEvent.TRACE_RELEASE, 0),
                 (7, TraceEvent.TRACE_SWITCH_IN, 0),
@@ -2888,10 +2884,6 @@ TEST_CASES = {
                 (1, TraceEvent.TRACE_SWITCH_OUT, 1),
                 (1, TraceEvent.TRACE_MIGRATED_TO_CORE, 0),
                 #
-                (1, TraceEvent.TRACE_SWITCH_IN, 0),
-                (3, TraceEvent.TRACE_DONE, 0),
-                (3, TraceEvent.TRACE_SWITCH_OUT, 0),
-                #
                 (5, TraceEvent.TRACE_RELEASE, 0),
                 (5, TraceEvent.TRACE_SWITCH_IN, 0),
                 (7, TraceEvent.TRACE_DONE, 0),
@@ -2899,9 +2891,9 @@ TEST_CASES = {
             ],
             3: [
                 (0, TraceEvent.TRACE_RELEASE, 1),
-                (3, TraceEvent.TRACE_SWITCH_IN, 1),
-                (4, TraceEvent.TRACE_DONE, 1),
-                (4, TraceEvent.TRACE_SWITCH_OUT, 1),
+                (2, TraceEvent.TRACE_SWITCH_IN, 1),
+                (3, TraceEvent.TRACE_DONE, 1),
+                (3, TraceEvent.TRACE_SWITCH_OUT, 1),
                 #
                 (5, TraceEvent.TRACE_RELEASE, 1),
                 (7, TraceEvent.TRACE_SWITCH_IN, 1),
