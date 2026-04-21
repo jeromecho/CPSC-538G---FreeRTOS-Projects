@@ -147,10 +147,10 @@ bool scheduler_release_periodic_job_if_ready(TMB_t *task, const TickType_t curre
     return false;
   }
 
+  task->is_done           = false;
   task->absolute_deadline = task->periodic.next_period + task->periodic.relative_deadline;
   task->release_time      = task->periodic.next_period;
   task->periodic.next_period += task->periodic.period;
-  task->is_done = false;
   return true;
 }
 
@@ -322,7 +322,10 @@ BaseType_t _create_periodic_task_internal(
   if (task_view_set == NULL || task_view_set->view == NULL || task_view_set->count >= task_view_set->capacity) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
-  configASSERT(relative_deadline <= period);
+  if (relative_deadline <= period) {
+    printf("ERROR: RELATIVE DEADLINE LONGER THAN PERIOD\n");
+    return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
+  }
 
   const size_t     existing_task_count = task_set->count;
   TMB_t *const     new_task            = &task_set->tasks[existing_task_count];
@@ -465,7 +468,7 @@ BaseType_t EDF_create_periodic_task(
   }
 #endif // PERFORM_ADMISSION_CONTROL
 
-  return _create_periodic_task_internal(
+  BaseType_t result = _create_periodic_task_internal(
     task_function,
     task_name,
     &periodic_task_set,
@@ -480,6 +483,7 @@ BaseType_t EDF_create_periodic_task(
     TMB_handle,
     0
   );
+  return result;
 #else
   // Fallback if no periodic tasks are allowed in this config
   (void)task_function;

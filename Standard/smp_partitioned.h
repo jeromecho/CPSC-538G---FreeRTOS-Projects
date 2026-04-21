@@ -35,8 +35,7 @@ BaseType_t SMP_create_aperiodic_task_on_core(
 
 BaseType_t SMP_remove_task_from_core(const TaskHandle_t task_handle, const UBaseType_t core);
 
-BaseType_t
-SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t destination_core, TMB_t **const TMB_handle);
+BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t destination_core);
 
 TMB_t *SMP_partitioned_produce_highest_priority_task(const UBaseType_t core);
 void   SMP_partitioned_suspend_lower_priority_tasks(const TMB_t *const highest_priority_task, const size_t core);
