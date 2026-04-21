@@ -438,8 +438,7 @@ static BaseType_t SMP_move_task_between_core_views(
   return pdPASS;
 }
 
-BaseType_t
-SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t destination_core, TMB_t **const TMB_handle) {
+BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t destination_core) {
   if (destination_core >= configNUMBER_OF_CORES || task_handle == NULL) {
     return pdFAIL;
   }
@@ -450,9 +449,6 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   }
 
   if (location.core == destination_core) {
-    if (TMB_handle != NULL) {
-      *TMB_handle = location.task;
-    }
     return pdPASS;
   }
 
@@ -502,10 +498,6 @@ SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseType_t desti
   }
 
   TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, task, false);
-
-  if (TMB_handle != NULL) {
-    *TMB_handle = task;
-  }
 
   return pdPASS;
 }

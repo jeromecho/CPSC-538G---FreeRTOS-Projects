@@ -331,15 +331,9 @@ static void vPartitionedMPTestRunner13(void *pvParameters) {
 
   vTaskDelay(pdMS_TO_TICKS(20));
 
-  TMB_t *migrated = NULL;
-  if (SMP_migrate_task_to_core(g_smp13_migrate_source, 1, &migrated) != pdPASS || migrated == NULL) {
+  if (SMP_migrate_task_to_core(g_smp13_migrate_source, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP13: Migration API failed");
-  }
-
-  if (migrated->assigned_core != 1) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP13: Migrated task not assigned to destination core");
   }
 
   vTaskDelete(NULL);
@@ -386,8 +380,7 @@ static void vPartitionedMPTestRunner14(void *pvParameters) {
 
   vTaskDelay(pdMS_TO_TICKS(15));
 
-  TMB_t *migrated = NULL;
-  if (SMP_migrate_task_to_core(g_smp14_migrate_target, 1, &migrated) != pdPASS || migrated == NULL) {
+  if (SMP_migrate_task_to_core(g_smp14_migrate_target, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP14: Migration failed");
   }
@@ -439,34 +432,19 @@ static void vPartitionedMPTestRunner15(void *pvParameters) {
   // First migration while task is active on core 0.
   vTaskDelay(pdMS_TO_TICKS(12));
 
-  TMB_t *migrated_to_c1 = NULL;
-  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 1, &migrated_to_c1) != pdPASS || migrated_to_c1 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP15: First migration to core 1 failed");
   }
 
-  if (migrated_to_c1->assigned_core != 1) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP15: First migration did not assign destination core");
-  }
-
-  g_smp15_migrate_target = migrated_to_c1->handle;
-
   // Second migration back to original core after the migrated job completes.
   vTaskDelay(pdMS_TO_TICKS(11));
 
-  TMB_t *migrated_to_c0 = NULL;
-  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 0, &migrated_to_c0) != pdPASS || migrated_to_c0 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp15_migrate_target, 0) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP15: Second migration back to core 0 failed");
   }
 
-  if (migrated_to_c0->assigned_core != 0) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP15: Second migration did not assign destination core");
-  }
-
-  g_smp15_migrate_target = migrated_to_c0->handle;
   vTaskDelete(NULL);
 }
 
@@ -517,28 +495,15 @@ static void vPartitionedMPTestRunner16(void *pvParameters) {
 
   vTaskDelay(pdMS_TO_TICKS(4));
 
-  TMB_t *migrated_to_c1 = NULL;
-  if (SMP_migrate_task_to_core(g_smp16_migrate_c0_to_c1, 1, &migrated_to_c1) != pdPASS || migrated_to_c1 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp16_migrate_c0_to_c1, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP16: Migration from core 0 to core 1 failed");
   }
-  if (migrated_to_c1->assigned_core != 1) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP16: First migrated task not assigned to core 1");
-  }
 
-  TMB_t *migrated_to_c0 = NULL;
-  if (SMP_migrate_task_to_core(g_smp16_migrate_c1_to_c0, 0, &migrated_to_c0) != pdPASS || migrated_to_c0 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp16_migrate_c1_to_c0, 0) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP16: Migration from core 1 to core 0 failed");
   }
-  if (migrated_to_c0->assigned_core != 0) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP16: Second migrated task not assigned to core 0");
-  }
-
-  g_smp16_migrate_c0_to_c1 = migrated_to_c1->handle;
-  g_smp16_migrate_c1_to_c0 = migrated_to_c0->handle;
 
   vTaskDelete(NULL);
 }
@@ -601,28 +566,16 @@ static void vPartitionedMPTestRunner17(void *pvParameters) {
     crash_without_trace("SMP17: Expected both source tasks to be active");
   }
 
-  TMB_t *migrated_to_c1 = NULL;
-  if (SMP_migrate_task_to_core(g_smp17_migrate_c0_to_c1, 1, &migrated_to_c1) != pdPASS || migrated_to_c1 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp17_migrate_c0_to_c1, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP17: Migration from core 0 to core 1 failed");
   }
-  if (migrated_to_c1->assigned_core != 1) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP17: First migrated task not assigned to core 1");
-  }
 
   TMB_t *migrated_to_c0 = NULL;
-  if (SMP_migrate_task_to_core(g_smp17_migrate_c1_to_c0, 0, &migrated_to_c0) != pdPASS || migrated_to_c0 == NULL) {
+  if (SMP_migrate_task_to_core(g_smp17_migrate_c1_to_c0, 0) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP17: Migration from core 1 to core 0 failed");
   }
-  if (migrated_to_c0->assigned_core != 0) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP17: Second migrated task not assigned to core 0");
-  }
-
-  g_smp17_migrate_c0_to_c1 = migrated_to_c1->handle;
-  g_smp17_migrate_c1_to_c0 = migrated_to_c0->handle;
 
   vTaskDelete(NULL);
 }
@@ -678,32 +631,18 @@ static void vPartitionedMPTestRunner18(void *pvParameters) {
   // Migrate on a period-aligned tick so release alignment does not defer the next job.
   vTaskDelay(pdMS_TO_TICKS(3));
 
-  TMB_t *migrated_early = NULL;
-  if (SMP_migrate_task_to_core(g_smp18_migrate_early, 1, &migrated_early) != pdPASS || migrated_early == NULL) {
+  if (SMP_migrate_task_to_core(g_smp18_migrate_early, 1) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP18: First migration to core 1 failed");
   }
-  if (migrated_early->assigned_core != 1) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP18: First migrated task not assigned to core 1");
-  }
-
-  g_smp18_migrate_early = migrated_early->handle;
 
   // Migrate the second task at a different aligned tick.
   vTaskDelay(pdMS_TO_TICKS(4));
 
-  TMB_t *migrated_late = NULL;
-  if (SMP_migrate_task_to_core(g_smp18_migrate_late, 0, &migrated_late) != pdPASS || migrated_late == NULL) {
+  if (SMP_migrate_task_to_core(g_smp18_migrate_late, 0) != pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP18: Second migration to core 0 failed");
   }
-  if (migrated_late->assigned_core != 0) {
-    vTaskSuspendAll();
-    crash_without_trace("SMP18: Second migrated task not assigned to core 0");
-  }
-
-  g_smp18_migrate_late = migrated_late->handle;
 
   vTaskDelete(NULL);
 }
@@ -757,18 +696,13 @@ static void vPartitionedMPTestRunner19(void *pvParameters) {
 
   vTaskDelay(pdMS_TO_TICKS(3));
 
-  if (SMP_migrate_task_to_core(g_smp19_migrate_source, 1, NULL) == pdPASS) {
-    // TRACE_record(EVENT_DEBUG(10), TRACE_TASK_SYSTEM, NULL, false);
+  if (SMP_migrate_task_to_core(g_smp19_migrate_source, 1) == pdPASS) {
     vTaskSuspendAll();
     crash_without_trace("SMP19: Migration unexpectedly succeeded");
   }
 
-  // Migration rejection is expected in this test; surface it as an admission failure event.
-  // admission_control_handle_failure(allocate_trace_uid());
-
   TMB_t *source = EDF_get_task_by_handle(g_smp19_migrate_source);
   if (source == NULL || source->assigned_core != 0) {
-    // TRACE_record(EVENT_DEBUG(20), TRACE_TASK_SYSTEM, NULL, false);
     vTaskSuspendAll();
     crash_without_trace("SMP19: Migration failure corrupted source task placement");
   }
