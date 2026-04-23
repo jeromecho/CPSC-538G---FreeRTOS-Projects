@@ -371,7 +371,17 @@ def _event_hover(row_data, event_label, event):
     return "<br>".join(lines)
 
 
-def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, showlegend=True):
+def _add_event_markers(
+    fig,
+    df,
+    y_map_func,
+    marker_offsets,
+    row=None,
+    col=None,
+    showlegend=True,
+    x_column="DISPLAY_X",
+    visible=True,
+):
     events_present = sorted(df["EVENT"].dropna().unique(), key=lambda e: int(e.value))
     for event in events_present:
         df_evt = df[df["EVENT"] == event]
@@ -385,7 +395,7 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
         y_values = df_evt.apply(lambda r: y_map_func(r) + marker_offsets.get(event, 0.0), axis=1)
 
         trace = go.Scatter(
-            x=df_evt["DISPLAY_X"],
+            x=df_evt[x_column],
             y=y_values,
             mode="markers",
             name=event_label,
@@ -393,6 +403,7 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
             hovertext=df_evt.apply(lambda r: _event_hover(r, event_label, event), axis=1),
             hoverinfo="text",
             showlegend=showlegend,
+            visible=visible,
         )
 
         if row is None or col is None:
@@ -401,7 +412,17 @@ def _add_event_markers(fig, df, y_map_func, marker_offsets, row=None, col=None, 
             fig.add_trace(trace, row=row, col=col)
 
 
-def _add_execution_bars(fig, df_exec, y_map_func, task_colors, use_time_axis, row=None, col=None, shade_by_core=False):
+def _add_execution_bars(
+    fig,
+    df_exec,
+    y_map_func,
+    task_colors,
+    use_time_axis,
+    row=None,
+    col=None,
+    shade_by_core=False,
+    visible=True,
+):
     if df_exec.empty:
         return
 
@@ -448,6 +469,7 @@ def _add_execution_bars(fig, df_exec, y_map_func, task_colors, use_time_axis, ro
             hovertext=["<br>".join(hover_lines)],
             hoverinfo="text",
             showlegend=False,
+            visible=visible,
         )
 
         if row is None or col is None:
@@ -470,17 +492,86 @@ def _apply_synthetic_tick_boundaries(fig, use_time_axis, enable_synthetic_bounda
     )
 
 
+def _axis_updates_for_mode(view, use_time_axis, synthetic_tick_boundaries):
+    x_axis_title = "Elapsed Time (us)" if use_time_axis else "System Ticks"
+    updates = {}
+
+    if view == "combined":
+        axis_names = ["xaxis", "xaxis2"]
+        updates["xaxis2.title.text"] = x_axis_title
+    else:
+        axis_names = ["xaxis"]
+        updates["xaxis.title.text"] = x_axis_title
+
+    for axis_name in axis_names:
+        if use_time_axis and synthetic_tick_boundaries:
+            updates[f"{axis_name}.tickmode"] = "linear"
+            updates[f"{axis_name}.tick0"] = 0
+            updates[f"{axis_name}.dtick"] = SYNTHETIC_TICK_BOUNDARY_US
+            updates[f"{axis_name}.showgrid"] = True
+            updates[f"{axis_name}.gridcolor"] = "rgba(120, 120, 120, 0.22)"
+            updates[f"{axis_name}.zeroline"] = False
+        else:
+            updates[f"{axis_name}.tickmode"] = "auto"
+            updates[f"{axis_name}.tick0"] = None
+            updates[f"{axis_name}.dtick"] = None
+            updates[f"{axis_name}.showgrid"] = True
+            updates[f"{axis_name}.gridcolor"] = None
+            updates[f"{axis_name}.zeroline"] = None
+
+    return updates
+
+
+def _visibility_mask(total_traces, visible_indices):
+    visible_set = set(visible_indices)
+    return [index in visible_set for index in range(total_traces)]
+
+
+def _build_axis_toggle_menu(view, use_time_axis, synthetic_tick_boundaries, tick_visibility, time_visibility, y_pos):
+    return dict(
+        type="buttons",
+        direction="right",
+        x=0.5,
+        y=y_pos,
+        xanchor="center",
+        yanchor="top",
+        showactive=True,
+        active=1 if use_time_axis else 0,
+        buttons=[
+            dict(
+                label="Tick Axis",
+                method="update",
+                args=[
+                    {"visible": tick_visibility},
+                    _axis_updates_for_mode(view, False, synthetic_tick_boundaries),
+                ],
+            ),
+            dict(
+                label="Time Axis",
+                method="update",
+                args=[
+                    {"visible": time_visibility},
+                    _axis_updates_for_mode(view, True, synthetic_tick_boundaries),
+                ],
+            ),
+        ],
+    )
+
+
 def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_boundaries):
+    # Tick view is the default unless explicitly overridden by CLI flags.
+    use_time_axis = bool(use_time_axis)
+
     core_labels = sorted(df["CORE"].unique())
     lane_names = {core: f"Core {int(core)}" for core in core_labels}
     core_to_y = {core: idx for idx, core in enumerate(core_labels)}
     marker_offsets = _build_marker_offset_map(df)
     df_plot = df.copy()
-    df_plot["DISPLAY_X"] = build_marker_display_x(df_plot, use_time_axis)
+    df_plot["DISPLAY_X_TICK"] = build_marker_display_x(df_plot, use_time_axis=False)
+    df_plot["DISPLAY_X_TIME"] = build_marker_display_x(df_plot, use_time_axis=True)
     df_exec_core = df_exec[~df_exec["TASK_LABEL"].apply(is_background_task_name)].copy()
     df_plot_core = df_plot[~df_plot["TASK_LABEL"].apply(is_background_task_name)].copy()
     task_colors = build_task_color_map(ordered_task_names(df, df_exec))
-    x_axis_title = "Elapsed Time (us)" if use_time_axis else "System Ticks"
 
     if view == "combined":
         unique_tasks = list(task_colors.keys())
@@ -494,45 +585,59 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
             subplot_titles=("Core Lanes", "Task-Centric Timeline"),
         )
 
-        _add_execution_bars(
-            fig,
-            df_exec_core,
-            y_map_func=lambda r: core_to_y[r["CORE"]],
-            task_colors=task_colors,
-            use_time_axis=use_time_axis,
-            row=1,
-            col=1,
-            shade_by_core=True,
-        )
-        _add_event_markers(
-            fig,
-            df_plot_core,
-            y_map_func=lambda r: core_to_y[int(r["CORE"])],
-            marker_offsets=marker_offsets,
-            row=1,
-            col=1,
-            showlegend=False,
-        )
+        def add_traces_for_mode(mode_time_axis, visible):
+            x_column = "DISPLAY_X_TIME" if mode_time_axis else "DISPLAY_X_TICK"
+            start_index = len(fig.data)
 
-        _add_execution_bars(
-            fig,
-            df_exec,
-            y_map_func=lambda r: task_to_y[r["TASK_LABEL"]],
-            task_colors=task_colors,
-            use_time_axis=use_time_axis,
-            row=2,
-            col=1,
-            shade_by_core=True,
-        )
-        _add_event_markers(
-            fig,
-            df_plot,
-            y_map_func=lambda r: task_to_y[r["TASK_LABEL"]],
-            marker_offsets=marker_offsets,
-            row=2,
-            col=1,
-            showlegend=True,
-        )
+            _add_execution_bars(
+                fig,
+                df_exec_core,
+                y_map_func=lambda r: core_to_y[r["CORE"]],
+                task_colors=task_colors,
+                use_time_axis=mode_time_axis,
+                row=1,
+                col=1,
+                shade_by_core=True,
+                visible=visible,
+            )
+            _add_event_markers(
+                fig,
+                df_plot_core,
+                y_map_func=lambda r: core_to_y[int(r["CORE"])],
+                marker_offsets=marker_offsets,
+                row=1,
+                col=1,
+                showlegend=False,
+                x_column=x_column,
+                visible=visible,
+            )
+
+            _add_execution_bars(
+                fig,
+                df_exec,
+                y_map_func=lambda r: task_to_y[r["TASK_LABEL"]],
+                task_colors=task_colors,
+                use_time_axis=mode_time_axis,
+                row=2,
+                col=1,
+                shade_by_core=True,
+                visible=visible,
+            )
+            _add_event_markers(
+                fig,
+                df_plot,
+                y_map_func=lambda r: task_to_y[r["TASK_LABEL"]],
+                marker_offsets=marker_offsets,
+                row=2,
+                col=1,
+                showlegend=True,
+                x_column=x_column,
+                visible=visible,
+            )
+            return list(range(start_index, len(fig.data)))
+
+        tick_indices = add_traces_for_mode(mode_time_axis=False, visible=not use_time_axis)
+        time_indices = add_traces_for_mode(mode_time_axis=True, visible=use_time_axis)
 
         fig.update_yaxes(
             title_text="Core",
@@ -550,31 +655,65 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
             tickvals=list(task_to_y.values()),
             ticktext=unique_tasks,
         )
-        fig.update_xaxes(title_text=x_axis_title, row=2, col=1)
-        _apply_synthetic_tick_boundaries(fig, use_time_axis, synthetic_tick_boundaries)
+        fig.update_xaxes(title_text="System Ticks", row=2, col=1)
 
-        fig.update_layout(title=f"{title} (Combined)", barmode="overlay", hovermode="closest", height=900)
+        fig.update_layout(
+            title=f"{title} (Combined)",
+            barmode="overlay",
+            hovermode="closest",
+            height=900,
+            margin=dict(b=130),
+        )
+        fig.update_layout(_axis_updates_for_mode(view, use_time_axis, synthetic_tick_boundaries))
+
+        total_traces = len(fig.data)
+        tick_visibility = _visibility_mask(total_traces, tick_indices)
+        time_visibility = _visibility_mask(total_traces, time_indices)
+
+        fig.update_layout(
+            updatemenus=[
+                _build_axis_toggle_menu(
+                    view,
+                    use_time_axis,
+                    synthetic_tick_boundaries,
+                    tick_visibility,
+                    time_visibility,
+                    y_pos=-0.16,
+                )
+            ]
+        )
         return fig
 
     fig = go.Figure()
-    _add_execution_bars(
-        fig,
-        df_exec_core,
-        y_map_func=lambda r: core_to_y[r["CORE"]],
-        task_colors=task_colors,
-        use_time_axis=use_time_axis,
-        shade_by_core=True,
-    )
-    _add_event_markers(
-        fig,
-        df_plot_core,
-        y_map_func=lambda r: core_to_y[int(r["CORE"])],
-        marker_offsets=marker_offsets,
-    )
+
+    def add_traces_for_mode(mode_time_axis, visible):
+        x_column = "DISPLAY_X_TIME" if mode_time_axis else "DISPLAY_X_TICK"
+        start_index = len(fig.data)
+        _add_execution_bars(
+            fig,
+            df_exec_core,
+            y_map_func=lambda r: core_to_y[r["CORE"]],
+            task_colors=task_colors,
+            use_time_axis=mode_time_axis,
+            shade_by_core=True,
+            visible=visible,
+        )
+        _add_event_markers(
+            fig,
+            df_plot_core,
+            y_map_func=lambda r: core_to_y[int(r["CORE"])],
+            marker_offsets=marker_offsets,
+            x_column=x_column,
+            visible=visible,
+        )
+        return list(range(start_index, len(fig.data)))
+
+    tick_indices = add_traces_for_mode(mode_time_axis=False, visible=not use_time_axis)
+    time_indices = add_traces_for_mode(mode_time_axis=True, visible=use_time_axis)
 
     fig.update_layout(
         title=title,
-        xaxis_title=x_axis_title,
+        xaxis_title="System Ticks",
         yaxis=dict(
             title="Core Lanes",
             tickmode="array",
@@ -583,8 +722,26 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
         ),
         barmode="overlay",
         hovermode="closest",
+        margin=dict(b=90),
     )
-    _apply_synthetic_tick_boundaries(fig, use_time_axis, synthetic_tick_boundaries)
+    fig.update_layout(_axis_updates_for_mode(view, use_time_axis, synthetic_tick_boundaries))
+
+    total_traces = len(fig.data)
+    tick_visibility = _visibility_mask(total_traces, tick_indices)
+    time_visibility = _visibility_mask(total_traces, time_indices)
+
+    fig.update_layout(
+        updatemenus=[
+            _build_axis_toggle_menu(
+                view,
+                use_time_axis,
+                synthetic_tick_boundaries,
+                tick_visibility,
+                time_visibility,
+                y_pos=-0.14,
+            )
+        ]
+    )
     return fig
 
 
@@ -605,7 +762,8 @@ def parse_args():
     parser.add_argument(
         "--time-axis",
         action="store_true",
-        help="Plot events and execution bars against elapsed time in microseconds instead of ticks.",
+        default=False,
+        help="Start in time-axis mode (default starts in tick-axis mode).",
     )
     parser.add_argument(
         "--synthetic-tick-boundaries",
