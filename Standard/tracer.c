@@ -39,28 +39,6 @@ static bool TRACE_reserve_slot_atomic(const uint8_t core_id, size_t *slot_out) {
   return false;
 }
 
-static size_t TRACE_find_duplicate_background_event_slot(
-  const TickType_t trace_tick, const TraceEvent_t event, const TraceTaskType_t task_type, const uint8_t reported_core_id
-) {
-  if (task_type != TRACE_TASK_IDLE && task_type != TRACE_TASK_SYSTEM) {
-    return SIZE_MAX;
-  }
-
-  for (size_t i = trace_count[reported_core_id]; i > 0; --i) {
-    const TraceRecord_t *const existing = &trace_buffer[reported_core_id][i - 1];
-
-    if (existing->FreeRTOS_tick != trace_tick) {
-      break;
-    }
-
-    if (existing->event.type == event.type && existing->task_type == task_type) {
-      return i - 1;
-    }
-  }
-
-  return SIZE_MAX;
-}
-
 // TODO: This function should maybe differ when SRP is enabled vs when it is not, since the trace event structure is a
 // bit different for SRP vs EDF. For now, just include all SRP-related fields in the trace event, but they will be set
 // to 0 when SRP is not enabled.
@@ -169,6 +147,10 @@ void TRACE_print_buffer() {
 
   printf("\n--- TEST COMPLETE ---\n");
   printf("Traces captured: %u\n", trace_total_count);
+  printf("Traces captured per core:\n");
+  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
+    printf("  Core %u: %u\n", (unsigned int)core, (unsigned int)trace_count[core]);
+  }
   printf("TIMESTAMP,EVENT,ABS_TIME,CORE,CORE_SEQ,TASK_TYPE,TASK_ID,PRIORITY,TASK_STATE,RESOURCE,DEBUG_CODE,CEILING,"
          "PREEMPT_LVL,DEADLINE,TASK_UID\n");
 
