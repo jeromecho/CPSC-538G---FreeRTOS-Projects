@@ -19,6 +19,26 @@ static size_t        trace_count[configNUMBER_OF_CORES] = {0};
 
 static bool tracing_enabled = true;
 
+static bool TRACE_reserve_slot_atomic(const uint8_t core_id, size_t *slot_out) {
+  if (slot_out == NULL) {
+    return false;
+  }
+
+  size_t expected = __atomic_load_n(&trace_count[core_id], __ATOMIC_RELAXED);
+  while (expected < MAX_TRACE_RECORDS) {
+    const size_t desired = expected + 1;
+    if (__atomic_compare_exchange_n(
+          &trace_count[core_id], &expected, desired, false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED
+        )) {
+      *slot_out = expected;
+      return true;
+    }
+    // On CAS failure, expected is updated with current value; retry.
+  }
+
+  return false;
+}
+
 static size_t TRACE_find_duplicate_background_event_slot(
   const TickType_t trace_tick, const TraceEvent_t event, const TraceTaskType_t task_type, const uint8_t reported_core_id
 ) {
@@ -55,9 +75,7 @@ void TRACE_record( //
     return;
   }
 
-  if (!in_ISR) {
-    taskENTER_CRITICAL();
-  }
+  const absolute_time_t trace_time = get_absolute_time();
 
   const uint8_t emitting_core_id = (uint8_t)portGET_CORE_ID();
   uint8_t       reported_core_id = emitting_core_id;
@@ -67,10 +85,12 @@ void TRACE_record( //
   }
 #endif
 
-  if (trace_count[reported_core_id] >= MAX_TRACE_RECORDS) {
-    if (!in_ISR) {
-      taskEXIT_CRITICAL();
-    }
+  if (reported_core_id >= configNUMBER_OF_CORES) {
+    return;
+  }
+
+  size_t slot = 0;
+  if (!TRACE_reserve_slot_atomic(reported_core_id, &slot)) {
     return;
   }
 
@@ -117,13 +137,10 @@ void TRACE_record( //
   }
 
   const TickType_t trace_tick = in_ISR ? xTaskGetTickCountFromISR() : xTaskGetTickCount();
-  const size_t     duplicate_slot =
-    TRACE_find_duplicate_background_event_slot(trace_tick, event, task_type, reported_core_id);
-  const size_t slot = (duplicate_slot != SIZE_MAX) ? duplicate_slot : trace_count[reported_core_id];
 
   trace_buffer[reported_core_id][slot] = (TraceRecord_t){
     .FreeRTOS_tick  = trace_tick,
-    .time           = get_absolute_time(),
+    .time           = trace_time,
     .core_id        = reported_core_id,
     .core_seq       = (uint32_t)slot,
     .event          = event,
@@ -137,13 +154,6 @@ void TRACE_record( //
     .system_ceiling = system_ceiling,
     .preempt_level  = preempt_level,
   };
-
-  if (duplicate_slot == SIZE_MAX) {
-    trace_count[reported_core_id]++;
-  }
-  if (!in_ISR) {
-    taskEXIT_CRITICAL();
-  }
 }
 
 /// @brief Prints all recorded traces to the host computer

@@ -471,7 +471,6 @@ BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseT
     release_time = SMP_calculate_aligned_release_for_migrated_periodic_task(task, destination_core, current_tick);
   }
 
-
   if (SMP_move_task_between_core_views(task, location.is_periodic, location.core, destination_core) != pdPASS) {
     return pdFAIL;
   }
@@ -480,7 +479,9 @@ BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseT
     return pdFAIL;
   }
 
-  vTaskSuspend(task->handle);
+  TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, task, false);
+
+  scheduler_suspend_task(task);
   task->is_done        = false;
   task->ticks_executed = 0;
   task->assigned_core  = (uint8_t)destination_core;
@@ -496,8 +497,6 @@ BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseT
   if (task->release_time == current_tick) {
     scheduler_record_release(task);
   }
-
-  TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, task, false);
 
   return pdPASS;
 }
