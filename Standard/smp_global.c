@@ -161,8 +161,10 @@ static TMB_t *SMP_global_get_target_task(TMB_t **highest_priority_tasks) {
 
     if (candidate == NULL && task_suspended) {
       candidate = highest_priority_tasks[core];
-    } else if (task_suspended && candidate != NULL &&
-               highest_priority_tasks[core]->absolute_deadline < candidate->absolute_deadline) {
+    } else if (
+      task_suspended && candidate != NULL &&
+      highest_priority_tasks[core]->absolute_deadline < candidate->absolute_deadline
+    ) {
       candidate = highest_priority_tasks[core];
     }
   }
@@ -176,8 +178,10 @@ static void SMP_global_suspend_lower_priority_tasks(TMB_t **highest_priority_tas
     if (task == NULL || task->handle == NULL) {
       continue;
     }
-    if (!(task == highest_priority_tasks[0] || task == highest_priority_tasks[1]) &&
-        eTaskGetState(task->handle) != eSuspended) {
+    if (
+      !(task == highest_priority_tasks[0] || task == highest_priority_tasks[1]) &&
+      eTaskGetState(task->handle) != eSuspended
+    ) {
       scheduler_suspend_task(task);
     }
   }
@@ -207,10 +211,6 @@ void SMP_global_suspend_and_resume_tasks(void) {
     // If target_task is null, there are no schedulable tasks and we run idle task
     if (target_task != NULL) {
       const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << core;
-      // NB: Technically don't need below call to have global scheduling, but might give us
-      // more fine-grained control over which specific core a task goes to (which could help
-      // with making generated traces match RTSIM traces)
-      vTaskCoreAffinitySet(target_task->handle, core_affinity_mask);
       scheduler_resume_task(target_task);
       SMP_global_mark_highest_priority_tasks(target_task, highest_priority_tasks);
     }
