@@ -372,8 +372,9 @@ def validate_trace_events(parsed_logs, test_case):
         if not is_background and log["event"] in STRICT_POLICED_EVENTS:
             if not any(matches_expected_event(log, exp_task, exp_tick, exp_event, exp_core) for exp_task, exp_tick, exp_event, exp_core in expected_entries):
                 event_name = TraceEvent(log["event"]).name
-                unexpected_task = f"UID {int(log['task_uid'])} ({log['task_name']})"
-                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {unexpected_task} | {event_name}{C_RESET}")
+                unexpected_task = format_expected_task_reference(int(log["task_uid"]))
+                core_suffix = f" | C{int(log['core'])}" if log["core"] is not None else ""
+                print(f"    {C_RED}❌ UNEXPECTED: Tick {log['tick']:04d} | {unexpected_task}{core_suffix} | {event_name}{C_RESET}")
                 all_passed = False
 
     return all_passed
