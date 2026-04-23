@@ -322,7 +322,7 @@ BaseType_t _create_periodic_task_internal(
   if (task_view_set == NULL || task_view_set->view == NULL || task_view_set->count >= task_view_set->capacity) {
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
-  if (relative_deadline <= period) {
+  if (relative_deadline > period) {
     printf("ERROR: RELATIVE DEADLINE LONGER THAN PERIOD\n");
     return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
   }
