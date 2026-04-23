@@ -479,12 +479,12 @@ BaseType_t SMP_migrate_task_to_core(const TaskHandle_t task_handle, const UBaseT
     return pdFAIL;
   }
 
-  TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, task, false);
-
   scheduler_suspend_task(task);
   task->is_done        = false;
   task->ticks_executed = 0;
   task->assigned_core  = (uint8_t)destination_core;
+
+  TRACE_record(EVENT_BASIC(TRACE_MIGRATED_TO_CORE), TRACE_TASK_EITHER, task, false);
 
   if (location.is_periodic) {
     task->release_time         = release_time;
