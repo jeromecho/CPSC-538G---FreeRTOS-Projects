@@ -16,6 +16,10 @@ void global_mp_test_8();
 void global_mp_test_9();
 void global_mp_test_10();
 void global_mp_test_11();
+void global_mp_test_12();
+void global_mp_test_13();
+void global_mp_test_14();
+void global_mp_test_15();
 
 #endif // TEST_SUITE_GLOBAL_MP
 #endif // SMP_TESTS_H

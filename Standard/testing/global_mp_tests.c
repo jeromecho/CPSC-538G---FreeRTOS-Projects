@@ -116,6 +116,76 @@ void global_mp_test_11() {
   build_periodic_test("SMP (Global) Test 11", test_config, MAXIMUM_PERIODIC_TASKS);
 }
 
+#elif TEST_NR == 12
+void global_mp_test_12() {
+  for (size_t i = 0; i < 100; ++i) {
+    PeriodicTaskParams_t config = {EDF_periodic_task, 7, 1000, 1000};
+    char                 name[32];
+    snprintf(name, sizeof(name), "SMP T4 T%02d", (int)(i + 1));
+    build_periodic_task(name, &config);
+  }
+}
+
+#elif TEST_NR == 13
+void global_mp_test_13() {
+  for (size_t i = 0; i < 100; ++i) {
+    PeriodicTaskParams_t config = {EDF_periodic_task, 25, 1000, 1000};
+    char                 name[32];
+    snprintf(name, sizeof(name), "SMP T4 T%02d", (int)(i + 1));
+    build_periodic_task(name, &config);
+  }
+}
+
+#elif TEST_NR == 14
+static void vTestRunner14(void *pvParameters) {
+  (void)pvParameters;
+  vTaskDelay(pdMS_TO_TICKS(20));
+  const PeriodicTaskParams_t config = {EDF_periodic_task, 4, 8, 8};
+  build_periodic_task("SMP (Global) Test 14 Drop-in", &config);
+  vTaskDelete(NULL);
+}
+
+void global_mp_test_14() {
+  const PeriodicTaskParams_t base0 = {EDF_periodic_task, 4, 8, 8};
+  const PeriodicTaskParams_t base1 = {EDF_periodic_task, 4, 8, 8};
+  build_periodic_task("SMP (Global) Test 14 C0", &base0);
+  build_periodic_task("SMP (Global) Test 14 C1", &base1);
+
+  xTaskCreate( //
+    vTestRunner14,
+    "GLOBAL MP TEST 14 RUNNER",
+    configMINIMAL_STACK_SIZE,
+    NULL,
+    configMAX_PRIORITIES - 1,
+    NULL
+  );
+}
+
+#elif TEST_NR == 15
+static void vTestRunner15(void *pvParameters) {
+  (void)pvParameters;
+  vTaskDelay(pdMS_TO_TICKS(20));
+  const PeriodicTaskParams_t config = {EDF_periodic_task, 5, 8, 8};
+  build_periodic_task("SMP (Global) Test 15 Drop-in", &config);
+  vTaskDelete(NULL);
+}
+
+void global_mp_test_15() {
+  const PeriodicTaskParams_t base0 = {EDF_periodic_task, 4, 8, 8};
+  const PeriodicTaskParams_t base1 = {EDF_periodic_task, 4, 8, 8};
+  build_periodic_task("SMP (Global) Test 15 C0", &base0);
+  build_periodic_task("SMP (Global) Test 15 C1", &base1);
+
+  xTaskCreate( //
+    vTestRunner15,
+    "GLOBAL MP TEST 15 RUNNER",
+    configMINIMAL_STACK_SIZE,
+    NULL,
+    configMAX_PRIORITIES - 1,
+    NULL
+  );
+}
+
 #endif // TEST_NR
 
 #endif // TEST_SUITE == TEST_SUITE_MP
