@@ -331,6 +331,17 @@ void cbs_test_18() {
   CBS_create_aperiodic_task(CBS_task_3, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
 }
 
+#elif TEST_NR == 19
+
+// Demonstrate ability to favour server
+void cbs_test_19() {
+  create_cbs_server(pdMS_TO_TICKS(8), pdMS_TO_TICKS(8), CBS_SERVER1_ID);
+  platform_create_periodic_task(
+    EDF_periodic_task, "Task P1", pdMS_TO_TICKS(4), pdMS_TO_TICKS(8), pdMS_TO_TICKS(8), NULL
+  );
+  CBS_create_aperiodic_task(CBS_task_4, CBS_SERVER1_ID, pdMS_TO_TICKS(0));
+}
+
 #endif // TEST_NR
 
 #endif // USE_CBS

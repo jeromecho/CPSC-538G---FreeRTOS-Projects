@@ -2200,6 +2200,30 @@ TEST_CASES = {
             ],
         },
     },
+    "CBS19": {
+        "name": "Favour Server on Flag Set",
+        "expected_admission_failure": None,
+        "expected_events": {
+            "Periodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (4, TraceEvent.TRACE_SWITCH_IN),
+                (8, TraceEvent.TRACE_DONE),
+                #
+                (8, TraceEvent.TRACE_RELEASE),
+                (12, TraceEvent.TRACE_SWITCH_OUT),
+                (12, TraceEvent.TRACE_DONE),
+                #
+                (16, TraceEvent.TRACE_RELEASE),
+                (16, TraceEvent.TRACE_SWITCH_IN),
+            ],
+            "Aperiodic 01": [
+                (0, TraceEvent.TRACE_RELEASE),
+                (0, TraceEvent.TRACE_SWITCH_IN),
+                (4, TraceEvent.TRACE_DONE),
+                (4, TraceEvent.TRACE_SWITCH_OUT),
+            ],
+        },
+    },
     # (PARTITIONED) SMP TESTS
     "PSMP1": {
         "name": "Simple EDF test on both cores",
@@ -3065,13 +3089,17 @@ TEST_CASES = {
         "expected_events": {},
     },
 }
-_suite_prefix_pattern = "|".join(re.escape(str(suite)) for suite in sorted(SUITE_INFO.keys(), key=len, reverse=True))
+_suite_prefix_pattern = "|".join(
+    re.escape(str(suite)) for suite in sorted(SUITE_INFO.keys(), key=len, reverse=True)
+)
 TEST_ID_PATTERN = re.compile(rf"^({_suite_prefix_pattern})(\d+)$")
 
 for test_id, test_case in TEST_CASES.items():
     match = TEST_ID_PATTERN.match(test_id)
     if not match:
-        raise ValueError(f"Invalid test_id format: '{test_id}'. Must be Prefix + Number (e.g., SRP9).")
+        raise ValueError(
+            f"Invalid test_id format: '{test_id}'. Must be Prefix + Number (e.g., SRP9)."
+        )
 
     suite = match.group(1)
     test_nr = int(match.group(2))

@@ -66,6 +66,7 @@ TESTS_TO_RUN: list[str] = [  #
     # "CBS16",
     # "CBS17",
     # "CBS18",
+    # "CBS19",
     #
     # "PSMP1",
     # "PSMP2",

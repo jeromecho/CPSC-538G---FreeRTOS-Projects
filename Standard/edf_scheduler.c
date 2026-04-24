@@ -845,13 +845,21 @@ bool scheduler_should_context_switch(const TMB_t *const highest_priority_task, c
     return true;
   }
 
-  // Prevent context switch between two tasks with the same deadline for hard-real time tasks
+  // By default, prevent context switch between two tasks with the same deadline for hard-real time tasks
   // NB: Design decision was made to match textbook expected traces and RTSim expected traces respectively
   const bool equal_deadlines = (current_task_tmb->absolute_deadline == highest_priority_task->absolute_deadline);
+
+  #if USE_CBS && FAVOUR_SERVER_EQUAL_PRIO
+  if (equal_deadlines && !current_task_tmb->is_done &&
+      !highest_priority_task->is_hard_rt) {
+    return false;
+  }
+  #else 
   if (equal_deadlines && !current_task_tmb->is_done &&
       (current_task_tmb->is_hard_rt && highest_priority_task->is_hard_rt)) {
     return false;
   }
+  #endif // USE_CBS && FAVOUR_SERVER_EQUAL_PRIO
 
   // An EDF task wants to run. Only return true if it is not already running?
   return (highest_priority_task->handle != current_task_handle);
