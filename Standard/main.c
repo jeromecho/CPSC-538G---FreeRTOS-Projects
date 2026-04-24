@@ -138,16 +138,15 @@ static void prvSetupHardware(void) {
   gpio_put(PICO_DEFAULT_LED_PIN, !PICO_DEFAULT_LED_PIN_INVERTED);
 
   /* Configure all GPIOS as outputs. */
-  gpio_init(mainGPIO_IDLE_TASK);
-  gpio_set_dir(mainGPIO_IDLE_TASK, GPIO_OUT);
-  gpio_put(mainGPIO_IDLE_TASK, 0);
+  gpio_init(mainGPIO_IDLE_TASK_0);
+  gpio_set_dir(mainGPIO_IDLE_TASK_0, GPIO_OUT);
+  gpio_put(mainGPIO_IDLE_TASK_0, 0);
 
-  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i <= mainGPIO_PERIODIC_TASK_END; i++) {
-    gpio_init(i);
-    gpio_set_dir(i, GPIO_OUT);
-    gpio_put(i, 0);
-  }
-  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i <= mainGPIO_APERIODIC_TASK_END; i++) {
+  gpio_init(mainGPIO_IDLE_TASK_1);
+  gpio_set_dir(mainGPIO_IDLE_TASK_1, GPIO_OUT);
+  gpio_put(mainGPIO_IDLE_TASK_1, 0);
+
+  for (size_t i = mainGPIO_UID_TASK_BASE; i <= mainGPIO_UID_TASK_END; i++) {
     gpio_init(i);
     gpio_set_dir(i, GPIO_OUT);
     gpio_put(i, 0);

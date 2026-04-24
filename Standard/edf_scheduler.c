@@ -130,8 +130,12 @@ static TickType_t calculate_release_time_for_new_task( //
 );
 
 #if TRACE_WITH_LOGIC_ANALYZER
-static void
-update_gpio_pin(const TaskHandle_t idle_task_handle, const TaskHandle_t current_task_handle, const bool gpio_state);
+static void update_gpio_pin( //
+  const TaskHandle_t idle_task_handle,
+  const TaskHandle_t current_task_handle,
+  const bool         gpio_state,
+  const uint8_t      core
+);
 #else
 static void trace_task_switch(TraceEventType_t switch_event);
 #endif // TRACE_WITH_LOGIC_ANALYZER
@@ -989,17 +993,26 @@ static void trace_task_switch(TraceEventType_t switch_event) {
   const TaskHandle_t current_task_handle = xTaskGetCurrentTaskHandle();
   configASSERT(current_task_handle != NULL);
 
-  bool current_task_is_idle = false;
-  for (size_t core = 0; core < configNUMBER_OF_CORES; core++) {
-    if (current_task_handle == xTaskGetIdleTaskHandleForCore(core)) {
-      current_task_is_idle = true;
+#if TRACE_WITH_LOGIC_ANALYZER
+  const bool gpio_state = (switch_event == TRACE_SWITCH_IN) ? mainGPIO_STATE_HIGH : mainGPIO_STATE_LOW;
+#endif // TRACE_WITH_LOGIC_ANALYZER
+
+  TaskHandle_t matched_idle_task_handle = NULL;
+  uint8_t      core;
+  for (core = 0; core < configNUMBER_OF_CORES; core++) {
+    TaskHandle_t idle_task_handle_for_core = xTaskGetIdleTaskHandleForCore(core);
+    if (current_task_handle == idle_task_handle_for_core) {
+      matched_idle_task_handle = idle_task_handle_for_core;
+      break;
     }
   }
 
 #if TRACE_WITH_LOGIC_ANALYZER
-  update_gpio_pin(idle_task, current_task_handle, 0);
-#else
-  if (current_task_is_idle) {
+  update_gpio_pin(matched_idle_task_handle, current_task_handle, gpio_state, core);
+#endif // TRACE_WITH_LOGIC_ANALYZER
+
+#if !TRACE_WITH_LOGIC_ANALYZER
+  if (matched_idle_task_handle != NULL) {
     TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_IDLE, NULL, true);
     return;
   }
@@ -1011,7 +1024,7 @@ static void trace_task_switch(TraceEventType_t switch_event) {
   }
 
   TRACE_record(EVENT_BASIC(switch_event), TRACE_TASK_EITHER, current_task_tmb, true);
-#endif
+#endif // TRACE_WITH_LOGIC_ANALYZER
 }
 
 /// @brief Tick hook called whenever a task is switched out by the scheduler.
@@ -1024,11 +1037,18 @@ void task_switched_in(void) { trace_task_switch(TRACE_SWITCH_IN); }
 static void update_gpio_pin( //
   const TaskHandle_t idle_task_handle,
   const TaskHandle_t current_task_handle,
-  const bool         gpio_state
+  const bool         gpio_state,
+  const uint8_t      core
 ) {
   // Toggle the pin for the idle task
   if (current_task_handle == idle_task_handle) {
-    gpio_put(mainGPIO_IDLE_TASK, 1);
+    if (core == 0) {
+      gpio_put(mainGPIO_IDLE_TASK_0, gpio_state);
+    } else if (core == 1) {
+      gpio_put(mainGPIO_IDLE_TASK_1, gpio_state);
+    } else {
+      // Invalid core, do nothing
+    }
     return;
   }
 
@@ -1038,18 +1058,8 @@ static void update_gpio_pin( //
     return;
   }
 
-  const TMBViewSet_t *task_view_set =
-    (current_task_tmb->type == TASK_PERIODIC) ? &periodic_task_view_set : &aperiodic_task_view_set;
-  int gpio_base =
-    (current_task_tmb->type == TASK_PERIODIC) ? mainGPIO_PERIODIC_TASK_BASE : mainGPIO_APERIODIC_TASK_BASE;
-
-  for (size_t i = 0; i < task_view_set->count; i++) {
-    const TMB_t *task = task_view_set->view[i];
-    if (task != NULL && current_task_handle == task->handle) {
-      gpio_put(gpio_base + i, gpio_state);
-      break;
-    }
-  }
+  const int gpio_base = mainGPIO_UID_TASK_BASE;
+  gpio_put(gpio_base + current_task_tmb->trace_uid, gpio_state);
 }
 #endif
 

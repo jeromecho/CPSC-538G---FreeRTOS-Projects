@@ -201,12 +201,10 @@ void main_blinky(void) {
 
 void initialize_gpio_pins(void) {
   gpio_put(PICO_DEFAULT_LED_PIN, 0);
-  gpio_put(mainGPIO_IDLE_TASK, 0);
+  gpio_put(mainGPIO_IDLE_TASK_0, 0);
+  gpio_put(mainGPIO_IDLE_TASK_1, 0);
 
-  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i < mainGPIO_PERIODIC_TASK_END; i++) {
-    gpio_put(i, 0);
-  }
-  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i < mainGPIO_APERIODIC_TASK_END; i++) {
+  for (size_t i = mainGPIO_UID_TASK_BASE; i < mainGPIO_UID_TASK_END; i++) {
     gpio_put(i, 0);
   }
 }
