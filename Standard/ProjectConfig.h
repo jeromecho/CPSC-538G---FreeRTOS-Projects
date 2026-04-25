@@ -8,11 +8,11 @@
 #define TEST_SUITE_GLOBAL_MP      5
 #define TEST_SUITE_FP             6
 
-#define TEST_SUITE 4
-#define TEST_NR    17
+#define TEST_SUITE 1
+#define TEST_NR    1
 
 #define MAX_TRACE_RECORDS         1000
-#define TRACE_WITH_LOGIC_ANALYZER 0
+#define TRACE_WITH_LOGIC_ANALYZER 1
 
 #if TEST_SUITE == TEST_SUITE_EDF
 #define USE_EDF 1

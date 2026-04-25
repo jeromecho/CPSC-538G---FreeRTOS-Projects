@@ -412,6 +412,88 @@ def _add_event_markers(
             fig.add_trace(trace, row=row, col=col)
 
 
+def _deadline_display_x(df_deadline, use_time_axis):
+    if use_time_axis:
+        # One system tick is 1000 us in the traced setup; anchor to the first observed tick.
+        tick_origin = int(df_deadline["TIMESTAMP"].min())
+        return (df_deadline["DEADLINE"].astype(float) - float(tick_origin)) * float(SYNTHETIC_TICK_BOUNDARY_US)
+    return df_deadline["DEADLINE"].astype(float)
+
+
+def _add_deadline_markers(
+    fig,
+    df,
+    y_map_func,
+    use_time_axis,
+    row=None,
+    col=None,
+    showlegend=True,
+    visible=True,
+):
+    deadline_rows = df[(df["EVENT"] == TraceEvent.TRACE_RELEASE) & (df["DEADLINE"] != UINT32_MAX)].copy()
+    if deadline_rows.empty:
+        return
+
+    deadline_rows["DEADLINE_X"] = _deadline_display_x(deadline_rows, use_time_axis)
+    deadline_hover = deadline_rows.apply(
+        lambda r: "<br>".join(
+            [
+                "<b>Deadline</b>",
+                f"Task: {r['TASK_LABEL']}",
+                f"Core: {int(r['CORE'])}",
+                f"Tick: {int(r['TIMESTAMP'])}",
+                f"Deadline Tick: {int(r['DEADLINE'])}",
+            ]
+        ),
+        axis=1,
+    )
+
+    line_x = []
+    line_y = []
+    arrow_x = []
+    arrow_y = []
+    for _, row_data in deadline_rows.iterrows():
+        y_center = float(y_map_func(row_data))
+        y_top = y_center + 0.38
+        y_bottom = y_center - 0.38
+        x_value = float(row_data["DEADLINE_X"])
+
+        line_x.extend([x_value, x_value, None])
+        line_y.extend([y_top, y_bottom, None])
+        arrow_x.append(x_value)
+        arrow_y.append(y_bottom)
+
+    line_trace = go.Scatter(
+        x=line_x,
+        y=line_y,
+        mode="lines",
+        name="Deadline",
+        line=dict(color="#111111", width=1.4),
+        hoverinfo="skip",
+        showlegend=showlegend,
+        visible=visible,
+    )
+
+    arrow_trace = go.Scatter(
+        x=arrow_x,
+        y=arrow_y,
+        mode="markers",
+        name="Deadline",
+        marker=dict(symbol="triangle-down", size=8, color="#111111"),
+        hovertext=deadline_hover,
+        hoverinfo="text",
+        showlegend=False,
+        visible=visible,
+    )
+
+    if row is None or col is None:
+        fig.add_trace(line_trace)
+        fig.add_trace(arrow_trace)
+    else:
+        fig.add_trace(line_trace, row=row, col=col)
+        fig.add_trace(arrow_trace, row=row, col=col)
+
+
 def _add_execution_bars(
     fig,
     df_exec,
@@ -611,6 +693,16 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
                 x_column=x_column,
                 visible=visible,
             )
+            _add_deadline_markers(
+                fig,
+                df_plot_core,
+                y_map_func=lambda r: core_to_y[int(r["CORE"])],
+                use_time_axis=mode_time_axis,
+                row=1,
+                col=1,
+                showlegend=False,
+                visible=visible,
+            )
 
             _add_execution_bars(
                 fig,
@@ -632,6 +724,16 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
                 col=1,
                 showlegend=True,
                 x_column=x_column,
+                visible=visible,
+            )
+            _add_deadline_markers(
+                fig,
+                df_plot,
+                y_map_func=lambda r: task_to_y[r["TASK_LABEL"]],
+                use_time_axis=mode_time_axis,
+                row=2,
+                col=1,
+                showlegend=True,
                 visible=visible,
             )
             return list(range(start_index, len(fig.data)))
@@ -704,6 +806,14 @@ def build_trace_figure(df, df_exec, title, view, use_time_axis, synthetic_tick_b
             y_map_func=lambda r: core_to_y[int(r["CORE"])],
             marker_offsets=marker_offsets,
             x_column=x_column,
+            visible=visible,
+        )
+        _add_deadline_markers(
+            fig,
+            df_plot_core,
+            y_map_func=lambda r: core_to_y[int(r["CORE"])],
+            use_time_axis=mode_time_axis,
+            showlegend=True,
             visible=visible,
         )
         return list(range(start_index, len(fig.data)))
