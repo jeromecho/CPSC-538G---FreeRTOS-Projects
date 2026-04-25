@@ -1,0 +1,21 @@
+[Time:0]	CBS1_a0 arrived at 0
+[Time:0]	P1 arrived at 0
+[Time:0]	P1 scheduled its arrival was 0
+[Time:1]	CBS1_a1 arrived at 1
+[Time:2]	CBS1_a2 arrived at 2
+[Time:3]	CBS1_a3 arrived at 3
+[Time:4]	P1 ended, its arrival was 0
+[Time:4]	CBS1_a4 arrived at 4
+[Time:4]	CBS1_a0 scheduled its arrival was 0
+[Time:7]	P1 arrived at 7
+[Time:8]	CBS1_a0 ended, its arrival was 0
+[Time:8]	CBS1_a1 scheduled its arrival was 1
+[Time:12]	CBS1_a1 ended, its arrival was 1
+[Time:12]	P1 scheduled its arrival was 7
+[Time:14]	P1 arrived at 7
+[Time:14]	P1 missed its arrival was 7
+[Time:16]	P1 ended, its arrival was 7
+[Time:16]	CBS1_a2 scheduled its arrival was 2
+[Time:20]	CBS1_a2 ended, its arrival was 2
+[Time:20]	CBS1_a3 scheduled its arrival was 3
+[Time:21]	P1 arrived at 14

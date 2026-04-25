@@ -1,0 +1,73 @@
+[Time:0]	CBS1_a3_1 arrived at 0
+[Time:0]	CBS1_a4_1 arrived at 0
+[Time:0]	CBS1_a3_2 arrived at 0
+[Time:0]	CBS1_a4_2 arrived at 0
+[Time:0]	P1 arrived at 0
+[Time:0]	P2 arrived at 0
+[Time:0]	P1 scheduled its arrival was 0
+[Time:2]	P1 ended, its arrival was 0
+[Time:2]	P2 scheduled its arrival was 0
+[Time:4]	P1 arrived at 4
+[Time:5]	P2 ended, its arrival was 0
+[Time:5]	P1 scheduled its arrival was 4
+[Time:7]	P1 ended, its arrival was 4
+[Time:7]	CBS1_a3_1 scheduled its arrival was 0
+[Time:8]	P2 arrived at 8
+[Time:8]	P1 arrived at 8
+[Time:8]	CBS1_a3_1 descheduled its arrival was 0
+[Time:8]	P1 scheduled its arrival was 8
+[Time:10]	P1 ended, its arrival was 8
+[Time:10]	P2 scheduled its arrival was 8
+[Time:12]	P1 arrived at 12
+[Time:13]	P2 ended, its arrival was 8
+[Time:13]	P1 scheduled its arrival was 12
+[Time:15]	P1 ended, its arrival was 12
+[Time:15]	CBS1_a3_1 scheduled its arrival was 0
+[Time:16]	P2 arrived at 16
+[Time:16]	P1 arrived at 16
+[Time:16]	CBS1_a3_1 descheduled its arrival was 0
+[Time:16]	P1 scheduled its arrival was 16
+[Time:18]	P1 ended, its arrival was 16
+[Time:18]	P2 scheduled its arrival was 16
+[Time:20]	P1 arrived at 20
+[Time:21]	P2 ended, its arrival was 16
+[Time:21]	P1 scheduled its arrival was 20
+[Time:23]	P1 ended, its arrival was 20
+[Time:23]	CBS1_a3_1 scheduled its arrival was 0
+[Time:24]	CBS1_a3_1 ended, its arrival was 0
+[Time:24]	P2 arrived at 24
+[Time:24]	P1 arrived at 24
+[Time:24]	P1 scheduled its arrival was 24
+[Time:26]	P1 ended, its arrival was 24
+[Time:26]	P2 scheduled its arrival was 24
+[Time:28]	P1 arrived at 28
+[Time:29]	P2 ended, its arrival was 24
+[Time:29]	P1 scheduled its arrival was 28
+[Time:31]	P1 ended, its arrival was 28
+[Time:31]	CBS1_a4_1 scheduled its arrival was 0
+[Time:32]	P2 arrived at 32
+[Time:32]	P1 arrived at 32
+[Time:32]	CBS1_a4_1 descheduled its arrival was 0
+[Time:32]	P1 scheduled its arrival was 32
+[Time:34]	P1 ended, its arrival was 32
+[Time:34]	P2 scheduled its arrival was 32
+[Time:36]	P1 arrived at 36
+[Time:37]	P2 ended, its arrival was 32
+[Time:37]	P1 scheduled its arrival was 36
+[Time:39]	P1 ended, its arrival was 36
+[Time:39]	CBS1_a4_1 scheduled its arrival was 0
+[Time:40]	P2 arrived at 40
+[Time:40]	P1 arrived at 40
+[Time:40]	CBS1_a4_1 descheduled its arrival was 0
+[Time:40]	P1 scheduled its arrival was 40
+[Time:42]	P1 ended, its arrival was 40
+[Time:42]	P2 scheduled its arrival was 40
+[Time:44]	P1 arrived at 44
+[Time:45]	P2 ended, its arrival was 40
+[Time:45]	P1 scheduled its arrival was 44
+[Time:47]	P1 ended, its arrival was 44
+[Time:47]	CBS1_a4_1 scheduled its arrival was 0
+[Time:48]	P2 arrived at 48
+[Time:48]	P1 arrived at 48
+[Time:48]	CBS1_a4_1 descheduled its arrival was 0
+[Time:48]	P1 scheduled its arrival was 48
