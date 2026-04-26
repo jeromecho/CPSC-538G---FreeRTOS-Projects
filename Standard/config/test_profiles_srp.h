@@ -1,0 +1,76 @@
+#ifndef TEST_PROFILES_SRP_H
+#define TEST_PROFILES_SRP_H
+
+#include "ProjectConfig.h"
+
+#if TEST_SUITE == TEST_SUITE_SRP
+
+#if TEST_NR == 1
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 3
+#define N_RESOURCES             1
+#define N_PREEMPTION_LEVELS     3
+#define ENABLE_STACK_SHARING    0
+#define TEST_DURATION_TICKS     300
+#elif TEST_NR == 2
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 4
+#define N_RESOURCES             3
+#define N_PREEMPTION_LEVELS     4
+#define ENABLE_STACK_SHARING    0
+#define TEST_DURATION_TICKS     1500
+#elif TEST_NR == 3
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 3
+#define N_RESOURCES             0
+#define N_PREEMPTION_LEVELS     2
+#define ENABLE_STACK_SHARING    0
+#define TEST_DURATION_TICKS     300
+#elif TEST_NR == 4
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 3
+#define N_RESOURCES             0
+#define N_PREEMPTION_LEVELS     2
+#define ENABLE_STACK_SHARING    1
+#define TEST_DURATION_TICKS     300
+#elif TEST_NR == 5
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 100
+#define N_RESOURCES             0
+#define N_PREEMPTION_LEVELS     5
+#define ENABLE_STACK_SHARING    0
+#define TEST_DURATION_TICKS     1000
+#elif TEST_NR == 6
+#define MAXIMUM_PERIODIC_TASKS  0
+#define MAXIMUM_APERIODIC_TASKS 100
+#define N_RESOURCES             0
+#define N_PREEMPTION_LEVELS     5
+#define ENABLE_STACK_SHARING    1
+#elif TEST_NR == 7
+#define MAXIMUM_PERIODIC_TASKS  3
+#define MAXIMUM_APERIODIC_TASKS 0
+#define N_RESOURCES             1
+#define N_PREEMPTION_LEVELS     3
+#define ENABLE_STACK_SHARING    1
+#define TEST_DURATION_TICKS     300
+#elif TEST_NR == 8
+#define MAXIMUM_PERIODIC_TASKS  3
+#define MAXIMUM_APERIODIC_TASKS 0
+#define N_RESOURCES             1
+#define N_PREEMPTION_LEVELS     3
+#define ENABLE_STACK_SHARING    1
+#define TEST_DURATION_TICKS     300
+#elif TEST_NR == 9
+#define MAXIMUM_PERIODIC_TASKS  3
+#define MAXIMUM_APERIODIC_TASKS 0
+#define N_RESOURCES             1
+#define N_PREEMPTION_LEVELS     3
+#define ENABLE_STACK_SHARING    1
+#define TEST_DURATION_TICKS     300
+#else
+#error "Invalid or undefined TEST_NR for SRP profile"
+#endif // TEST_NR
+
+#endif // TEST_SUITE == TEST_SUITE_SRP
+
+#endif // TEST_PROFILES_SRP_H

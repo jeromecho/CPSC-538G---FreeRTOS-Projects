@@ -1,0 +1,51 @@
+[Time:0]	CBS1_a1 arrived at 0
+[Time:0]	CBS1_a2 arrived at 0
+[Time:0]	CBS1_a3 arrived at 0
+[Time:0]	CBS1_a4 arrived at 0
+[Time:0]	CBS1_a5 arrived at 0
+[Time:0]	CBS1_a6 arrived at 0
+[Time:0]	P1 arrived at 0
+[Time:0]	CBS1_a1 scheduled its arrival was 0
+[Time:3]	CBS1_a1 descheduled its arrival was 0
+[Time:3]	P1 scheduled its arrival was 0
+[Time:7]	P1 ended, its arrival was 0
+[Time:7]	P1 arrived at 7
+[Time:7]	CBS1_a1 scheduled its arrival was 0
+[Time:8]	CBS1_a1 ended, its arrival was 0
+[Time:8]	CBS1_a2 scheduled its arrival was 0
+[Time:10]	CBS1_a2 descheduled its arrival was 0
+[Time:10]	P1 scheduled its arrival was 7
+[Time:14]	P1 ended, its arrival was 7
+[Time:14]	P1 arrived at 14
+[Time:14]	CBS1_a2 scheduled its arrival was 0
+[Time:15]	CBS1_a2 ended, its arrival was 0
+[Time:15]	CBS1_a3 scheduled its arrival was 0
+[Time:17]	CBS1_a3 descheduled its arrival was 0
+[Time:17]	P1 scheduled its arrival was 14
+[Time:21]	P1 ended, its arrival was 14
+[Time:21]	P1 arrived at 21
+[Time:21]	CBS1_a3 scheduled its arrival was 0
+[Time:23]	CBS1_a3 ended, its arrival was 0
+[Time:23]	CBS1_a4 scheduled its arrival was 0
+[Time:24]	CBS1_a4 descheduled its arrival was 0
+[Time:24]	P1 scheduled its arrival was 21
+[Time:28]	P1 ended, its arrival was 21
+[Time:28]	P1 arrived at 28
+[Time:28]	CBS1_a4 scheduled its arrival was 0
+[Time:30]	CBS1_a4 ended, its arrival was 0
+[Time:30]	CBS1_a5 scheduled its arrival was 0
+[Time:31]	CBS1_a5 descheduled its arrival was 0
+[Time:31]	P1 scheduled its arrival was 28
+[Time:35]	P1 ended, its arrival was 28
+[Time:35]	P1 arrived at 35
+[Time:35]	CBS1_a5 scheduled its arrival was 0
+[Time:38]	CBS1_a5 ended, its arrival was 0
+[Time:38]	P1 scheduled its arrival was 35
+[Time:42]	P1 ended, its arrival was 35
+[Time:42]	P1 arrived at 42
+[Time:42]	CBS1_a6 scheduled its arrival was 0
+[Time:45]	CBS1_a6 ended, its arrival was 0
+[Time:45]	P1 scheduled its arrival was 42
+[Time:49]	P1 ended, its arrival was 42
+[Time:49]	P1 arrived at 49
+[Time:49]	P1 scheduled its arrival was 49

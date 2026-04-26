@@ -1,0 +1,45 @@
+[Time:0]	CBS1_a3_1 arrived at 0
+[Time:0]	CBS2_a3_1 arrived at 0
+[Time:0]	CBS3_a3_1 arrived at 0
+[Time:0]	CBS1_a3_1 scheduled its arrival was 0
+[Time:1]	CBS1_a3_1 descheduled its arrival was 0
+[Time:1]	CBS2_a3_1 scheduled its arrival was 0
+[Time:3]	CBS2_a3_1 descheduled its arrival was 0
+[Time:3]	CBS3_a3_1 scheduled its arrival was 0
+[Time:6]	CBS3_a3_1 ended, its arrival was 0
+[Time:6]	CBS1_a3_1 scheduled its arrival was 0
+[Time:7]	CBS1_a3_1 descheduled its arrival was 0
+[Time:7]	CBS2_a3_1 scheduled its arrival was 0
+[Time:8]	CBS2_a3_1 ended, its arrival was 0
+[Time:8]	CBS1_a3_1 scheduled its arrival was 0
+[Time:9]	CBS1_a3_1 ended, its arrival was 0
+[Time:20]	CBS1_a4_1 arrived at 20
+[Time:20]	CBS2_a4_1 arrived at 20
+[Time:20]	CBS3_a4_1 arrived at 20
+[Time:20]	CBS2_a4_1 scheduled its arrival was 20
+[Time:22]	CBS2_a4_1 descheduled its arrival was 20
+[Time:22]	CBS3_a4_1 scheduled its arrival was 20
+[Time:25]	CBS3_a4_1 descheduled its arrival was 20
+[Time:25]	CBS1_a4_1 scheduled its arrival was 20
+[Time:26]	CBS1_a4_1 descheduled its arrival was 20
+[Time:26]	CBS2_a4_1 scheduled its arrival was 20
+[Time:28]	CBS2_a4_1 ended, its arrival was 20
+[Time:28]	CBS3_a4_1 scheduled its arrival was 20
+[Time:29]	CBS3_a4_1 ended, its arrival was 20
+[Time:29]	CBS1_a4_1 scheduled its arrival was 20
+[Time:30]	CBS1_a4_1 descheduled its arrival was 20
+[Time:30]	CBS1_a4_1 scheduled its arrival was 20
+[Time:31]	CBS1_a4_1 descheduled its arrival was 20
+[Time:31]	CBS1_a4_1 scheduled its arrival was 20
+[Time:32]	CBS1_a4_1 ended, its arrival was 20
+[Time:40]	CBS1_a2_1 arrived at 40
+[Time:40]	CBS1_a2_1 scheduled its arrival was 40
+[Time:41]	CBS1_a2_1 descheduled its arrival was 40
+[Time:41]	CBS1_a2_1 scheduled its arrival was 40
+[Time:42]	CBS1_a2_1 ended, its arrival was 40
+[Time:50]	CBS2_a2_1 arrived at 50
+[Time:50]	CBS2_a2_1 scheduled its arrival was 50
+[Time:52]	CBS2_a2_1 ended, its arrival was 50
+[Time:60]	CBS3_a2_1 arrived at 60
+[Time:60]	CBS3_a2_1 scheduled its arrival was 60
+[Time:62]	CBS3_a2_1 ended, its arrival was 60

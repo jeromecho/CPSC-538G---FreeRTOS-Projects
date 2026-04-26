@@ -27,6 +27,8 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#include "ProjectConfig.h"
+
 /*-----------------------------------------------------------
  * Application specific definitions.
  *
@@ -46,7 +48,8 @@
 #define configUSE_TICK_HOOK                     1
 #define configTICK_RATE_HZ                      ( ( TickType_t ) 1000 )
 #define configMAX_PRIORITIES                    32
-#define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
+// #define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 256
+#define configMINIMAL_STACK_SIZE                ( configSTACK_DEPTH_TYPE ) 128
 #define configUSE_16_BIT_TICKS                  0
 
 #define configIDLE_SHOULD_YIELD                 1
@@ -58,7 +61,7 @@
 #define configUSE_COUNTING_SEMAPHORES           1
 #define configQUEUE_REGISTRY_SIZE               8
 #define configUSE_QUEUE_SETS                    1
-#define configUSE_TIME_SLICING                  1
+#define configUSE_TIME_SLICING                  0
 #define configUSE_NEWLIB_REENTRANT              0
 #define configENABLE_BACKWARD_COMPATIBILITY     0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 5
@@ -68,14 +71,14 @@
 #define configMESSAGE_BUFFER_LENGTH_TYPE        size_t
 
 /* Memory allocation related definitions. */
-#define configSUPPORT_STATIC_ALLOCATION         0
+#define configSUPPORT_STATIC_ALLOCATION         1
 #define configSUPPORT_DYNAMIC_ALLOCATION        1
-#define configTOTAL_HEAP_SIZE                   (128*1024)
+#define configTOTAL_HEAP_SIZE                   (8 * 1024)
 #define configAPPLICATION_ALLOCATED_HEAP        0
 
 /* Hook function related definitions. */
-#define configCHECK_FOR_STACK_OVERFLOW          2
-#define configUSE_MALLOC_FAILED_HOOK            1
+#define configCHECK_FOR_STACK_OVERFLOW          0
+#define configUSE_MALLOC_FAILED_HOOK            0
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 
 /* Run time and task stats gathering related definitions. */
@@ -89,7 +92,8 @@
 
 /* Software timer related definitions. */
 #define configUSE_TIMERS                        1
-#define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
+// #define configTIMER_TASK_PRIORITY               ( configMAX_PRIORITIES - 1 )
+#define configTIMER_TASK_PRIORITY               (1)
 #define configTIMER_QUEUE_LENGTH                10
 #define configTIMER_TASK_STACK_DEPTH            1024
 
@@ -101,9 +105,17 @@
 */
 
 /* SMP port only */
-#define configNUMBER_OF_CORES                   1
+#define portSUPPORT_SMP                         1
 #define configTICK_CORE                         0
 #define configRUN_MULTIPLE_PRIORITIES           0
+#define configUSE_PASSIVE_IDLE_HOOK             0
+#if USE_MP
+#define configNUMBER_OF_CORES                   2
+#define configUSE_CORE_AFFINITY                 1
+#else 
+#define configNUMBER_OF_CORES                   1
+#define configUSE_CORE_AFFINITY                 0
+#endif // USE_MP
 
 /* RP2040 specific */
 #define configSUPPORT_PICO_SYNC_INTEROP         1
@@ -133,6 +145,16 @@ to exclude the API function. */
 #define INCLUDE_xQueueGetMutexHolder            1
 
 /* A header file that defines trace macro can be included here. */
+
+
+// CUSTOM PART
+extern void task_switched_in();
+extern void task_switched_out();
+extern void starting_scheduler(void *xIdleTaskHandles);
+
+#define traceTASK_SWITCHED_IN()  task_switched_in()
+#define traceTASK_SWITCHED_OUT() task_switched_out()
+#define traceSTARTING_SCHEDULER(xIdleTaskHandles) starting_scheduler(xIdleTaskHandles)
 
 #endif /* FREERTOS_CONFIG_H */
 

@@ -61,30 +61,48 @@
  * the LED every 200 milliseconds.
  */
 
+#include "main_blinky.h"
+
+#include "ProjectConfig.h"
+
 /* Kernel includes. */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
+#include "FreeRTOS.h" // IWYU pragma: keep
 
 /* Library includes. */
-#include <stdio.h>
 #include "hardware/gpio.h"
+#include <stdio.h>
 
-/* Priorities at which the tasks are created. */
-#define mainQUEUE_RECEIVE_TASK_PRIORITY		( tskIDLE_PRIORITY + 2 )
-#define	mainQUEUE_SEND_TASK_PRIORITY		( tskIDLE_PRIORITY + 1 )
+#if USE_EDF
 
-/* The rate at which data is sent to the queue.  The 200ms value is converted
-to ticks using the portTICK_PERIOD_MS constant. */
-#define mainQUEUE_SEND_FREQUENCY_MS			( 200 / portTICK_PERIOD_MS )
+// Custom scheduler includes
+#include "edf_scheduler.h"
+#include "helpers.h"
+#include "tracer.h"
 
-/* The number of items the queue can hold.  This is 1 as the receive task
-will remove items as they are added, meaning the send task should always find
-the queue empty. */
-#define mainQUEUE_LENGTH					( 1 )
+#include "config/TestConfig.h" // IWYU pragma: keep
+#if TEST_SUITE == TEST_SUITE_EDF
+#include "testing/edf_tests.h" // IWYU pragma: keep
 
-/* The LED toggled by the Rx task. */
-#define mainTASK_LED						( PICO_DEFAULT_LED_PIN )
+#elif TEST_SUITE == TEST_SUITE_SRP
+#include "testing/srp_tests.h" // IWYU pragma: keep
+
+#elif TEST_SUITE == TEST_SUITE_CBS
+#include "testing/cbs_tests.h" // IWYU pragma: keep
+
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+#include "testing/partitioned_mp_tests.h" // IWYU pragma: keep
+
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+#include "testing/global_mp_tests.h" // IWYU pragma: keep
+#endif
+#endif                               // USE_EDF
+
+// Other includes
+#include "pico/stdlib.h" // IWYU pragma: keep
+
+#if !USE_EDF
+#include "fixed_priority_support.h"
+#endif
 
 /*-----------------------------------------------------------*/
 
@@ -92,103 +110,242 @@ the queue empty. */
  * Called by main when mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is set to 1 in
  * main.c.
  */
-void main_blinky( void );
+void main_blinky(void);
 
 /*
- * The tasks as described in the comments at the top of this file.
+ * Helpers
  */
-static void prvQueueReceiveTask( void *pvParameters );
-static void prvQueueSendTask( void *pvParameters );
+void initialize_gpio_pins(void);
+void run_test();
 
 /*-----------------------------------------------------------*/
 
-/* The queue used by both tasks. */
-static QueueHandle_t xQueue = NULL;
+TaskHandle_t monitor_task_handle = NULL;
 
-/*-----------------------------------------------------------*/
+#if USE_EDF
 
-void main_blinky( void )
-{
-    printf(" Starting main_blinky.\n");
+void vTraceMonitorTask(void *pvParameters) {
+  // Either sleeps for the specified duration, or is forced to wake by task notification due to something like a
+  // deadline miss
+  (void)pvParameters;
+  ulTaskNotifyTake(pdTRUE, TEST_DURATION_TICKS);
 
-    /* Create the queue. */
-	xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
+#if TEST_SUITE == TEST_SUITE_EDF
+  printf("Results for EDF Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_SRP
+  printf("Results for SRP Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_CBS
+  printf("Results for CBS Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+  printf("Results for SMP (Partitioned) Test %d\n", TEST_NR);
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+  printf("Results for SMP (Global) Test %d\n", TEST_NR);
+#endif
 
-	if( xQueue != NULL )
-	{
-		/* Start the two tasks as described in the comments at the top of this
-		file. */
-		xTaskCreate( prvQueueReceiveTask,				/* The function that implements the task. */
-					"Rx", 								/* The text name assigned to the task - for debug only as it is not used by the kernel. */
-					configMINIMAL_STACK_SIZE, 			/* The size of the stack to allocate to the task. */
-					NULL, 								/* The parameter passed to the task - not used in this case. */
-					mainQUEUE_RECEIVE_TASK_PRIORITY, 	/* The priority assigned to the task. */
-					NULL );								/* The task handle is not required, so NULL is passed. */
-
-		xTaskCreate( prvQueueSendTask, "TX", configMINIMAL_STACK_SIZE, NULL, mainQUEUE_SEND_TASK_PRIORITY, NULL );
-
-		/* Start the tasks and timer running. */
-		vTaskStartScheduler();
-	}
-
-	/* If all is well, the scheduler will now be running, and the following
-	line will never be reached.  If the following line does execute, then
-	there was insufficient FreeRTOS heap memory available for the Idle and/or
-	timer tasks to be created.  See the memory management section on the
-	FreeRTOS web site for more details on the FreeRTOS heap
-	http://www.freertos.org/a00111.html. */
-	for( ;; );
+  crash_with_trace("");
 }
-/*-----------------------------------------------------------*/
 
-static void prvQueueSendTask( void *pvParameters )
-{
-TickType_t xNextWakeTime;
-const unsigned long ulValueToSend = 100UL;
+void main_blinky(void) {
+// Block execution until the host opens the USB serial port
+#if !TRACE_WITH_LOGIC_ANALYZER
+  while (!stdio_usb_connected()) {
+    sleep_ms(100);
+  }
+#endif
 
-	/* Remove compiler warning about unused parameter. */
-	( void ) pvParameters;
+  printf("Starting main_blinky.\n");
+  initialize_gpio_pins();
 
-	/* Initialise xNextWakeTime - this only needs to be done once. */
-	xNextWakeTime = xTaskGetTickCount();
+#if !TRACE_WITH_LOGIC_ANALYZER
+  // This creates the monitor task, which is responsible for printing all trace data after a certain amount of time has
+  // passed. It doesn't interfere with the scheduling.
+  const BaseType_t monitor_created = xTaskCreate(
+    vTraceMonitorTask,
+    "Monitor",
+    configMINIMAL_STACK_SIZE + 256, // Give it enough stack for printf
+    (void *)TEST_DURATION_TICKS,
+    configMAX_PRIORITIES - 1,
+    &monitor_task_handle
+  );
 
-	for( ;; )
-	{
-		/* Place this task in the blocked state until it is time to run again. */
-		vTaskDelayUntil( &xNextWakeTime, mainQUEUE_SEND_FREQUENCY_MS );
+  if (monitor_created != pdPASS) {
+    vTaskSuspendAll();
+    crash_without_trace("Failed to create monitor task; trace output will be unavailable.");
+  }
 
-		/* Send to the queue - causing the queue receive task to unblock and
-		toggle the LED.  0 is used as the block time so the sending operation
-		will not block - it shouldn't need to block as the queue should always
-		be empty at this point in the code. */
-		xQueueSend( xQueue, &ulValueToSend, 0U );
-	}
+#if USE_MP
+  vTaskCoreAffinitySet(monitor_task_handle, (1 << 0));
+#endif
+
+#if (configUSE_CORE_AFFINITY == 1)
+  const UBaseType_t core_affinity_mask = ((UBaseType_t)1U) << configTICK_CORE;
+  vTaskCoreAffinitySet(monitor_task_handle, core_affinity_mask);
+#endif // configUSE_CORE_AFFINITY
+#endif // TRACE_WITH_LOGIC_ANALYZER
+
+  run_test();
+
+  /* Start the tasks and timer running. */
+  printf("Starting scheduler.\n");
+  vTaskStartScheduler();
+
+  /* If all is well, the scheduler will now be running, and the following
+  line will never be reached.  If the following line does execute, then
+  there was insufficient FreeRTOS heap memory available for the Idle and/or
+  timer tasks to be created.  See the memory management section on the
+  FreeRTOS web site for more details on the FreeRTOS heap
+  http://www.freertos.org/a00111.html. */
+  for (;;)
+    ;
 }
-/*-----------------------------------------------------------*/
 
-static void prvQueueReceiveTask( void *pvParameters )
-{
-unsigned long ulReceivedValue;
-const unsigned long ulExpectedValue = 100UL;
+void initialize_gpio_pins(void) {
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  gpio_put(mainGPIO_IDLE_TASK_0, 0);
+  gpio_put(mainGPIO_IDLE_TASK_1, 0);
 
-	/* Remove compiler warning about unused parameter. */
-	( void ) pvParameters;
-
-	for( ;; )
-	{
-		/* Wait until something arrives in the queue - this task will block
-		indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
-		FreeRTOSConfig.h. */
-		xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-
-		/*  To get here something must have been received from the queue, but
-		is it the expected value?  If it is, toggle the LED. */
-		if( ulReceivedValue == ulExpectedValue )
-		{
-			gpio_xor_mask( 1u << mainTASK_LED );
-			ulReceivedValue = 0U;
-		}
-	}
+  for (size_t i = mainGPIO_UID_TASK_BASE; i < mainGPIO_UID_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
 }
-/*-----------------------------------------------------------*/
 
+#define PASTE(x, y)        x##y
+#define PASTE_EXPAND(x, y) PASTE(x, y)
+/// @brief Uses the PASTE_EXPAND macro to dynamically dispatch the correct test based on the current TEST_NR
+void run_test() {
+#if TEST_SUITE == TEST_SUITE_EDF
+  printf("Running EDF Test %d\n", TEST_NR);
+  PASTE_EXPAND(edf_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_SRP
+  printf("Running SRP Test %d\n", TEST_NR);
+  PASTE_EXPAND(srp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_CBS
+  printf("Running CBS Test %d\n", TEST_NR);
+  PASTE_EXPAND(cbs_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_PARTITIONED_MP
+  printf("Running SMP (Partitioned) Test %d\n", TEST_NR);
+  PASTE_EXPAND(partitioned_mp_test_, TEST_NR)();
+#elif TEST_SUITE == TEST_SUITE_GLOBAL_MP
+  printf("Running SMP (Global) Test %d\n", TEST_NR);
+  PASTE_EXPAND(global_mp_test_, TEST_NR)();
+#else
+#error "invalid test suite"
+#endif
+}
+#else
+
+#define FP_TEST_DURATION_TICKS 14
+
+typedef struct {
+  uint8_t    task_id;
+  uint8_t    gpio_pin;
+  TickType_t period_ticks;
+} FPTaskParams_t;
+
+static FPTaskParams_t fp_high_params = {0, mainGPIO_PERIODIC_TASK_BASE, 5};
+static FPTaskParams_t fp_low_params  = {1, (mainGPIO_PERIODIC_TASK_BASE + 1), 5};
+
+static void vFPTraceMonitorTask(void *pvParameters) {
+  (void)pvParameters;
+
+  vTaskDelay(FP_TEST_DURATION_TICKS);
+  vTaskSuspendAll();
+
+  printf("Results for FP Test %d\n", TEST_NR);
+  FP_trace_print_buffer();
+
+  for (;;) {
+    __asm volatile("wfi");
+  }
+}
+
+static void prvFixedPriorityTask(void *pvParameters) {
+  const FPTaskParams_t *const task_params = (const FPTaskParams_t *)pvParameters;
+  const uint32_t              gpio_pin    = task_params->gpio_pin;
+  TickType_t                  last_wake   = xTaskGetTickCount();
+
+  for (;;) {
+    vTaskDelayUntil(&last_wake, task_params->period_ticks);
+
+    gpio_put(gpio_pin, 1);
+    const TickType_t start_tick = xTaskGetTickCount();
+    while (xTaskGetTickCount() == start_tick) {
+      ;
+    }
+    gpio_put(gpio_pin, 0);
+  }
+}
+
+void main_blinky(void) {
+// Block execution until the host opens the USB serial port
+#if !TRACE_WITH_LOGIC_ANALYZER
+  while (!stdio_usb_connected()) {
+    sleep_ms(100);
+  }
+#endif
+
+  printf("Starting main_blinky in fixed-priority mode.\n");
+  printf("Running FP Test %d\n", TEST_NR);
+  initialize_gpio_pins();
+
+  FP_trace_reset();
+
+  TaskHandle_t fp_high_handle = NULL;
+  TaskHandle_t fp_low_handle  = NULL;
+
+  const BaseType_t high_task_created = xTaskCreate( //
+    prvFixedPriorityTask,
+    "FP High",
+    configMINIMAL_STACK_SIZE + 128,
+    (void *)&fp_high_params,
+    tskIDLE_PRIORITY + 2,
+    &fp_high_handle
+  );
+
+  const BaseType_t low_task_created = xTaskCreate( //
+    prvFixedPriorityTask,
+    "FP Low",
+    configMINIMAL_STACK_SIZE + 128,
+    (void *)&fp_low_params,
+    tskIDLE_PRIORITY + 1,
+    &fp_low_handle
+  );
+
+  TaskHandle_t     monitor_handle  = NULL;
+  const BaseType_t monitor_created = xTaskCreate( //
+    vFPTraceMonitorTask,
+    "FP Monitor",
+    configMINIMAL_STACK_SIZE + 256,
+    NULL,
+    configMAX_PRIORITIES - 1,
+    &monitor_handle
+  );
+
+  if (high_task_created != pdPASS || low_task_created != pdPASS || monitor_created != pdPASS) {
+    printf("Failed to create fixed-priority demo tasks.\n");
+    for (;;)
+      ;
+  }
+
+  FP_trace_register_tasks(fp_high_handle, fp_low_handle);
+
+  printf("Starting scheduler.\n");
+  vTaskStartScheduler();
+
+  for (;;)
+    ;
+}
+
+void initialize_gpio_pins(void) {
+  gpio_put(PICO_DEFAULT_LED_PIN, 0);
+  gpio_put(mainGPIO_IDLE_TASK, 0);
+
+  for (size_t i = mainGPIO_PERIODIC_TASK_BASE; i < mainGPIO_PERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+  for (size_t i = mainGPIO_APERIODIC_TASK_BASE; i < mainGPIO_APERIODIC_TASK_END; i++) {
+    gpio_put(i, 0);
+  }
+}
+
+#endif
