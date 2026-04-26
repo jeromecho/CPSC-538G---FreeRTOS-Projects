@@ -99,6 +99,10 @@ TESTS_TO_RUN: list[str] = [  #
     # "GSMP9",
     # "GSMP10",
     # "GSMP11",
+    # "GSMP12",
+    # "GSMP13",
+    # "GSMP14",
+    # "GSMP15",
 ]
 
 TRACE_RUN_BANNERS = (

@@ -238,6 +238,20 @@ void edf_test_11() {
     MAXIMUM_PERIODIC_TASKS
   );
 }
+
+#elif TEST_NR == 12
+// Test context switch costs
+void edf_test_12() {
+  const PeriodicTaskParams_t test_config[MAXIMUM_PERIODIC_TASKS] = {
+    {EDF_periodic_task, 1, 2, 2},
+    {EDF_periodic_task, 1, 2, 2},
+  };
+  build_periodic_test( //
+    "EDF Test 12",
+    test_config,
+    MAXIMUM_PERIODIC_TASKS
+  );
+}
 #endif
 
 #endif // TEST_SUITE == TEST_SUITE_EDF

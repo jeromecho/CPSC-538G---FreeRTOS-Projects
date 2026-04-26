@@ -45,6 +45,11 @@
 #define MAXIMUM_APERIODIC_TASKS   0
 #define PERFORM_ADMISSION_CONTROL 0
 #define TEST_DURATION_TICKS       250
+#elif TEST_NR == 12
+#define MAXIMUM_PERIODIC_TASKS    2
+#define MAXIMUM_APERIODIC_TASKS   0
+#define PERFORM_ADMISSION_CONTROL 0
+#define TEST_DURATION_TICKS       20
 #else
 #error "Invalid or undefined TEST_NR for EDF profile"
 #endif
