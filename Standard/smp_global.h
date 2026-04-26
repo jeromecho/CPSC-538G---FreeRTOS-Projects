@@ -17,12 +17,6 @@ BaseType_t SMP_create_periodic_task(
   TMB_t **const     TMB_handle
 );
 
-
-/**
- * @brief produce highest priority tasks among highest priority tasks that isn't currently running
- */
-TMB_t *SMP_produce_highest_priority_task_not_running(TMB_t **highest_priority_tasks);
-
 /**
  * @brief produce configNUMBER_OF_CORES highest priority tasks currently present inside
  *        the scheduler
